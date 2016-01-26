@@ -9,3 +9,6 @@ bin/Debug
 /bin/*.nupkg
 /src/.vs
 /bin/Aardvark.Fake.dll
+/src/*.opensdf
+/src/*.sdf
+/src/CeresCpp/CeresCpp.vcxproj.user

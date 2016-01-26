@@ -15,7 +15,7 @@ open Aardvark.Fake
 
 do Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
 
-DefaultTargets.install ["src/__SOLUTION_NAME__.sln"]
+DefaultTargets.install ["src/Ceres.sln"]
 
 // start build
 RunTargetOrDefault "Default"
