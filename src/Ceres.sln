@@ -11,6 +11,9 @@ Global
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		Deploy|Any CPU = Deploy|Any CPU
+		Deploy|x64 = Deploy|x64
+		Deploy|x86 = Deploy|x86
 		Release|Any CPU = Release|Any CPU
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
@@ -22,6 +25,12 @@ Global
 		{F00C3690-B2C8-429E-8B90-2B319530D754}.Debug|x64.Build.0 = Debug|Any CPU
 		{F00C3690-B2C8-429E-8B90-2B319530D754}.Debug|x86.ActiveCfg = Debug|Any CPU
 		{F00C3690-B2C8-429E-8B90-2B319530D754}.Debug|x86.Build.0 = Debug|Any CPU
+		{F00C3690-B2C8-429E-8B90-2B319530D754}.Deploy|Any CPU.ActiveCfg = Release|Any CPU
+		{F00C3690-B2C8-429E-8B90-2B319530D754}.Deploy|Any CPU.Build.0 = Release|Any CPU
+		{F00C3690-B2C8-429E-8B90-2B319530D754}.Deploy|x64.ActiveCfg = Release|Any CPU
+		{F00C3690-B2C8-429E-8B90-2B319530D754}.Deploy|x64.Build.0 = Release|Any CPU
+		{F00C3690-B2C8-429E-8B90-2B319530D754}.Deploy|x86.ActiveCfg = Release|Any CPU
+		{F00C3690-B2C8-429E-8B90-2B319530D754}.Deploy|x86.Build.0 = Release|Any CPU
 		{F00C3690-B2C8-429E-8B90-2B319530D754}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F00C3690-B2C8-429E-8B90-2B319530D754}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F00C3690-B2C8-429E-8B90-2B319530D754}.Release|x64.ActiveCfg = Release|Any CPU
@@ -34,6 +43,12 @@ Global
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Debug|x64.Build.0 = Debug|x64
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Debug|x86.ActiveCfg = Debug|Win32
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Debug|x86.Build.0 = Debug|Win32
+		{2D2072F1-133E-491B-B415-5285A4E74109}.Deploy|Any CPU.ActiveCfg = Deploy|x64
+		{2D2072F1-133E-491B-B415-5285A4E74109}.Deploy|Any CPU.Build.0 = Deploy|x64
+		{2D2072F1-133E-491B-B415-5285A4E74109}.Deploy|x64.ActiveCfg = Release|x64
+		{2D2072F1-133E-491B-B415-5285A4E74109}.Deploy|x64.Build.0 = Release|x64
+		{2D2072F1-133E-491B-B415-5285A4E74109}.Deploy|x86.ActiveCfg = Release|Win32
+		{2D2072F1-133E-491B-B415-5285A4E74109}.Deploy|x86.Build.0 = Release|Win32
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Release|Any CPU.ActiveCfg = Release|x64
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Release|Any CPU.Build.0 = Release|x64
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Release|x64.ActiveCfg = Release|x64
