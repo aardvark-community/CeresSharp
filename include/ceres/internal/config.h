@@ -1,6 +1,6 @@
 // Ceres Solver - A fast non-linear least squares minimizer
-// Copyright 2015 Google Inc. All rights reserved.
-// http://ceres-solver.org/
+// Copyright 2014 Google Inc. All rights reserved.
+// http://code.google.com/p/ceres-solver/
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -30,19 +30,64 @@
 
 // Default (empty) configuration options for Ceres.
 //
-// IMPORTANT: Most users of Ceres will not use this file, when
-//            compiling Ceres with CMake, CMake will configure a new
-//            config.h with the currently selected Ceres compile
-//            options in <BUILD_DIR>/config, which will be added to
-//            the include path for compilation, and installed with the
-//            public Ceres headers.  However, for some users of Ceres
-//            who compile without CMake (Android), this file ensures
-//            that Ceres will compile, with the user either specifying
-//            manually the Ceres compile options, or passing them
-//            directly through the compiler.
+// IMPORTANT: Most users of Ceres will not use this file, when compiling Ceres
+//            with CMake, CMake will configure a new config.h with the currently
+//            selected Ceres compile options and copy it into the source
+//            directory before compilation.  However, for some users of Ceres
+//            who compile without CMake, this file ensures that Ceres will
+//            compile, with the user either specifying manually the Ceres
+//            compile options, or passing them directly through the compiler.
 
 #ifndef CERES_PUBLIC_INTERNAL_CONFIG_H_
 #define CERES_PUBLIC_INTERNAL_CONFIG_H_
+
+// If defined, Ceres was compiled without LAPACK.
+#define CERES_NO_LAPACK
+
+// If defined, Ceres was compiled without SuiteSparse.
+#define CERES_NO_SUITESPARSE
+
+// If defined, Ceres was compiled without CXSparse.
+#define CERES_NO_CXSPARSE
+
+// Use Eigen sparse linear algebra backend by default.
+#define CERES_USE_EIGEN_SPARSE
+
+// If defined, Ceres was compiled without Schur specializations.
+// #define CERES_RESTRICT_SCHUR_SPECIALIZATION
+
+// If defined, Ceres was compiled to use Eigen instead of hardcoded BLAS
+// routines.
+// #define CERES_NO_CUSTOM_BLAS
+
+// If defined, Ceres was compiled without multithreading support.
+// #define CERES_NO_THREADS
+// If defined Ceres was compiled with OpenMP multithreading support.
+#define CERES_USE_OPENMP
+
+#ifndef _WIN32
+// Additionally defined on *nix if Ceres was compiled with OpenMP support,
+// as in this case pthreads is also required.
+#define CERES_HAVE_PTHREAD
+#define CERES_HAVE_RWLOCK
+#endif
+
+// Which version of unordered map was used when Ceres was compiled. Exactly
+// one of these will be defined for any given build.
+#define CERES_STD_UNORDERED_MAP
+// #define CERES_STD_UNORDERED_MAP_IN_TR1_NAMESPACE
+// #define CERES_TR1_UNORDERED_MAP
+// #define CERES_NO_UNORDERED_MAP
+
+// If defined Ceres was compiled for Android with noalias() removed from
+// matrix-matrix multiplies to work around a bug in the Android NDK.
+// #define CERES_WORK_AROUND_ANDROID_NDK_COMPILER_BUG
+
+// If defined, the memory header is in <tr1/memory>, otherwise <memory>.
+// #define CERES_TR1_MEMORY_HEADER
+
+// If defined shared_ptr is in std::tr1 namespace, otherwise std.
+// #define CERES_TR1_SHARED_PTR
 
 
 #endif  // CERES_PUBLIC_INTERNAL_CONFIG_H_
