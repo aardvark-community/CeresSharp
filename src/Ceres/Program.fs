@@ -1,5 +1,4 @@
-﻿// Learn more about F# at http://fsharp.org
-// See the 'F# Tutorial' project for more help.
+﻿namespace Ceres
 
 module Test =
 
@@ -13,7 +12,7 @@ module Test =
     extern int main()
 
 
-[<EntryPoint>]
-let main argv = 
-    Test.main() |> printfn "ceres said: %d"
-    0 
+//[<EntryPoint>]
+//let main argv = 
+//    Test.main() |> printfn "ceres said: %d"
+//    0 
