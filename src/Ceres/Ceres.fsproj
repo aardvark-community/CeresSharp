@@ -6,7 +6,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>f00c3690-b2c8-429e-8b90-2b319530d754</ProjectGuid>
-    <OutputType>Library</OutputType>
+    <OutputType>Exe</OutputType>
     <RootNamespace>Ceres</RootNamespace>
     <AssemblyName>Ceres</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
