@@ -27,7 +27,7 @@ type CameraLocation =
     end
 
 [<StructLayout(LayoutKind.Sequential)>]
-type CameraInternalNoDistortion =
+type CameraInternal =
     struct
         val mutable public FocalLength : float
         val mutable public PrincipalX : float
@@ -37,38 +37,13 @@ type CameraInternalNoDistortion =
     end
 
 [<StructLayout(LayoutKind.Sequential)>]
-type CameraInternal =
+type CameraDistortion =
     struct
-        val mutable public FocalLength : float
-        val mutable public PrincipalX : float
-        val mutable public PrincipalY : float
-
         val mutable public Distortion2 : float
         val mutable public Distortion4 : float
 
-        new(f,px,py,d2,d4) = { FocalLength = f; PrincipalX = px; PrincipalY = py; Distortion2 = d2; Distortion4 = d4; }
+        new(d2,d4) = {Distortion2 = d2; Distortion4 = d4; }
     end
-
-[<StructLayout(LayoutKind.Sequential)>]
-type Camera =
-    struct
-        val mutable public Location : CameraLocation
-        val mutable public Internal : CameraInternal
-        new (ax, ay, az, ox, oy, oz, f, px, py, d2, d4) =
-            { Location = CameraLocation(ax, ay, az, ox, oy, oz);
-              Internal = CameraInternal(f, px, py, d2, d4); }
-    end
-
-[<StructLayout(LayoutKind.Sequential)>]
-type CameraNoDistortion =
-    struct
-        val mutable public Location : CameraLocation
-        val mutable public Internal : CameraInternalNoDistortion
-        new (ax, ay, az, ox, oy, oz, f, px, py) =
-            { Location = CameraLocation(ax, ay, az, ox, oy, oz);
-              Internal = CameraInternalNoDistortion(f, px, py); }
-    end
-
 
 [<StructLayout(LayoutKind.Sequential)>]
 type Observed2d =
@@ -97,12 +72,12 @@ module CameraCalibration =
     [<DllImport(lib)>]
     extern int private calibrate_camera_single_image_no_distortion(
             int observation_count, Observed2dPredicted2d[] observations,
-            CameraLocation[] cameraLocation, CameraInternalNoDistortion[] cameraInternal)
+            CameraLocation[] cameraLocation, CameraInternal[] cameraInternal)
 
     let CalibrateCameraSingleImageNoDistortion
         (observations: Observed2dPredicted2d[])
         (cameraLocation: CameraLocation[])
-        (cameraInternal: CameraInternalNoDistortion[])
+        (cameraInternal: CameraInternal[])
         : int =
         calibrate_camera_single_image_no_distortion(observations.Length, observations,
                                                     cameraLocation, cameraInternal)
@@ -110,15 +85,16 @@ module CameraCalibration =
     [<DllImport(lib)>]
     extern int private calibrate_camera_single_image(
             int observation_count, Observed2dPredicted2d[] observations,
-            CameraLocation[] cameraLocation, CameraInternal[] cameraInternal)
+            CameraLocation[] cameraLocation, CameraInternal[] cameraInternal, CameraDistortion[] cameraDistortion)
 
     let CalibrateCameraSingleImage
         (observations: Observed2dPredicted2d[])
         (cameraLocation: CameraLocation[])
         (cameraInternal: CameraInternal[])
+        (cameraDistortion: CameraDistortion[])
         : int =
         calibrate_camera_single_image(observations.Length, observations,
-                                      cameraLocation, cameraInternal)
+                                      cameraLocation, cameraInternal, cameraDistortion)
 
 module Entry =
     [<EntryPoint>]
