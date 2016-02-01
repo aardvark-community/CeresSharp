@@ -32,7 +32,7 @@ struct AxisAngleNoDistortionReprojectionError {
 		: observed_x(observed_x), observed_y(observed_y), observed_xi(observed_xi), observed_yi(observed_yi) {}
 
 	template <typename T>
-	bool operator()(const T* const cameraAxisAnglePosition, const T* const cameraInternal,
+	bool operator()(const T* const cameraLocation, const T* const cameraInternal,
 		T* residuals) const {
 		// camera[0,1,2] are the angle-axis rotation.
 		T p[3];
@@ -41,9 +41,9 @@ struct AxisAngleNoDistortionReprojectionError {
 		pi[1] = T(observed_yi);
 		pi[2] = T(0.0);
 
-		ceres::AngleAxisRotatePoint(cameraAxisAnglePosition, pi, p);
+		ceres::AngleAxisRotatePoint(cameraLocation, pi, p);
 		// camera[3,4,5] are the translation.
-		p[0] += cameraAxisAnglePosition[3]; p[1] += cameraAxisAnglePosition[4]; p[2] += cameraAxisAnglePosition[5];
+		p[0] += cameraLocation[3]; p[1] += cameraLocation[4]; p[2] += cameraLocation[5];
 
 		// Compute the center of distortion. The sign change comes from
 		// the camera model that Noah Snavely's Bundler assumes, whereby
@@ -120,7 +120,7 @@ struct AxisAngleReprojectionError {
 
 	template <typename T>
 	bool operator()(
-		const T* const cameraLocation, const T* const cameraInternal,
+		const T* const cameraLocation, const T* const cameraInternal, const T* const cameraDistortion,
 		T* residuals) const
 	{
 		T pi[3];
@@ -139,8 +139,8 @@ struct AxisAngleReprojectionError {
 		T yp = p[1] / p[2];
 
 		// Apply second and fourth order radial distortion.
-		const T& l1 = cameraInternal[3];
-		const T& l2 = cameraInternal[4];
+		const T& l1 = cameraDistortion[0];
+		const T& l2 = cameraDistortion[1];
 		T r2 = xp*xp + yp*yp;
 		T distortion = T(1.0) + r2  * (l1 + l2  * r2);
 
@@ -162,7 +162,7 @@ struct AxisAngleReprojectionError {
 	// the client code.
 	static ceres::CostFunction* Create(const double observed_x,
 		const double observed_y, const double observed_xi, const double observed_yi) {
-		return (new ceres::AutoDiffCostFunction<AxisAngleReprojectionError, 2, 6, 5>(
+		return (new ceres::AutoDiffCostFunction<AxisAngleReprojectionError, 2, 6, 3, 2>(
 			new AxisAngleReprojectionError(observed_x, observed_y, observed_xi, observed_yi)));
 	}
 
@@ -172,10 +172,9 @@ struct AxisAngleReprojectionError {
 	double observed_yi;
 };
 
-
 DllExport(int) calibrate_camera_single_image(
 		int observation_count, double* observations,
-		double* cameraLocation, double* cameraInternal
+		double* cameraLocation, double* cameraInternal, double* cameraDistortion
 		)
 {
 	init_logging();
@@ -183,11 +182,11 @@ DllExport(int) calibrate_camera_single_image(
 	ceres::Problem problem;
 	for (int i = 0; i < observation_count; ++i) {
 		ceres::CostFunction* cost_function =
-			AxisAngleReprojectionError::Create(observations[4 * i + 0],
-				observations[4 * i + 1], observations[4 * i + 2], observations[4 * i + 3]);
+			AxisAngleNoDistortionReprojectionError::Create(observations[4 * i + 0], observations[4 * i + 1],
+				observations[4 * i + 2], observations[4 * i + 3]);
 		problem.AddResidualBlock(cost_function,
 			NULL /* squared loss */,
-			cameraLocation, cameraInternal);
+			cameraLocation, cameraInternal, cameraDistortion);
 	}
 
 	ceres::Solver::Options options;
@@ -204,29 +203,121 @@ DllExport(int) calibrate_camera_single_image(
 	return 0;
 }
 
+
+
+struct BundleReprojectionError {
+	BundleReprojectionError(double observed_x, double observed_y)
+		: observed_x(observed_x), observed_y(observed_y) {}
+
+	template <typename T>
+	bool operator()(
+		const T* const cameraLocation, const T* const cameraInternal, const T* const cameraDistortion,
+		const T* const point,
+		T* residuals) const
+	{
+		T p[3];
+		ceres::AngleAxisRotatePoint(cameraLocation, point, p);
+		p[0] += cameraLocation[3]; p[1] += cameraLocation[4]; p[2] += cameraLocation[5];
+
+		// Compute the center of distortion. The sign change comes from
+		// the camera model that Noah Snavely's Bundler assumes, whereby
+		// the camera coordinate system has a negative z axis.
+		T xp = p[0] / p[2];
+		T yp = p[1] / p[2];
+
+		// Apply second and fourth order radial distortion.
+		const T& l1 = cameraDistortion[0];
+		const T& l2 = cameraDistortion[1];
+		T r2 = xp*xp + yp*yp;
+		T distortion = T(1.0) + r2  * (l1 + l2  * r2);
+
+		// Compute final projected point position.
+		const T& focal = cameraInternal[0];
+		const T& offset_x = cameraInternal[1];
+		const T& offset_y = cameraInternal[2];
+
+		T predicted_x = focal * distortion * xp + offset_x;
+		T predicted_y = focal * distortion * yp + offset_y;
+
+		// The error is the difference between the predicted and observed position.
+		residuals[0] = predicted_x - T(observed_x);
+		residuals[1] = predicted_y - T(observed_y);
+		return true;
+	}
+
+	// Factory to hide the construction of the CostFunction object from
+	// the client code.
+	static ceres::CostFunction* Create(const double observed_x, const double observed_y) {
+		return (new ceres::AutoDiffCostFunction<BundleReprojectionError, 2, 6, 3, 2, 3>(
+			new BundleReprojectionError(observed_x, observed_y)));
+	}
+
+	double observed_x;
+	double observed_y;
+};
+
+DllExport(int) bundle_adjustment(
+	int observation_count, double* observations, int* locationIndices, int*cameraIndices, int* pointIndices,
+	int point_count, double* pointArray,
+	int location_count, double* cameraLocation,
+	int camera_count, double* cameraInternal, double* cameraDistortion
+	)
+{
+	init_logging();
+
+	ceres::Problem problem;
+	for (int i = 0; i < observation_count; ++i) {
+		ceres::CostFunction* cost_function =
+			BundleReprojectionError::Create(observations[4 * i + 0], observations[4 * i + 1]);
+		problem.AddResidualBlock(cost_function,
+			NULL /* squared loss */,
+			cameraLocation + locationIndices[i] * 6,
+			cameraInternal + cameraIndices[i] * 3,
+			cameraDistortion + cameraIndices[i] * 2,
+			pointArray + pointIndices[i] * 3);
+	}
+
+	ceres::Solver::Options options;
+	options.linear_solver_type = ceres::DENSE_SCHUR;
+	options.minimizer_progress_to_stdout = true;
+
+	options.gradient_tolerance = 1e-16;
+	options.function_tolerance = 1e-16;
+
+	ceres::Solver::Summary summary;
+	ceres::Solve(options, &problem, &summary);
+	std::cout << summary.FullReport() << "\n";
+
+	return 0;
+}
+
+
 extern double test_data[];
 
 DllExport(int) main() {
-	double camera[] = { 1, 1, 1, 0, 0, 16, 5653.5044, 2352.0, 1568, 0, 0 };
 	double cameraLocation[] = { 1, 1, 1, 0, 0, 16 };
-	double cameraInternal[] = { 5653.5044, 2352.0, 1568, 0, 0 };
+	double cameraInternal[] = { 5653.5044, 2352.0, 1568 };
+	double cameraDistortion[] = { 0, 0 };
 
 	cout << "BEFORE:" << endl;
 	for (int i = 0; i < 6; i++) cout << cameraLocation[i] << endl;
-	for (int i = 0; i < 5; i++) cout << cameraInternal[i] << endl;
+	for (int i = 0; i < 3; i++) cout << cameraInternal[i] << endl;
+	for (int i = 0; i < 2; i++) cout << cameraDistortion[i] << endl;
 
 	int r0 = calibrate_camera_single_image_no_distortion(759, test_data, cameraLocation, cameraInternal);
 
 	cout << "NODIST:" << endl;
 	for (int i = 0; i < 6; i++) cout << cameraLocation[i] << endl;
-	for (int i = 0; i < 5; i++) cout << cameraInternal[i] << endl;
+	for (int i = 0; i < 3; i++) cout << cameraInternal[i] << endl;
+	for (int i = 0; i < 2; i++) cout << cameraDistortion[i] << endl;
 
 
-	int r1 = calibrate_camera_single_image(759, test_data, cameraLocation, cameraInternal);
+	int r1 = calibrate_camera_single_image(759, test_data, cameraLocation, cameraInternal, cameraDistortion);
 
 	cout << "FINAL:" << endl;
 	for (int i = 0; i < 6; i++) cout << cameraLocation[i] << endl;
-	for (int i = 0; i < 5; i++) cout << cameraInternal[i] << endl;
+	for (int i = 0; i < 3; i++) cout << cameraInternal[i] << endl;
+	for (int i = 0; i < 2; i++) cout << cameraDistortion[i] << endl;
 
 	return r1;
 }
