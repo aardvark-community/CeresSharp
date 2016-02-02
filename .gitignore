@@ -12,3 +12,6 @@ bin/Debug
 /src/*.opensdf
 /src/*.sdf
 /src/CeresCpp/CeresCpp.vcxproj.user
+/.fake
+/paket-files/
+.paket/paket.exe
