@@ -82,7 +82,9 @@ module CameraCalibration =
     [<DllImport(lib)>]
     extern int private calibrate_camera_single_image_no_distortion_optimization(
             int observation_count, Observed2dPredicted2d[] observations,
-            CameraLocation[] cameraLocation, CameraInternal[] cameraInternal, CameraDistortion[] cameraDistortion)
+            [<Out; In>]CameraLocation[] cameraLocation,
+            [<Out; In>]CameraInternal[] cameraInternal,
+            [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let CalibrateCameraSingleImageNoDistortionOptimization
         (observations: Observed2dPredicted2d[])
@@ -96,7 +98,9 @@ module CameraCalibration =
     [<DllImport(lib)>]
     extern int private calibrate_camera_single_image(
             int observation_count, Observed2dPredicted2d[] observations,
-            CameraLocation[] cameraLocation, CameraInternal[] cameraInternal, CameraDistortion[] cameraDistortion)
+            [<Out; In>]CameraLocation[] cameraLocation,
+            [<Out; In>]CameraInternal[] cameraInternal,
+            [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let CalibrateCameraSingleImage
         (observations: Observed2dPredicted2d[])
@@ -110,9 +114,9 @@ module CameraCalibration =
     [<DllImport(lib)>]
     extern int private bundle_adjustment(
             int observation_count, Point2d[] point2ds, int[] locationIndices, int[] cameraIndices, int[] pointIndices,
-            int point_count, Point3d[] point3ds,
-            int location_count, CameraLocation[] locations,
-            int camera_count, CameraInternal[] cameraInternal, CameraDistortion[] cameraDistortion)
+            int point_count, [<Out; In>]Point3d[] point3ds,
+            int location_count, [<Out; In>]CameraLocation[] locations,
+            int camera_count, [<Out; In>]CameraInternal[] cameraInternal, [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let BundleAdjustment
         (point2ds: Point2d[])
@@ -132,9 +136,9 @@ module CameraCalibration =
     [<DllImport(lib)>]
     extern int private bundle_adjustment_no_distortion_optimization(
             int observation_count, Point2d[] point2ds, int[] locationIndices, int[] cameraIndices, int[] pointIndices,
-            int point_count, Point3d[] point3ds,
-            int location_count, CameraLocation[] locations,
-            int camera_count, CameraInternal[] cameraInternal, CameraDistortion[] cameraDistortion)
+            int point_count, [<Out; In>]Point3d[] point3ds,
+            int location_count, [<Out; In>]CameraLocation[] locations,
+            int camera_count, [<Out; In>]CameraInternal[] cameraInternal, [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let BundleAdjustmentNoDistortionOptimization
         (point2ds: Point2d[])
@@ -154,9 +158,9 @@ module CameraCalibration =
     [<DllImport(lib)>]
     extern int private bundle_adjustment_no_camera_optimization(
             int observation_count, Point2d[] point2ds, int[] locationIndices, int[] cameraIndices, int[] pointIndices,
-            int point_count, Point3d[] point3ds,
-            int location_count, CameraLocation[] locations,
-            int camera_count, CameraInternal[] cameraInternal, CameraDistortion[] cameraDistortion)
+            int point_count, [<Out; In>]Point3d[] point3ds,
+            int location_count, [<Out; In>]CameraLocation[] locations,
+            int camera_count, [<Out; In>]CameraInternal[] cameraInternal, [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let BundleAdjustmentNoCameraOptimization
         (point2ds: Point2d[])
