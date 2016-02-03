@@ -53,15 +53,33 @@ type Point2d =
 
         new(x,y) = { X = x; Y = y }
     end
-
 [<StructLayout(LayoutKind.Sequential)>]
 type Point3d = 
     struct
         val mutable public X : float
         val mutable public Y : float
         val mutable public Z : float
-
         new(x,y,z) = { X = x; Y = y; Z = z }
+    end
+
+[<StructLayout(LayoutKind.Sequential)>]
+type Matrix33d = 
+    struct
+        val mutable public M00 : float
+        val mutable public M01 : float
+        val mutable public M02 : float
+
+        val mutable public M10 : float
+        val mutable public M11 : float
+        val mutable public M12 : float
+
+        val mutable public M20 : float
+        val mutable public M21 : float
+        val mutable public M22 : float
+
+        new(m00,m01,m02,m10,m11,m12,m20,m21,m22) = { M00 = m00; M01 = m01; M02 = m02;
+                                                     M10 = m10; M11 = m11; M12 = m12;
+                                                     M20 = m20; M21 = m21; M22 = m22;  }
     end
 
 [<StructLayout(LayoutKind.Sequential)>]
@@ -115,7 +133,7 @@ module CameraCalibration =
     extern int private bundle_adjustment(
             int observation_count, Point2d[] point2ds, int[] locationIndices, int[] cameraIndices, int[] pointIndices,
             int point_count, [<Out; In>]Point3d[] point3ds,
-            int location_count, [<Out; In>]CameraLocation[] locations,
+            int location_count, [<Out; In>]Point3d[] locations, [<Out; In>]Matrix33d[] rotations, Point3d[] angleAxes,
             int camera_count, [<Out; In>]CameraInternal[] cameraInternal, [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let BundleAdjustment
@@ -124,20 +142,22 @@ module CameraCalibration =
         (cameraIndices: int[])
         (pointIndices: int[])
         (point3ds: Point3d[])
-        (locations: CameraLocation[])
+        (locations: Point3d[])
+        (rotations: Matrix33d[])
+        (angleaxes: Point3d[])
         (cameraInternal: CameraInternal[])
         (cameraDistortion: CameraDistortion[])
         : int =
         bundle_adjustment(point2ds.Length, point2ds, locationIndices, cameraIndices, pointIndices,
                           point3ds.Length, point3ds,
-                          locations.Length, locations,
+                          locations.Length, locations, rotations, angleaxes,
                           cameraInternal.Length, cameraInternal, cameraDistortion)
 
     [<DllImport(lib)>]
     extern int private bundle_adjustment_no_distortion_optimization(
             int observation_count, Point2d[] point2ds, int[] locationIndices, int[] cameraIndices, int[] pointIndices,
             int point_count, [<Out; In>]Point3d[] point3ds,
-            int location_count, [<Out; In>]CameraLocation[] locations,
+            int location_count, [<Out; In>]Point3d[] locations, [<Out; In>]Matrix33d[] rotations, Point3d[] angleAxes,
             int camera_count, [<Out; In>]CameraInternal[] cameraInternal, [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let BundleAdjustmentNoDistortionOptimization
@@ -146,20 +166,22 @@ module CameraCalibration =
         (cameraIndices: int[])
         (pointIndices: int[])
         (point3ds: Point3d[])
-        (locations: CameraLocation[])
+        (locations: Point3d[])
+        (rotations: Matrix33d[])
+        (angleaxes: Point3d[])
         (cameraInternal: CameraInternal[])
         (cameraDistortion: CameraDistortion[])
         : int =
         bundle_adjustment(point2ds.Length, point2ds, locationIndices, cameraIndices, pointIndices,
                           point3ds.Length, point3ds,
-                          locations.Length, locations,
+                          locations.Length, locations, rotations, angleaxes,
                           cameraInternal.Length, cameraInternal, cameraDistortion)
 
     [<DllImport(lib)>]
     extern int private bundle_adjustment_no_camera_optimization(
             int observation_count, Point2d[] point2ds, int[] locationIndices, int[] cameraIndices, int[] pointIndices,
             int point_count, [<Out; In>]Point3d[] point3ds,
-            int location_count, [<Out; In>]CameraLocation[] locations,
+            int location_count, [<Out; In>]Point3d[] locations, [<Out; In>]Matrix33d[] rotations, Point3d[] angleAxes,
             int camera_count, [<Out; In>]CameraInternal[] cameraInternal, [<Out; In>]CameraDistortion[] cameraDistortion)
 
     let BundleAdjustmentNoCameraOptimization
@@ -168,13 +190,15 @@ module CameraCalibration =
         (cameraIndices: int[])
         (pointIndices: int[])
         (point3ds: Point3d[])
-        (locations: CameraLocation[])
+        (locations: Point3d[])
+        (rotations: Matrix33d[])
+        (angleaxes: Point3d[])
         (cameraInternal: CameraInternal[])
         (cameraDistortion: CameraDistortion[])
         : int =
         bundle_adjustment_no_camera_optimization(point2ds.Length, point2ds, locationIndices, cameraIndices, pointIndices,
                           point3ds.Length, point3ds,
-                          locations.Length, locations,
+                          locations.Length, locations, rotations, angleaxes,
                           cameraInternal.Length, cameraInternal, cameraDistortion)
 
 //module Entry =

@@ -17,7 +17,7 @@ Target "Deploy" (fun () ->
     Fake.MSBuildHelper.MSBuild "bin/Release" "build" [ "Configuration", "Deploy" ] sln |> printfn "%A"
 )
 
-"Deploy" ==> "CreatePackage"
+"Deploy" ==> "AddNativeResources" ==> "CreatePackage"
 
 #if DEBUG
 do System.Diagnostics.Debugger.Launch() |> ignore
