@@ -62,8 +62,8 @@ struct AxisAngleReprojectionError {
 		const T& offset_x = cameraInternal[1];
 		const T& offset_y = cameraInternal[2];
 
-		T predicted_x = focal * distortion * xp + offset_x;
-		T predicted_y = focal * distortion * yp + offset_y;
+		T predicted_x = offset_x + focal * distortion * xp;
+		T predicted_y = offset_y - focal * distortion * yp;
 
 		// The error is the difference between the predicted and observed position.
 		residuals[0] = predicted_x - T(observed_x);
@@ -187,8 +187,8 @@ struct BundleReprojectionError {
 		const T& offset_x = cameraInternal[1];
 		const T& offset_y = cameraInternal[2];
 
-		T predicted_x = focal * distortion * xp + offset_x;
-		T predicted_y = focal * distortion * yp + offset_y;
+		T predicted_x = offset_x + focal * distortion * xp;
+		T predicted_y = offset_y - focal * distortion * yp;
 
 		// The error is the difference between the predicted and observed position.
 		residuals[0] = predicted_x - T(observed_x);
@@ -221,7 +221,7 @@ DllExport(int) bundle_adjustment(
 	ceres::Problem problem;
 	for (int i = 0; i < observation_count; ++i) {
 		ceres::CostFunction* cost_function =
-			BundleReprojectionError::Create(observations[4 * i + 0], observations[4 * i + 1]);
+			BundleReprojectionError::Create(observations[2 * i + 0], observations[2 * i + 1]);
 		problem.AddResidualBlock(cost_function,
 			loss_function,
 			cameraLocation + locationIndices[i] * 6,
@@ -259,7 +259,7 @@ DllExport(int) bundle_adjustment_no_distortion_optimization(
 	ceres::Problem problem;
 	for (int i = 0; i < observation_count; ++i) {
 		ceres::CostFunction* cost_function =
-			BundleReprojectionError::Create(observations[4 * i + 0], observations[4 * i + 1]);
+			BundleReprojectionError::Create(observations[2 * i + 0], observations[2 * i + 1]);
 		problem.AddResidualBlock(cost_function,
 			loss_function,
 			cameraLocation + locationIndices[i] * 6,
@@ -299,7 +299,7 @@ DllExport(int) bundle_adjustment_no_camera_optimization(
 	ceres::Problem problem;
 	for (int i = 0; i < observation_count; ++i) {
 		ceres::CostFunction* cost_function =
-			BundleReprojectionError::Create(observations[4 * i + 0], observations[4 * i + 1]);
+			BundleReprojectionError::Create(observations[2 * i + 0], observations[2 * i + 1]);
 		problem.AddResidualBlock(cost_function,
 			loss_function,
 			cameraLocation + locationIndices[i] * 6,
