@@ -63,7 +63,7 @@ struct AxisAngleReprojectionError {
 		const T& offset_y = cameraInternal[2];
 
 		T predicted_x = offset_x + focal * distortion * xp;
-		T predicted_y = offset_y - focal * distortion * yp;
+		T predicted_y = offset_y + focal * distortion * yp;
 
 		// The error is the difference between the predicted and observed position.
 		residuals[0] = predicted_x - T(observed_x);
@@ -169,7 +169,7 @@ struct BundleReprojectionError {
 	{
 		T p[3];
 		ceres::AngleAxisRotatePoint(cameraAngleAxis, point, p);
-		p[0] += cameraLocation[3]; p[1] += cameraLocation[4]; p[2] += cameraLocation[5];
+		p[0] += cameraLocation[0]; p[1] += cameraLocation[1]; p[2] += cameraLocation[2];
 
 		// Compute the center of distortion. The sign change comes from
 		// the camera model that Noah Snavely's Bundler assumes, whereby
@@ -189,7 +189,7 @@ struct BundleReprojectionError {
 		const T& offset_y = cameraInternal[2];
 
 		T predicted_x = offset_x + focal * distortion * xp;
-		T predicted_y = offset_y - focal * distortion * yp;
+		T predicted_y = offset_y + focal * distortion * yp;
 
 		// The error is the difference between the predicted and observed position.
 		residuals[0] = predicted_x - T(observed_x);
@@ -208,6 +208,52 @@ struct BundleReprojectionError {
 	double observed_y;
 };
 
+ceres::Problem* CreateProblem(
+	int observation_count, double* observations, int* locationIndices, int*cameraIndices, int* pointIndices,
+	int point_count, double* pointArray,
+	int location_count, double* cameraLocation, double* cameraAngleAxis,
+	int camera_count, double* cameraInternal, double* cameraDistortion
+	)
+{
+	ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
+	ceres::Problem* problem = new ceres::Problem();
+
+	for (int i = 0; i < observation_count; ++i) {
+		ceres::CostFunction* cost_function =
+			BundleReprojectionError::Create(observations[2 * i + 0], observations[2 * i + 1]);
+		problem->AddResidualBlock(cost_function,
+			loss_function,
+			cameraLocation + locationIndices[i] * 3,
+			cameraAngleAxis + locationIndices[i] * 3,
+			cameraInternal + cameraIndices[i] * 3,
+			cameraDistortion + cameraIndices[i] * 2,
+			pointArray + pointIndices[i] * 3);
+	}
+	return problem;
+}
+
+ceres::ParameterBlockOrdering* CreateOrdering(
+	int point_count, double* pointArray,
+	int location_count, double* cameraLocation, double* cameraAngleAxis,
+	int camera_count, double* cameraInternal, double* cameraDistortion
+	)
+{
+	ceres::ParameterBlockOrdering* ordering = new ceres::ParameterBlockOrdering;
+	for (int i = 0; i < location_count; i++)
+	{
+		ordering->AddElementToGroup(cameraLocation + i * 3, 0);
+		ordering->AddElementToGroup(cameraAngleAxis + i * 3, 0);
+	}
+	for (int i = 0; i < camera_count; i++)
+	{
+		ordering->AddElementToGroup(cameraInternal + i * 3, 0);
+		ordering->AddElementToGroup(cameraDistortion + i * 2, 0);
+	}
+	for (int i = 0; i < point_count; i++)
+		ordering->AddElementToGroup(pointArray + i * 3, 1);
+	return ordering;
+}
+
 DllExport(int) bundle_adjustment(
 	int observation_count, double* observations, int* locationIndices, int*cameraIndices, int* pointIndices,
 	int point_count, double* pointArray,
@@ -222,27 +268,30 @@ DllExport(int) bundle_adjustment(
 	for (int i = 0; i < location_count; i++)
 		ceres::RotationMatrixToAngleAxis(cameraRotation + 9 * i, cameraAngleAxis + 3 * i);
 
-	ceres::Problem problem;
-	for (int i = 0; i < observation_count; ++i) {
-		ceres::CostFunction* cost_function =
-			BundleReprojectionError::Create(observations[2 * i + 0], observations[2 * i + 1]);
-		problem.AddResidualBlock(cost_function,
-			loss_function,
-			cameraLocation + locationIndices[i] * 3,
-			cameraAngleAxis + locationIndices[i] * 3,
-			cameraInternal + cameraIndices[i] * 3,
-			cameraDistortion + cameraIndices[i] * 2,
-			pointArray + pointIndices[i] * 3);
-	}
+	ceres::Problem* problem = CreateProblem(
+		observation_count, observations, locationIndices, cameraIndices, pointIndices,
+		point_count, pointArray,
+		location_count, cameraLocation, cameraAngleAxis,
+		camera_count, cameraInternal, cameraDistortion
+		);
 
 	ceres::Solver::Options options;
+
+	ceres::ParameterBlockOrdering* ordering = CreateOrdering(
+		point_count, pointArray,
+		location_count, cameraLocation, cameraAngleAxis,
+		camera_count, cameraInternal, cameraDistortion
+		);
+
+	options.inner_iteration_ordering.reset(ordering);
+	options.max_num_iterations = 1000;
 	options.linear_solver_type = ceres::DENSE_SCHUR;
 	options.minimizer_progress_to_stdout = true;
 	options.gradient_tolerance = 1e-16;
 	options.function_tolerance = 1e-16;
 
 	ceres::Solver::Summary summary;
-	ceres::Solve(options, &problem, &summary);
+	ceres::Solve(options, problem, &summary);
 	std::cout << summary.FullReport() << "\n";
 
 	for (int i = 0; i < location_count; i++)
@@ -266,23 +315,27 @@ DllExport(int) bundle_adjustment_no_distortion_optimization(
 	for (int i = 0; i < location_count; i++)
 		ceres::RotationMatrixToAngleAxis(cameraRotation + 9 * i, cameraAngleAxis + 3 * i);
 
-	ceres::Problem problem;
-	for (int i = 0; i < observation_count; ++i) {
-		ceres::CostFunction* cost_function =
-			BundleReprojectionError::Create(observations[2 * i + 0], observations[2 * i + 1]);
-		problem.AddResidualBlock(cost_function,
-			loss_function,
-			cameraLocation + locationIndices[i] * 3,
-			cameraAngleAxis + locationIndices[i] * 3,
-			cameraInternal + cameraIndices[i] * 3,
-			cameraDistortion + cameraIndices[i] * 2,
-			pointArray + pointIndices[i] * 3);
-	}
+	ceres::Problem* problem = CreateProblem(
+		observation_count, observations, locationIndices, cameraIndices, pointIndices,
+		point_count, pointArray,
+		location_count, cameraLocation, cameraAngleAxis,
+		camera_count, cameraInternal, cameraDistortion
+		);
 
 	for (int i = 0; i < camera_count; i++)
-		problem.SetParameterBlockConstant(cameraDistortion + i * 2);
+		problem->SetParameterBlockConstant(cameraDistortion + i * 2);
 
 	ceres::Solver::Options options;
+
+	ceres::ParameterBlockOrdering* ordering = CreateOrdering(
+		point_count, pointArray,
+		location_count, cameraLocation, cameraAngleAxis,
+		camera_count, cameraInternal, cameraDistortion
+		);
+
+	options.inner_iteration_ordering.reset(ordering);
+
+	options.max_num_iterations = 1000;
 	options.linear_solver_type = ceres::DENSE_SCHUR;
 	options.minimizer_progress_to_stdout = true;
 
@@ -290,7 +343,7 @@ DllExport(int) bundle_adjustment_no_distortion_optimization(
 	options.function_tolerance = 1e-16;
 
 	ceres::Solver::Summary summary;
-	ceres::Solve(options, &problem, &summary);
+	ceres::Solve(options, problem, &summary);
 	std::cout << summary.FullReport() << "\n";
 
 	for (int i = 0; i < location_count; i++)
@@ -313,26 +366,30 @@ DllExport(int) bundle_adjustment_no_camera_optimization(
 	for (int i = 0; i < location_count; i++)
 		ceres::RotationMatrixToAngleAxis(cameraRotation + 9 * i, cameraAngleAxis + 3 * i);
 
-	ceres::Problem problem;
-	for (int i = 0; i < observation_count; ++i) {
-		ceres::CostFunction* cost_function =
-			BundleReprojectionError::Create(observations[2 * i + 0], observations[2 * i + 1]);
-		problem.AddResidualBlock(cost_function,
-			loss_function,
-			cameraLocation + locationIndices[i] * 3,
-			cameraAngleAxis + locationIndices[i] * 3,
-			cameraInternal + cameraIndices[i] * 3,
-			cameraDistortion + cameraIndices[i] * 2,
-			pointArray + pointIndices[i] * 3);
-	}
+	ceres::Problem* problem = CreateProblem(
+		observation_count, observations, locationIndices, cameraIndices, pointIndices,
+		point_count, pointArray,
+		location_count, cameraLocation, cameraAngleAxis,
+		camera_count, cameraInternal, cameraDistortion
+		);
 
 	for (int i = 0; i < camera_count; i++)
 	{
-		problem.SetParameterBlockConstant(cameraInternal + i * 3);
-		problem.SetParameterBlockConstant(cameraDistortion + i * 2);
+		problem->SetParameterBlockConstant(cameraInternal + i * 3);
+		problem->SetParameterBlockConstant(cameraDistortion + i * 2);
 	}
 
 	ceres::Solver::Options options;
+
+	ceres::ParameterBlockOrdering* ordering = CreateOrdering(
+		point_count, pointArray,
+		location_count, cameraLocation, cameraAngleAxis,
+		camera_count, cameraInternal, cameraDistortion
+		);
+
+	options.inner_iteration_ordering.reset(ordering);
+
+	options.max_num_iterations = 1000;
 	options.linear_solver_type = ceres::DENSE_SCHUR;
 	options.minimizer_progress_to_stdout = true;
 
@@ -340,7 +397,7 @@ DllExport(int) bundle_adjustment_no_camera_optimization(
 	options.function_tolerance = 1e-16;
 
 	ceres::Solver::Summary summary;
-	ceres::Solve(options, &problem, &summary);
+	ceres::Solve(options, problem, &summary);
 	std::cout << summary.FullReport() << "\n";
 
 	for (int i = 0; i < location_count; i++)
