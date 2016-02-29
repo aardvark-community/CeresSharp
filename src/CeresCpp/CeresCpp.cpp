@@ -84,9 +84,10 @@ struct BundleAdjustmentReprojectionError {
 DllExport(int) bundle_adjustment(
 	int flags,
 	int observationCount, double* observationArray, int* pointIndices, int* extrinsicIndices, int* intrinsicIndices,
-	int pointCount, double* pointArray,
-	int extrinsicsCount, double* extrinsicsArray,
-	int intrinsicsCount, double* focalPrincipalArray, double* distortionArray
+	int pointCount, int fixedPointCount, double* pointArray,
+	int extrinsicsCount, int fixedExtrinsicCount, double* extrinsicsArray,
+	int intrinsicsCount, int fixedFocalPrincipalCount, double* focalPrincipalArray,
+	int fixedDistortionCount, double* distortionArray
 	)
 {
 	init_logging();
@@ -123,21 +124,17 @@ DllExport(int) bundle_adjustment(
 
 	options.inner_iteration_ordering.reset(ordering);
 
-	if ((flags & 1) == 0)
-		for (int i = 0; i < pointCount; i++)
-			problem->SetParameterBlockConstant(pointArray + i * 3);
+	for (int i = 0; i < fixedPointCount; i++)
+		problem->SetParameterBlockConstant(pointArray + i * 3);
 
-	if ((flags & 2) == 0)
-		for (int i = 0; i < extrinsicsCount; i++)
-			problem->SetParameterBlockConstant(extrinsicsArray + i * 6);
+	for (int i = 0; i < fixedExtrinsicCount; i++)
+		problem->SetParameterBlockConstant(extrinsicsArray + i * 6);
 
-	if ((flags & 4) == 0)
-		for (int i = 0; i < intrinsicsCount; i++)
-			problem->SetParameterBlockConstant(focalPrincipalArray + i * 4);
+	for (int i = 0; i < fixedFocalPrincipalCount; i++)
+		problem->SetParameterBlockConstant(focalPrincipalArray + i * 4);
 
-	if ((flags & 8) == 0)
-		for (int i = 0; i < intrinsicsCount; i++)
-			problem->SetParameterBlockConstant(distortionArray + i * 2);
+	for (int i = 0; i < fixedDistortionCount; i++)
+		problem->SetParameterBlockConstant(distortionArray + i * 2);
 
 	options.max_num_iterations = 1000;
 	options.linear_solver_type = ceres::DENSE_SCHUR;
@@ -188,9 +185,9 @@ DllExport(int) main() {
 
 	int r0 = bundle_adjustment(
 				2 | 4, observationCount, observationArray, pointIndices, extrinsicsIndices, intrinsicsIndices,
-				observationCount, pointArray,
-				1, extrinsicsArray,
-				1, focalPrincipalArray, distortionArray);
+				observationCount, observationCount, pointArray,
+				1, 0, extrinsicsArray,
+				1, 1, focalPrincipalArray, 1, distortionArray);
 
 	cout << "NODIST:" << endl;
 	for (int i = 0; i < 6; i++) cout << extrinsicsArray[i] << endl;
@@ -199,9 +196,9 @@ DllExport(int) main() {
 
 	int r1 = bundle_adjustment(
 		2 | 4 | 8, observationCount, observationArray, pointIndices, extrinsicsIndices, intrinsicsIndices,
-		observationCount, pointArray,
-		1, extrinsicsArray,
-		1, focalPrincipalArray, distortionArray);
+		observationCount, observationCount, pointArray,
+		1, 0, extrinsicsArray,
+		1, 0, focalPrincipalArray, 0, distortionArray);
 
 	cout << "FINAL:" << endl;
 	for (int i = 0; i < 6; i++) cout << extrinsicsArray[i] << endl;

@@ -19,9 +19,10 @@ module CameraCalibration =
     extern int private bundle_adjustment(
         int flags,
         int observation_count, double[] observations, int[] pointIndices, int[] extrinsicIndices, int[] intrinsicIndices,
-        int point_count, double[] pointArray,
-        int extrinsics_count, double[] extrinsicsArray,
-        int intrinsics_count, double[] focalPrincipalArray, double[] distortionArray
+        int pointCount, int fixedPointCount, double[] pointArray,
+        int extrinsicsCount, int fixedExtrinsicsCount, double[] extrinsicsArray,
+        int intrinsicsCount, int fixedFocalPrincipalCount, double[] focalPrincipalArray,
+        int fixedDistortionCount, double[] distortionArray
         )
 
     let BundleAdjustment
@@ -32,17 +33,21 @@ module CameraCalibration =
         (extrinsicsIndices: int[])
         (intrinsicsIndices: int[])
         (pointCount: int)
+        (fixedPointCount: int)
         (pointArray: double[])
         (extrinsicsCount: int)
+        (fixedExtrinsicsCount: int)
         (extrinsics: double[])
         (intrinsicsCount: int)
+        (fixedFocalPrincipalCount: int)
         (focalPrincipalArray: double[])
+        (fixedDistortionCount: int)
         (distortionArray: double[])
         : int =
         bundle_adjustment(flags, observationCount, observationArray, pointIndices, extrinsicsIndices, intrinsicsIndices,
-                          pointCount, pointArray,
-                          extrinsicsCount, extrinsics,
-                          intrinsicsCount, focalPrincipalArray, distortionArray)
+                          pointCount, fixedPointCount, pointArray,
+                          extrinsicsCount, fixedExtrinsicsCount, extrinsics,
+                          intrinsicsCount, fixedFocalPrincipalCount, focalPrincipalArray, fixedDistortionCount, distortionArray)
 
 //module Entry =
 //    [<EntryPoint>]
