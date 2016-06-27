@@ -147,8 +147,6 @@ DllExport(int) solve(
 	ceres::Solve(options, problem, &summary);
 	std::cout << summary.FullReport() << "\n";
 
-	delete loss_function;
-	delete f;
 	delete problem;
 
 	return 0;
