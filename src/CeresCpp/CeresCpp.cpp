@@ -38,6 +38,7 @@ class CustomCostFunction : public CostFunction
 private:
 	bool(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians);
 
+
 public:
 
 	CustomCostFunction(int parameterCount, int residualCount, bool(*eval)(double const * const * parameters, double * residuals, double ** jacobians))
@@ -46,6 +47,7 @@ public:
 		set_num_residuals(residualCount);
 		evaluate = eval;
 	}
+
 
 	// Inherited via CostFunction
 	virtual bool Evaluate(double const * const * parameters, double * residuals, double ** jacobians) const override
@@ -120,7 +122,7 @@ struct BundleAdjustmentReprojectionError {
 };
 
 
-DllExport(int) solve(
+DllExport(double) solve(
 	int parameterCount,
 	int residualCount,
 	bool(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians),
@@ -129,11 +131,11 @@ DllExport(int) solve(
 {
 	init_logging();
 
-	ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
-	ceres::CostFunction* f = new CustomCostFunction(parameterCount, residualCount, evaluate);
-	ceres::Problem* problem = new ceres::Problem();
+	//ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
+	CostFunction *f = new CustomCostFunction(parameterCount, residualCount, evaluate);
+	ceres::Problem problem;
 
-	problem->AddResidualBlock(f, loss_function, parameters);
+	problem.AddResidualBlock(f, nullptr, parameters);
 
 	ceres::Solver::Options options;
 	options.max_num_iterations = 1000;
@@ -141,15 +143,13 @@ DllExport(int) solve(
 	options.minimizer_progress_to_stdout = true;
 	options.gradient_tolerance = 1e-16;
 	options.function_tolerance = 1e-16;
-	options.parameter_tolerance = 1e-12;
+	options.parameter_tolerance = 1e-16;
 
 	ceres::Solver::Summary summary;
-	ceres::Solve(options, problem, &summary);
+	ceres::Solve(options, &problem, &summary);
 	std::cout << summary.FullReport() << "\n";
 
-	delete problem;
-
-	return 0;
+	return summary.final_cost;
 }
 
 
