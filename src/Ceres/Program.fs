@@ -49,9 +49,10 @@ module CameraCalibration =
                           extrinsicsCount, fixedExtrinsicsCount, extrinsics,
                           intrinsicsCount, fixedFocalPrincipalCount, focalPrincipalArray, fixedDistortionCount, distortionArray)
 
-
-module Entry =
-    [<EntryPoint>]
-    let main argv = 
-        Derivatives.Ceres.example()
-        0 
+//
+//module Entry =
+//    [<EntryPoint>]
+//    let main argv =
+//        //Derivatives.Ceres.sinCos()
+//        Derivatives.Bla.solveBla()
+//        0 

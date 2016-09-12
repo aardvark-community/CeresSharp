@@ -36,12 +36,12 @@ class MyCostFunction : SizedCostFunction<1, 1>
 class CustomCostFunction : public CostFunction
 {
 private:
-	bool(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians);
+	int(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians);
 
 
 public:
 
-	CustomCostFunction(int parameterCount, int residualCount, bool(*eval)(double const * const * parameters, double * residuals, double ** jacobians))
+	CustomCostFunction(int parameterCount, int residualCount, int(*eval)(double const * const * parameters, double * residuals, double ** jacobians))
 	{
 		mutable_parameter_block_sizes()->push_back(parameterCount);
 		set_num_residuals(residualCount);
@@ -52,7 +52,10 @@ public:
 	// Inherited via CostFunction
 	virtual bool Evaluate(double const * const * parameters, double * residuals, double ** jacobians) const override
 	{
-		return evaluate(parameters, residuals, jacobians);
+		if (evaluate(parameters, residuals, jacobians))
+			return true;
+		else
+			return false;
 	}
 };
 
@@ -122,32 +125,56 @@ struct BundleAdjustmentReprojectionError {
 };
 
 
+typedef enum {
+	None = 0x00,
+	Min = 0x01,
+	Max = 0x02
+} BoundFlags;
+
+typedef struct {
+	BoundFlags Flags;
+	double Min;
+	double Max;
+} Bounds;
+
 DllExport(double) solve(
 	int parameterCount,
 	int residualCount,
-	bool(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians),
-	double* parameters
+	int(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians),
+	double* parameters,
+	Bounds* bounds
 )
 {
 	init_logging();
 
-	//ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
+	ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
 	CostFunction *f = new CustomCostFunction(parameterCount, residualCount, evaluate);
 	ceres::Problem problem;
 
-	problem.AddResidualBlock(f, nullptr, parameters);
+	auto block = problem.AddResidualBlock(f, loss_function, parameters);
+
+	for (int i = 0; i < parameterCount; i++)
+	{
+		auto b = &bounds[i];
+		if (b->Flags & Min)
+			problem.SetParameterLowerBound(parameters, i, b->Min);
+		if (b->Flags & Max)
+			problem.SetParameterUpperBound(parameters, i, b->Max);
+
+	}
 
 	ceres::Solver::Options options;
+	
 	options.max_num_iterations = 1000;
 	options.linear_solver_type = ceres::DENSE_SCHUR;
-	options.minimizer_progress_to_stdout = true;
+	options.minimizer_progress_to_stdout = false;
 	options.gradient_tolerance = 1e-16;
 	options.function_tolerance = 1e-16;
-	options.parameter_tolerance = 1e-16;
+	options.parameter_tolerance = 1e-12;
 
 	ceres::Solver::Summary summary;
 	ceres::Solve(options, &problem, &summary);
-	std::cout << summary.FullReport() << "\n";
+	//std::cout << summary.FullReport() << "\n";
 
 	return summary.final_cost;
 }
