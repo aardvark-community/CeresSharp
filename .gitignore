@@ -15,3 +15,8 @@ bin/Debug
 /.fake
 /paket-files/
 .paket/paket.exe
+/libs/Native/Ceres/windows/AMD64/CeresCpp.iobj
+/libs/Native/Ceres/windows/AMD64/CeresCpp.ipdb
+/libs/Native/Ceres/windows/AMD64/CeresCpp.pdb
+/src/*.opendb
+/src/*.db
