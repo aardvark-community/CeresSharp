@@ -12,9 +12,53 @@
 using namespace std;
 using ceres::AutoDiffCostFunction;
 using ceres::CostFunction;
+using ceres::SizedCostFunction;
 using ceres::Problem;
 using ceres::Solver;
 using ceres::Solve;
+
+class MyCostFunction : SizedCostFunction<1, 1>
+{
+	// Inherited via CostFunction
+	virtual bool Evaluate(double const * const * parameters, double * residuals, double ** jacobians) const override
+	{
+		residuals[0] = sin(parameters[0][0]) - cos(parameters[0][0]);
+
+		if (jacobians != nullptr && jacobians[0] != nullptr)
+		{
+			jacobians[0][0] = cos(parameters[0][0]) + sin(parameters[0][0]);
+		}
+
+		return true;
+	}
+};
+
+class CustomCostFunction : public CostFunction
+{
+private:
+	int(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians);
+
+
+public:
+
+	CustomCostFunction(int parameterCount, int residualCount, int(*eval)(double const * const * parameters, double * residuals, double ** jacobians))
+	{
+		mutable_parameter_block_sizes()->push_back(parameterCount);
+		set_num_residuals(residualCount);
+		evaluate = eval;
+	}
+
+
+	// Inherited via CostFunction
+	virtual bool Evaluate(double const * const * parameters, double * residuals, double ** jacobians) const override
+	{
+		if (evaluate(parameters, residuals, jacobians))
+			return true;
+		else
+			return false;
+	}
+};
+
 
 void init_logging()
 {
@@ -81,6 +125,61 @@ struct BundleAdjustmentReprojectionError {
 };
 
 
+typedef enum {
+	None = 0x00,
+	Min = 0x01,
+	Max = 0x02
+} BoundFlags;
+
+typedef struct {
+	BoundFlags Flags;
+	double Min;
+	double Max;
+} Bounds;
+
+DllExport(double) solve(
+	int parameterCount,
+	int residualCount,
+	int(*evaluate)(double const * const * parameters, double * residuals, double ** jacobians),
+	double* parameters,
+	Bounds* bounds
+)
+{
+	init_logging();
+
+	ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
+	CostFunction *f = new CustomCostFunction(parameterCount, residualCount, evaluate);
+	ceres::Problem problem;
+
+	auto block = problem.AddResidualBlock(f, loss_function, parameters);
+
+	for (int i = 0; i < parameterCount; i++)
+	{
+		auto b = &bounds[i];
+		if (b->Flags & Min)
+			problem.SetParameterLowerBound(parameters, i, b->Min);
+		if (b->Flags & Max)
+			problem.SetParameterUpperBound(parameters, i, b->Max);
+
+	}
+
+	ceres::Solver::Options options;
+	
+	options.max_num_iterations = 1000;
+	options.linear_solver_type = ceres::DENSE_SCHUR;
+	options.minimizer_progress_to_stdout = false;
+	options.gradient_tolerance = 1e-16;
+	options.function_tolerance = 1e-16;
+	options.parameter_tolerance = 1e-12;
+
+	ceres::Solver::Summary summary;
+	ceres::Solve(options, &problem, &summary);
+	//std::cout << summary.FullReport() << "\n";
+
+	return summary.final_cost;
+}
+
+
 DllExport(int) bundle_adjustment(
 	int flags,
 	int observationCount, double* observationArray, int* pointIndices, int* extrinsicIndices, int* intrinsicIndices,
@@ -106,6 +205,7 @@ DllExport(int) bundle_adjustment(
 			focalPrincipalArray + intrinsicIndices[i] * 4,
 			distortionArray + intrinsicIndices[i] * 2);
 	}
+
 
 	ceres::Solver::Options options;
 
@@ -149,6 +249,39 @@ DllExport(int) bundle_adjustment(
 
 	return 0;
 }
+
+
+
+DllExport(double) test() {
+	init_logging();
+
+	ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
+
+	ceres::Problem* problem = new ceres::Problem();
+
+	double* x = new double[1];
+	x[0] = 1.0;
+
+	ceres::CostFunction* cost_function = (CostFunction*)new MyCostFunction();
+	problem->AddResidualBlock(cost_function, loss_function, x);
+
+	ceres::Solver::Options options;
+
+
+	options.max_num_iterations = 1000;
+	options.linear_solver_type = ceres::DENSE_SCHUR;
+	options.minimizer_progress_to_stdout = true;
+	options.gradient_tolerance = 1e-16;
+	options.function_tolerance = 1e-16;
+	options.parameter_tolerance = 1e-12;
+
+	ceres::Solver::Summary summary;
+	ceres::Solve(options, problem, &summary);
+	std::cout << summary.FullReport() << "\n";
+
+	return x[0];
+}
+
 
 
 extern double test_data[];
