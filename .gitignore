@@ -20,3 +20,4 @@ bin/Debug
 /libs/Native/Ceres/windows/AMD64/CeresCpp.pdb
 /src/*.opendb
 /src/*.db
+/.paket/paket.exe
