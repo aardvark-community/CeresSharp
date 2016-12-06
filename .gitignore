@@ -21,3 +21,5 @@ bin/Debug
 /src/*.opendb
 /src/*.db
 /.paket/paket.exe
+/libs/Native/Ceres/windows/AMD64/CeresNative.iobj
+/libs/Native/Ceres/windows/AMD64/CeresNative.ipdb
