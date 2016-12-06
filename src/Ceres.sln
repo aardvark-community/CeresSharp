@@ -1,10 +1,12 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Ceres", "Ceres\Ceres.fsproj", "{F00C3690-B2C8-429E-8B90-2B319530D754}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CeresCpp", "CeresCpp\CeresCpp.vcxproj", "{2D2072F1-133E-491B-B415-5285A4E74109}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CeresNative", "CeresNative\CeresNative.vcxproj", "{9F0231CC-606D-422B-A247-C27CBB237B63}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -55,6 +57,22 @@ Global
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Release|x64.Build.0 = Release|x64
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Release|x86.ActiveCfg = Release|Win32
 		{2D2072F1-133E-491B-B415-5285A4E74109}.Release|x86.Build.0 = Release|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Debug|x64.ActiveCfg = Debug|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Debug|x64.Build.0 = Debug|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Debug|x86.ActiveCfg = Debug|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Debug|x86.Build.0 = Debug|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Deploy|Any CPU.ActiveCfg = Release|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Deploy|Any CPU.Build.0 = Release|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Deploy|x64.ActiveCfg = Debug|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Deploy|x64.Build.0 = Debug|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Deploy|x86.ActiveCfg = Debug|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Deploy|x86.Build.0 = Debug|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Release|Any CPU.ActiveCfg = Release|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Release|x64.ActiveCfg = Release|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Release|x64.Build.0 = Release|x64
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Release|x86.ActiveCfg = Release|Win32
+		{9F0231CC-606D-422B-A247-C27CBB237B63}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
