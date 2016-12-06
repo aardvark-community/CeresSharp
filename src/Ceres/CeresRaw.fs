@@ -83,7 +83,7 @@ module private CeresRaw =
     extern void cAddResidualFunction4(CeresProblem problem, CeresCostFunction func, double* p0, double* p1, double* p2, double* p3)
 
     [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
-    extern void cSolve(CeresProblem problem, CeresOptions* options)
+    extern bool cSolve(CeresProblem problem, CeresOptions* options)
 
 module TypeInfo =
     open Aardvark.Base.TypeInfo.Patterns

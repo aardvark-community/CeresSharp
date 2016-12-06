@@ -89,10 +89,11 @@ module Entry =
         end
 
     type Camera3s(pos : V3s, aa : V3s, sf : scalar) =
+        let f = 0.01 + sf * sf
         member x.Position = pos
         member x.AngleAxis = aa
         member x.SqrtFocalLength = sf
-        member x.FocalLength = 0.01 + sf * sf
+        member x.FocalLength = f
 
             
         member x.Project(p : V3s) =
@@ -207,65 +208,140 @@ module Entry =
             x.AddCostFunction([|c0; c1|], residualCount, evaluate, id, [p0.Pointer; p1.Pointer])
 
 
-    let cameraTest() =
-        let rand = RandomSystem()
+    type BundleAdjustmentProblem =
+        {
+            realPoints : int
+            realCameras : int
+            measurements : array<Map<int, V2d>>
+        }
 
+    type BundleAdjustmentSolution =
+        {
+            points  : V3d[]
+            cameras : Camera3d[]
+        }
+
+    type BundleAdjustmentError =
+        {
+            cost        : float
+            max         : float
+            min         : float
+            average     : float
+            stdev       : float
+        }
+
+    [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+    module BundleAdjustmentProblem =
+        let relativeError (s : BundleAdjustmentSolution) (p : BundleAdjustmentProblem) =
+            let errors =
+                p.measurements 
+                    |> Seq.mapi (fun ci measurements ->
+                        let cam = s.cameras.[ci]
+
+                        measurements 
+                            |> Map.toSeq 
+                            |> Seq.map (fun (pi, m) -> 
+                                let obs = cam.Project s.points.[pi]
+                                let v = obs - m
+                                v, Vec.length (0.5 * v) // 0.5 because [-1,1]
+                            ) 
+                       )
+                    |> Seq.concat
+                    |> Seq.toArray
+
+            let mutable sumSq = 0.0
+            let mutable sum = 0.0
+            let mutable emin = Double.PositiveInfinity
+            let mutable emax = Double.NegativeInfinity
+            for (v,l) in errors do
+                sumSq <- sumSq + v.X * v.X + v.Y * v.Y
+                sum <- sum + l
+                emin <- min emin l
+                emax <- max emax l
+
+
+            let average = sum / float errors.Length
+            let variance = Array.sumBy (fun (_,e) -> (e - average) * (e - average)) errors / float (errors.Length - 1)
+
+
+            {
+                cost        = sumSq
+                max         = emax
+                min         = emin
+                average     = average
+                stdev       = sqrt variance
+            }
+
+    let private rand = RandomSystem()
+
+    let rec bundle (input : BundleAdjustmentProblem) =
         use p = new Problem()
-
-        let realPoints = Array.init 10 (fun _ -> rand.UniformV3dDirection())
-        let realCameras = Array.init 3 (fun _ -> Camera3d.LookAt(rand.UniformV3dDirection() * 4.0, V3d.Zero, 1.0, V3d.OOI))
-
-        let truth =
-            Array.init realCameras.Length (fun ci ->
-                realPoints |> Array.map (realCameras.[ci].Project)
-            )
-
-
-        let guessedPoints   = Array.init realPoints.Length (fun _ -> rand.UniformV3dDirection())
-        let guessedCameras  = Array.init realCameras.Length (fun _ -> Camera3d.LookAt(rand.UniformV3dDirection() * 4.0, V3d.Zero, 1.0, V3d.OOI))
+        let guessedPoints   = Array.init input.realPoints (fun _ -> rand.UniformV3dDirection())
+        let guessedCameras  = Array.init input.realCameras (fun _ -> Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.0, V3d.OOI))
         let worldPoints     = p.AddParameterBlock guessedPoints
         let camBlocks       = guessedCameras |> Array.map (fun c -> p.AddParameterBlock<Camera3d, Camera3s>([|c|]))
 
         for ci in 0 .. guessedCameras.Length - 1 do
-            let points = truth.[ci]
-            p.AddCostFunction(2 * points.Length, worldPoints, camBlocks.[ci], fun world cam ->
+            let measurements = input.measurements.[ci] |> Seq.toArray
+            let residuals = 2 * measurements.Length
+            let res = Array.zeroCreate residuals
+
+            p.AddCostFunction(residuals, worldPoints, camBlocks.[ci], fun world cam ->
                 let cam = cam.[0]
-
-                let res = Array.zeroCreate (2 * points.Length)
-                for i in 0 .. points.Length - 1 do
-                    let obs = cam.Project world.[i]
-                    let r = obs - points.[i]
-
-                    res.[2*i+0] <- r.X
-                    res.[2*i+1] <- r.Y
+                let mutable oi = 0
+                for kvp in measurements do
+                    let obs = cam.Project world.[kvp.Key]
+                    let r = obs - kvp.Value
+                    res.[oi + 0] <- r.X 
+                    res.[oi + 1] <- r.Y 
+                    oi <- oi + 2
 
                 res
             )
+        
+        if p.Solve(CeresOptions(150, CeresSolverType.SparseSchur, true, 1.0E-4, 1.0E-4, 1.0E-4)) then
+            let points = worldPoints.Result
+            let cameras = camBlocks |> Array.map (fun b -> b.Result.[0])
+            { cameras = cameras; points = points }
+        else
+            Log.warn "retry"
+            bundle input
 
-        p.Solve(CeresOptions(1000, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16))
+    let cameraTest() =
+        let rand = RandomSystem()
 
+        let realPoints = Array.init 50 (fun _ -> rand.UniformV3dDirection())
+        let realCameras = Array.init 6 (fun _ -> Camera3d.LookAt(rand.UniformV3dDirection() * 4.0, V3d.Zero, 1.0, V3d.OOI))
 
-        let points = worldPoints.Result
-        let cameras = camBlocks |> Array.map (fun b -> b.Result.[0])
-
-        let errors =
-            cameras |> Array.mapi (fun ci c ->
-                let truth = truth.[ci]
-                let obs = points |> Array.map (c.Project)
-                let test = Array.zip truth obs
-                Array.map (fun (t, o) -> Vec.length ((t - o) / 2.0)) test
+        let measurements =
+            Array.init realCameras.Length (fun ci ->
+                Seq.init realPoints.Length (fun i -> i, realCameras.[ci].Project realPoints.[i]) |> Map.ofSeq
             )
 
-        let errors = Array.concat errors
+        let problem =
+            {
+                realPoints = realPoints.Length
+                realCameras = realCameras.Length
+                measurements = measurements
+            }
 
-        let avg = Array.average errors
-        printfn "ERR: %A" avg
+        let sol = bundle problem
 
-        cameras, points
+        let err = problem |> BundleAdjustmentProblem.relativeError sol
+        Log.start "test"
+        
+        Log.line "cost:    %A" err.cost
+        Log.line "average: %.4f%%" (100.0 * err.average)
+        Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
+        Log.line "min:     %.4f%%" (100.0 * err.min)
+        Log.line "max:     %.4f%%" (100.0 * err.max)
+        Log.stop()
+
+        sol
 
     [<EntryPoint>]
     let main argv =
-        let cam, points = cameraTest()
+        let sol = cameraTest()
 
         Environment.Exit 0
 
@@ -284,7 +360,7 @@ module Entry =
             |]
         )
 
-        p.Solve(CeresOptions(100, CeresSolverType.DenseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16))
+        p.Solve(CeresOptions(100, CeresSolverType.DenseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) |> ignore
 
         let b = b.Result 
         let c = c.Result 

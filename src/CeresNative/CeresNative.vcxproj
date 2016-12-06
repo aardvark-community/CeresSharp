@@ -88,6 +88,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)..\libs\Native\Ceres\windows\AMD64\</OutDir>
     <IntDir>$(SolutionDir)..\bin\Release\AMD64\CeresNative\</IntDir>
+    <CustomBuildAfterTargets>Build</CustomBuildAfterTargets>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -158,6 +159,13 @@
       <AdditionalLibraryDirectories>$(SolutionDir)..\lib\ceres\x64\Release\</AdditionalLibraryDirectories>
       <AdditionalDependencies>ceres_static.lib;libglog_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <CustomBuildStep>
+      <Command>xcopy /Y $(SolutionDir)..\libs\Native\Ceres\windows\AMD64\* $(SolutionDir)..\bin\Debug\
+xcopy /Y $(SolutionDir)..\libs\Native\Ceres\windows\AMD64\* $(SolutionDir)..\bin\Release\</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>$(SolutionDir)..\bin\Debug\CeresNative.dll;$(SolutionDir)..\bin\Debug\CeresNative.exp;$(SolutionDir)..\bin\Debug\CeresNative.lib;$(SolutionDir)..\bin\Release\CeresNative.dll;$(SolutionDir)..\bin\Release\CeresNative.exp;$(SolutionDir)..\bin\Release\CeresNative.lib;%(Outputs)</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
