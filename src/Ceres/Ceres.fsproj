@@ -70,6 +70,7 @@
     <Compile Include="Scalar.fs" />
     <Compile Include="Math.fs" />
     <Compile Include="Derivatives.fs" />
+    <Compile Include="DerivativeSolver.fs" />
     <Compile Include="Program.fs" />
     <Content Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
