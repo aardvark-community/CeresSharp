@@ -57,6 +57,7 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
+    <Compile Include="Utilities.fs" />
     <Compile Include="BundlerProblem.fs" />
     <Compile Include="Bundler.fs" />
     <Compile Include="Program.fs" />
@@ -191,6 +192,32 @@
       <ItemGroup>
         <Reference Include="Aardvark.Base.Runtime">
           <HintPath>..\..\packages\Aardvark.Base.Runtime\lib\net45\Aardvark.Base.Runtime.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+      </ItemGroup>
+    </When>
+  </Choose>
+  <Choose>
+    <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.0' Or $(TargetFrameworkVersion) == 'v4.5' Or $(TargetFrameworkVersion) == 'v4.5.1' Or $(TargetFrameworkVersion) == 'v4.5.2' Or $(TargetFrameworkVersion) == 'v4.5.3' Or $(TargetFrameworkVersion) == 'v4.6' Or $(TargetFrameworkVersion) == 'v4.6.1' Or $(TargetFrameworkVersion) == 'v4.6.2' Or $(TargetFrameworkVersion) == 'v4.6.3')">
+      <ItemGroup>
+        <Reference Include="OpenCvSharp.Blob">
+          <HintPath>..\..\packages\Aardvark.OpenCvSharp\lib\net40\OpenCvSharp.Blob.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+        <Reference Include="OpenCvSharp.Extensions">
+          <HintPath>..\..\packages\Aardvark.OpenCvSharp\lib\net40\OpenCvSharp.Extensions.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+        <Reference Include="OpenCvSharp.UserInterface">
+          <HintPath>..\..\packages\Aardvark.OpenCvSharp\lib\net40\OpenCvSharp.UserInterface.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+        <Reference Include="OpenCvSharp">
+          <HintPath>..\..\packages\Aardvark.OpenCvSharp\lib\net40\OpenCvSharp.dll</HintPath>
           <Private>True</Private>
           <Paket>True</Paket>
         </Reference>
@@ -663,6 +690,15 @@
       <ItemGroup>
         <Reference Include="System.Reactive.Core">
           <HintPath>..\..\packages\System.Reactive.Core\lib\netstandard1.3\System.Reactive.Core.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+      </ItemGroup>
+    </When>
+    <When Condition="$(TargetPlatformIdentifier) == 'UAP' And $(TargetPlatformVersion.StartsWith('10.0'))">
+      <ItemGroup>
+        <Reference Include="System.Reactive.Core">
+          <HintPath>..\..\packages\System.Reactive.Core\lib\uap10.0\System.Reactive.Core.dll</HintPath>
           <Private>True</Private>
           <Paket>True</Paket>
         </Reference>

@@ -73,7 +73,7 @@ DllExport(void) cAddResidualFunction4(Problem* problem, CustomCostFunction* cost
 	problem->AddResidualBlock(cost, loss_function, p0, p1, p2, p3);
 }
 
-DllExport(bool) cSolve(Problem* problem, CeresOptions* options)
+DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 {
 	disableGoogleLogging();
 	ceres::Solver::Options opt;
@@ -89,9 +89,18 @@ DllExport(bool) cSolve(Problem* problem, CeresOptions* options)
 
 	ceres::Solver::Summary summary;
 	ceres::Solve(opt, problem, &summary);
-	std::cout << summary.FullReport() << "\n";
 
-	return summary.termination_type == ceres::TerminationType::CONVERGENCE;
+	if(options->PrintProgress != 0) std::cout << summary.FullReport() << "\n";
+
+	
+	if (summary.termination_type == ceres::TerminationType::CONVERGENCE)
+	{
+		return summary.final_cost;
+	}
+	else
+	{
+		return INFINITY;
+	}
 
 }
 

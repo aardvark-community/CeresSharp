@@ -22,6 +22,18 @@ type Camera3d =
             AngleAxis.Trafo(x.AngleAxis) *
             Frustum.projTrafo frustum
 
+        member x.Transformed (t : Trafo3d) =
+            let up = AngleAxis.RotatePoint(-x.AngleAxis, V3d.OIO)
+            let fw = AngleAxis.RotatePoint(-x.AngleAxis, -V3d.OOI * x.FocalLength)
+            let p =  x.Position         |> t.Forward.TransformPosProj
+            let pu = x.Position + up    |> t.Forward.TransformPosProj
+            let pf = x.Position + fw    |> t.Forward.TransformPosProj
+
+            let u = pu - p
+            let s = Vec.length u
+
+            Camera3d.LookAt(p, pf, (pf - p).Length / s, u / s)
+
         static member LookAt(eye : V3d, center : V3d, f : float, sky : V3d) =
             let forward = Vec.normalize (center - eye)
             let left = Vec.cross sky forward |> Vec.normalize
@@ -35,11 +47,14 @@ type Camera3d =
             let res = Camera3d(eye, aa, f)
 
             let test = res.Project center
-            if not (Fun.IsTiny test.X) || not (Fun.IsTiny test.Y) then
-                Log.warn "invalid lookAt: project(lookAt) = %A" test
-
-
             res
+
+        static member Delta(src : Camera3d, dst : Camera3d) =
+            let src = src.ViewProjTrafo 100.0
+            let dst = dst.ViewProjTrafo 100.0
+            src * dst.Inverse
+
+
 
 
         new(pos, angleAxis, f) = { Position = pos; AngleAxis = angleAxis; SqrtFocalLength = sqrt (f - 0.01) }
@@ -71,11 +86,25 @@ type BundlerProblem =
         measurements : array<Map<int, V2d>>
     }
 
+
 type BundlerSolution =
     {
         problem : BundlerProblem
         points  : V3d[]
         cameras : Camera3d[]
+    }
+
+type BundlerSubProblem =
+    {
+        problem         : BundlerProblem
+        subCameras      : Set<int>
+    }
+
+type BundlerSubSolution =
+    {
+        problem     : BundlerProblem
+        subPoints   : Map<int, V3d>
+        subCameras  : Map<int, Camera3d>
     }
 
 type BundlerError =
@@ -134,13 +163,19 @@ module BundlerProblem =
             average     = average
             stdev       = sqrt variance
         }
-      
+  
+  
+ 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BundlerSolution =
     let inline problem (s : BundlerSolution) = s.problem
     let inline points (s : BundlerSolution) = s.points
     let inline cameras (s : BundlerSolution) = s.cameras
        
+
+
+
+
     let errorMetrics (s : BundlerSolution) =
         let errors =
             s.problem.measurements 
@@ -181,6 +216,13 @@ module BundlerSolution =
             stdev       = sqrt variance
         }
 
+    let transformed (trafo : Trafo3d) (s : BundlerSolution) =
+        let fw = trafo.Forward
+        { s with 
+            points = s.points |> Array.map fw.TransformPosProj
+            cameras = s.cameras |> Array.map (fun c -> c.Transformed trafo) 
+        }
+
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BundlerError =
     let inline cost (s : BundlerError) = s.cost
@@ -189,3 +231,32 @@ module BundlerError =
     let inline average (s : BundlerError) = s.average
     let inline stdev (s : BundlerError) = s.stdev
 
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module BundlerSubSolution =
+
+    let transformed (trafo : Trafo3d) (s : BundlerSubSolution) =
+        let fw = trafo.Forward
+        { s with 
+            subPoints = s.subPoints |> Map.map (fun i p -> fw.TransformPosProj p)
+            subCameras = s.subCameras |> Map.map (fun i c -> c.Transformed trafo) 
+        }
+
+    let merge (l : BundlerSubSolution) (r : BundlerSubSolution) =
+        if l.problem <> r.problem then failwith "cannot merge SubSolutions for different problems"
+        let problem = l.problem
+
+        let overlapping = Map.intersect l.subPoints r.subPoints
+        if overlapping.Count < 8 then failwith "cannot merge SubSolutions with less than 8 shared points"
+
+        let lPoints, rPoints = overlapping |> Map.toSeq |> Seq.map snd |> Seq.toArray |> Array.unzip
+
+        let trafo = PointCloud.trafo rPoints lPoints
+
+        let r = transformed trafo r
+
+        {
+            BundlerSubSolution.problem      = problem
+            BundlerSubSolution.subPoints    = Map.union r.subPoints l.subPoints
+            BundlerSubSolution.subCameras   = Map.union r.subCameras l.subCameras
+        }

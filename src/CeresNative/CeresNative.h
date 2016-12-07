@@ -30,7 +30,6 @@ typedef struct {
 	double GradientTolerance;
 	double FunctionTolerance;
 	double ParameterTolerance;
-
 } CeresOptions;
 
 
@@ -75,6 +74,6 @@ DllExport(void) cAddResidualFunction2(Problem* problem, CustomCostFunction* cost
 DllExport(void) cAddResidualFunction3(Problem* problem, CustomCostFunction* cost, double* p0, double* p1, double* p2);
 DllExport(void) cAddResidualFunction4(Problem* problem, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3);
 
-DllExport(bool) cSolve(Problem* problem, CeresOptions* options);
+DllExport(double) cSolve(Problem* problem, CeresOptions* options);
 
 
