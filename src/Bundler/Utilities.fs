@@ -68,4 +68,7 @@ module PointCloud =
 
         Trafo3d(mat, mat.Inverse)
   
+    let trafo2 (source : Map<int, V3d>) (target : Map<int, V3d>) =
+        let s, t = Map.intersect source target |> Map.toSeq |> Seq.map snd |> Seq.toArray |> Array.unzip
+        trafo s t
 

@@ -18,67 +18,56 @@ module BundlerTest =
 
         let measurements =
             Array.init realCameras.Length (fun ci ->
-                Seq.init realPoints.Length (fun i -> i, realCameras.[ci].Project realPoints.[i]) |> Map.ofSeq
+                let corr =
+                    seq {
+                        for i in 0 .. realPoints.Length - 1 do
+                            if rand.UniformDouble() < 2.0 then
+                                let jitter = rand.UniformV2dDirection() * rand.UniformDouble()* 0.005 * 3.0  // 3%
+                                let p = jitter + realCameras.[ci].Project realPoints.[i] 
+                                yield i, p
+                    }
+
+                Map.ofSeq corr
             )
 
-        realPoints, realCameras, {
-            realPoints = realPoints.Length
-            realCameras = realCameras.Length
-            measurements = measurements
-        }
+        let input = 
+            BundlerInput.preprocess {
+                measurements = measurements
+            }
+
+        realPoints, realCameras, BundlerInput.toProblem input
 
     let private rand = RandomSystem()
-    let rec solve (k : int) (p : BundlerSubProblem) =
-        if p.subCameras.Count >= 2 * k then
+    let rec solve (level : int) (k : int) (p : BundlerProblem) =
+        try
+            Log.startTimed "solve level %d" level
+            if p.cameras.Count >= 2 * k then
             
-            let l = p.subCameras.RandomOrder() |> Seq.toArray
-            let l, r = Array.splitAt (l.Length / 2) l
+                let l = p.cameras.RandomOrder() |> Seq.toArray
+                let l, r = Array.splitAt (l.Length / 2) l
 
 
-            let half = Set.ofArray l
-            let rest = Set.ofArray r
+                let half = Set.ofArray l
+                let rest = Set.ofArray r
 
-            let l = solve k { p with subCameras = half }
-            let r = solve k { p with subCameras = rest }
+                let l = solve (level + 1) k { p with cameras = half }
+                let r = solve (level + 1) k { p with cameras = rest }
 
-            let res = BundlerSubSolution.merge l r
-            Bundler.improveSubSolution res
-        else
-            Bundler.solveSubProblem p
+                let res = BundlerSolution.merge l r
+                Bundler.improve res
+            else
+                Bundler.solve p
+        finally
+            Log.stop()
 
 
 
     let syntheticCameras (cameras : int) (points : int) =
-        let rand = RandomSystem()
-
-        let realPoints = Array.init points (fun _ -> rand.UniformV3dDirection())
-        let realCameras = Array.init cameras (fun _ -> Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 2.0, V3d.OOI))
-
-        let measurements =
-            Array.init realCameras.Length (fun ci ->
-                Seq.init realPoints.Length (fun i -> i, realCameras.[ci].Project realPoints.[i]) |> Map.ofSeq
-            )
-
-        let problem =
-            {
-                realPoints = realPoints.Length
-                realCameras = realCameras.Length
-                measurements = measurements
-            }
+        let realPoints, realCameras, problem = createProblem cameras points
 
 
         Log.startTimed "solver"
-        let subSol = solve 4 { problem = problem; subCameras = Set.ofList [0 .. cameras - 1] }
-
-        let sol = 
-            { 
-                problem = problem
-                points = subSol.subPoints |> Map.toSeq |> Seq.map snd |> Seq.toArray
-                cameras = subSol.subCameras |> Map.toSeq |> Seq.map snd |> Seq.toArray
-            }
-
-
-        let sol = Bundler.improve sol
+        let sol = Bundler.solve problem //solve 0 4 problem
 
         let err = sol |> BundlerSolution.errorMetrics
         Log.start "error metrics"
@@ -90,9 +79,44 @@ module BundlerTest =
         Log.stop()
         Log.stop()
 
-        let input = { problem = problem; points = realPoints; cameras = realCameras }
+        let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.indexed |> Map.ofSeq }
 
         input, sol
+
+    let kermit() =
+        let files = System.IO.Directory.GetFiles @"C:\Users\schorsch\Desktop\bundling\kermit" 
+        let features = 
+            files
+                |> Array.map Akaze.ofFile
+
+        let config =
+            {
+                threshold = 0.7
+                minTrackLength = 5
+            }
+
+        let problem = 
+            Feature.toBundlerInput config files features
+                |> BundlerInput.preprocess
+                |> BundlerInput.toProblem
+
+        if problem.cameras.Count >  0 then
+
+            Log.startTimed "solver"
+            let sol = Bundler.solve problem //solve 0 4 problem
+
+            let err = sol |> BundlerSolution.errorMetrics
+            Log.start "error metrics"
+            Log.line "cost:    %A" err.cost
+            Log.line "average: %.4f%%" (100.0 * err.average)
+            Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
+            Log.line "min:     %.4f%%" (100.0 * err.min)
+            Log.line "max:     %.4f%%" (100.0 * err.max)
+            Log.stop()
+            Log.stop()
+            sol
+        else
+            { cost = 0.0; problem = problem; points = Map.empty; cameras = Map.empty }
 
 module BundlerSolution =
     open Aardvark.SceneGraph
@@ -100,11 +124,11 @@ module BundlerSolution =
     let sg (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) =
         let frustum = Box3d(-V3d(1.0, 1.0, 10000.0), V3d(1.0, 1.0, -2.0))
         let cameras = 
-            s.cameras |> Array.map (fun c -> 
+            s.cameras |> Map.toSeq |> Seq.map (fun (_,c) -> 
                 Sg.wireBox' C4b.Green frustum
                     |> Sg.transform (c.ViewProjTrafo(100.0).Inverse)
             )
-            |> Sg.ofArray
+            |> Sg.ofSeq
             |> Sg.shader { 
                 do! DefaultSurfaces.trafo
                 do! DefaultSurfaces.constantColor (C4f cameraColor)
@@ -115,7 +139,7 @@ module BundlerSolution =
                 Mode = IndexedGeometryMode.PointList,
                 IndexedAttributes =
                     SymDict.ofList [
-                        DefaultSemantic.Positions, s.points |> Array.map V3f :> Array
+                        DefaultSemantic.Positions, s.points |> Map.toSeq |> Seq.map snd |> Seq.map V3f |> Seq.toArray :> Array
                     ]
             )
             |> Sg.ofIndexedGeometry
@@ -186,50 +210,10 @@ module FundamentalMatrix =
         h0m, h1m
 
 
-let test2 () =
-    let realPoints, realCameras, problem = BundlerTest.createProblem 2 50
-    let c0 = problem.measurements.[0] //|> Map.filter (fun k _ -> k < 7)
-    let c1 = problem.measurements.[1] //|> Map.filter (fun k _ -> k < 7)
-
-
-    let input =
-        BundlerSolution.sg C4b.Blue 20 C4b.Yellow {
-            problem = problem
-            points = realPoints
-            cameras = realCameras |> Array.take 2
-        }
-
-    match Bundler.tryRegisterCameras c0 c1 with
-        | Some(c1, pts) ->
-
-//            let projected = pts |> Map.toSeq |> Seq.map snd |> Seq.map cam.Project |> Seq.toArray
-//            let real = c1 |> Map.toSeq |> Seq.map snd |> Seq.toArray
-//            let res = Array.map2 (fun l r -> Vec.length (l - r))  projected real |> Array.sum
-//            Log.warn "err: %A" res
-
-            let c0 = Camera3d(V3d.Zero, V3d.Zero, 1.0)
-
-            let res = 
-                BundlerSolution.sg (C4b(255uy, 0uy, 0uy, 127uy)) 10 C4b.Red {
-                    problem = problem
-                    points = pts |> Map.toSeq |> Seq.map snd |> Seq.toArray
-                    cameras = [|c0; c1|]
-                }
-                |> Sg.transform (Camera3d.Delta(c0, realCameras.[0]))
-                |> Sg.pass (RenderPass.after "asdasd" RenderPassOrder.Arbitrary RenderPass.main)
-                |> Sg.depthTest (Mod.constant DepthTestMode.None)
-                |> Sg.blendMode (Mod.constant BlendMode.Blend)
-            Sg.ofList [input; res]
-
-        | None ->
-            Sg.ofList [input]
-
 let testGlobal() =
-    let input, sol = BundlerTest.syntheticCameras 128 50
+    let input, sol = BundlerTest.syntheticCameras 10 50
 
-
-
-    let trafo = PointCloud.trafo sol.points input.points
+    let trafo = PointCloud.trafo2 sol.points input.points
     let input =
         input 
             |> BundlerSolution.sg (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow
@@ -243,10 +227,17 @@ let testGlobal() =
         
     Sg.ofList [ input; sol ]
 
+let testKermit() =
+    let sol = BundlerTest.kermit()
+    sol |> BundlerSolution.sg C4b.Green 20 C4b.Red
+        
+    
+
+open System.IO
+
 [<EntryPoint>]
 let main argv =
     Aardvark.Init()
-
     use app = new OpenGlApplication()
     use win = app.CreateSimpleRenderWindow(8)
 
@@ -256,7 +247,7 @@ let main argv =
 
     
     let sg = 
-        testGlobal()
+        testKermit()
             |> Sg.uniform "ViewportSize" win.Sizes
             |> Sg.viewTrafo (cameraView |> Mod.map CameraView.viewTrafo)
             |> Sg.projTrafo (frustum |> Mod.map Frustum.projTrafo)
