@@ -1,6 +1,7 @@
 ﻿namespace Aardvark.Ceres
 
 open System
+open System.IO
 open Aardvark.Base
 
 #nowarn "9"
@@ -238,6 +239,7 @@ type MatchingConfig =
     {
         threshold : float
         minTrackLength : int
+        reprDistance : float
     }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -273,6 +275,8 @@ module Feature =
 
 
     let matches (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+        
+        //bruteforce matcher
         use matcher = new BFMatcher(normType = NormTypes.Hamming)
 
         use lMat = new Mat(l.Length, l.[0].descriptor.Dimension, MatType.CV_8UC1)
@@ -286,8 +290,10 @@ module Feature =
             let arr = r.[i].descriptor.RawData |> Array.map (fun v -> uint8 (v * 255.0))
             rMat.Row.[i].SetArray(0, 0, arr)
 
+        //find all 2-nn matches
         let matches = matcher.KnnMatch(rMat, 2)
 
+        //really good match = closest match is significantly closer than the next nearest one (based on config.threshold)
         let reallyGoodMatches =
             matches |> Seq.choose (fun m ->
                 let m0 = m.[0]
@@ -301,6 +307,8 @@ module Feature =
             ) |> Seq.toArray
 
 
+        //need at least 12 really good matches ("anchor matches") for decent homography
+        //use the homography to throw away features with bad reprojection error
         if reallyGoodMatches.Length >= 12 then
             Log.warn "found %d anchor matches" reallyGoodMatches.Length
 
@@ -318,7 +326,7 @@ module Feature =
                     let rPoint = r.[m0.QueryIdx].ndc
                     let rExpected = hom.TransformPosProj(lPoint)
                     let distance = Vec.length (rPoint - rExpected)
-                    if distance < 0.02 then
+                    if distance < config.reprDistance then      //this eliminates mismatches mostly.    
                         Some (m0.TrainIdx, m0.QueryIdx)
                     else
                         None
@@ -330,11 +338,11 @@ module Feature =
                 Log.warn "made %d out of it" final.Length
                 Array.toList final
             else 
-                Log.warn "found no matches"
+                Log.warn "found too few final matches (only %A points survived homography)" final.Length
                 []
 
         else
-            Log.warn "found no matches"
+            Log.warn "found only %A reallygood matches (need at least 12)" reallyGoodMatches.Length
             []
 
 
@@ -519,7 +527,11 @@ module Feature =
                     file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
                     
 
-                file.SaveAsImage (Path.combine [@"C:\Users\schorsch\Desktop\test"; sprintf "image%d.jpg" i])
+                let path = sprintf @"C:\bla\yolo\k\lol\t%A_mtl%A_rd%A" g.config.threshold g.config.minTrackLength g.config.reprDistance
+
+                if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+
+                file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
 
 
             { measurements = measurements }

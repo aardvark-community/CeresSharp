@@ -83,16 +83,26 @@ module BundlerTest =
 
         input, sol
 
+    let testMatching_fileOut configs =
+        let files = System.IO.Directory.GetFiles @"C:\bla\yolo" 
+        let features = 
+            files
+                |> Array.map Akaze.ofFile
+
+        for config in configs do
+            Feature.toBundlerInput config files features |> ignore
+
     let kermit() =
-        let files = System.IO.Directory.GetFiles @"C:\Users\schorsch\Desktop\bundling\kermit" 
+        let files = System.IO.Directory.GetFiles @"C:\bla\yolo\k" 
         let features = 
             files
                 |> Array.map Akaze.ofFile
 
         let config =
             {
-                threshold = 0.7
-                minTrackLength = 5
+                threshold = 0.8
+                minTrackLength = 3
+                reprDistance = 0.02
             }
 
         let problem = 
@@ -241,6 +251,19 @@ let main argv =
     use app = new OpenGlApplication()
     use win = app.CreateSimpleRenderWindow(8)
 
+//   let configs = 
+//       [
+//           for threshold in [0.6 .. 0.1 .. 0.9 ] do
+//               for minTrackLength in [2 .. 4] do
+//                   for reprDistance in [0.01 .. 0.015 .. 0.065] do
+//                       yield {
+//                           threshold = threshold
+//                           minTrackLength = minTrackLength
+//                           reprDistance = reprDistance
+//                       }
+//       ]
+//
+//   do BundlerTest.testMatching_fileOut configs
     let cameraView = CameraView.lookAt (V3d(6,6,6)) V3d.Zero V3d.OOI
     let cameraView = cameraView |> DefaultCameraController.control win.Mouse win.Keyboard win.Time
     let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
