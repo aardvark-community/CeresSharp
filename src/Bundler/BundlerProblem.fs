@@ -8,12 +8,19 @@ type Camera3d =
         val mutable public Position         : V3d
         val mutable public AngleAxis        : V3d
         val mutable public SqrtFocalLength  : float
+        val mutable public Distortion       : V2d
             
         member x.FocalLength = 0.01 + x.SqrtFocalLength * x.SqrtFocalLength
 
         member x.Project(p : V3d) =
             let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
-            x.FocalLength * view.XY / view.Z
+            let ndc = view.XY / view.Z
+
+            let distortion = 
+                let r2 = ndc.LengthSquared
+                1.0 + r2 * (x.Distortion.X + x.Distortion.Y * r2)
+
+            x.FocalLength * distortion * ndc
 
         member x.ViewProjTrafo (far : float) =
             let frustum = { left = -1.0; right = 1.0; top = 1.0; bottom = -1.0; near = x.FocalLength; far = far }
@@ -32,9 +39,16 @@ type Camera3d =
             let u = pu - p
             let s = Vec.length u
 
-            Camera3d.LookAt(p, pf, (pf - p).Length / s, u / s)
+            let mutable res = Camera3d.LookAt(p, pf, (pf - p).Length / s, u / s)
+            res.Distortion <- x.Distortion
+            res
 
-        static member LookAt(eye : V3d, center : V3d, f : float, sky : V3d) =
+        member x.GetRay (pt : V2d) =
+            let ndc = V3d(pt.X, pt.Y, x.FocalLength)
+            let dir = AngleAxis.RotatePoint(-x.AngleAxis, ndc) |> Vec.normalize
+            Ray3d(x.Position, dir)
+
+        static member LookAt(eye : V3d, center : V3d, f : float, sky : V3d) : Camera3d =
             let forward = Vec.normalize (center - eye)
             let left = Vec.cross sky forward |> Vec.normalize
             let up = Vec.cross forward left |> Vec.normalize
@@ -44,7 +58,7 @@ type Camera3d =
             let mutable angle = 0.0
             rot.ToAxisAngle(&axis, &angle)
             let aa = axis * -angle
-            let res = Camera3d(eye, aa, f)
+            let res = Camera3d(eye, aa, f, V2d.Zero)
 
             let test = res.Project center
             res
@@ -57,26 +71,38 @@ type Camera3d =
 
 
 
-        new(pos, angleAxis, f) = { Position = pos; AngleAxis = angleAxis; SqrtFocalLength = sqrt (f - 0.01) }
+        new(pos, angleAxis, f, d) = { Position = pos; AngleAxis = angleAxis; SqrtFocalLength = sqrt (f - 0.01); Distortion = d }
     end
 
-type Camera3s(pos : V3s, aa : V3s, sf : scalar) =
+type Camera3s(pos : V3s, aa : V3s, sf : scalar, d : V2s) =
     let f = 0.01 + sf * sf
     member x.Position = pos
     member x.AngleAxis = aa
     member x.SqrtFocalLength = sf
     member x.FocalLength = f
+    member x.Distortion = d
 
-            
+    member x.ProjectNoDistortion(p : V3s) =
+        let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
+        let ndc = view.XY / view.Z
+        x.FocalLength * ndc           
+         
     member x.Project(p : V3s) =
         let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
-        x.FocalLength * view.XY / view.Z
+        let ndc = view.XY / view.Z
+
+        let distortion = 
+            let r2 = ndc.LengthSquared
+            scalar 1.0 + r2 * (x.Distortion.X + x.Distortion.Y * r2)
+
+        x.FocalLength * distortion * ndc
 
     static member Read(offset : int, v : Camera3d) =
         let p   = V3s(scalar.Variable(offset + 0, v.Position.X), scalar.Variable(offset + 1, v.Position.Y), scalar.Variable(offset + 2, v.Position.Z))
         let aa  = V3s(scalar.Variable(offset + 3, v.AngleAxis.X), scalar.Variable(offset + 4, v.AngleAxis.Y), scalar.Variable(offset + 5, v.AngleAxis.Z))
         let sf  = scalar.Variable(offset + 6, v.SqrtFocalLength)
-        Camera3s(p, aa, sf)
+        let d  = V2s(scalar.Variable(offset + 7, v.SqrtFocalLength), scalar.Variable(offset + 8, v.SqrtFocalLength))
+        Camera3s(p, aa, sf, d)
 
 
 type BundlerInput =

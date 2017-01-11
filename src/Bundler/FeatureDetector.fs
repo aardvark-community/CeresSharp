@@ -238,6 +238,7 @@ type MatchingConfig =
     {
         threshold : float
         minTrackLength : int
+        distanceThreshold : float
     }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -246,8 +247,9 @@ module Feature =
     open OpenCvSharp
     open OpenCvSharp.XFeatures2D
     open Microsoft.FSharp.NativeInterop
-    
-    let private homography (l : V2d[]) (r : V2d[]) =
+    open CeresSharp
+
+    let private fundamentalMat (l : V2d[]) (r : V2d[]) =
 
 //        let la = l |> Array.map (fun l -> V3d(l, 0.0))
 //        let ra = r |> Array.map (fun r -> V3d(r, 0.0))
@@ -264,15 +266,102 @@ module Feature =
             rMat.Set(0, i, rp)
 
 
-        use res = Cv2.FindHomography(InputArray.op_Implicit lMat, InputArray.op_Implicit rMat, HomographyMethods.Ransac, 0.001)
+        use res = Cv2.FindFundamentalMat(InputArray.op_Implicit lMat, InputArray.op_Implicit rMat, FundamentalMatMethod.Ransac, 0.008)
+   
         M33d(
             res.Get(0, 0), res.Get(0, 1), res.Get(0, 2),
             res.Get(1, 0), res.Get(1, 1), res.Get(1, 2),
             res.Get(2, 0), res.Get(2, 1), res.Get(2, 2)
         )
 
+    let private homography (l : V2d[]) (r : V2d[]) =
+        use lMat = new Mat(1, l.Length, MatType.CV_64FC2)
+        use rMat = new Mat(1, r.Length, MatType.CV_64FC2)
+        for i in 0 .. l.Length - 1 do
+            let lp = Vec2d(l.[i].X, l.[i].Y)
+            let rp = Vec2d(r.[i].X, r.[i].Y)
+            lMat.Set(0, i, lp)
+            rMat.Set(0, i, rp)
 
-    let matches (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+        use mask = new Mat()
+        use res = Cv2.FindHomography(InputArray.op_Implicit lMat, InputArray.op_Implicit rMat, HomographyMethods.Ransac, 0.002, OutputArray.op_Implicit mask)
+   
+        let maskData : byte[] = Array.zeroCreate mask.Rows
+        mask.GetArray(0,0, maskData)
+
+        let used =
+            maskData 
+                |> Seq.indexed
+                |> Seq.choose (fun (i, v) -> if v <> 0uy then Some i else None)
+                |> Set.ofSeq
+
+        let homography = 
+            M33d(
+                res.Get(0, 0), res.Get(0, 1), res.Get(0, 2),
+                res.Get(1, 0), res.Get(1, 1), res.Get(1, 2),
+                res.Get(2, 0), res.Get(2, 1), res.Get(2, 2)
+            )
+
+        homography, used
+
+
+    let private stereoRectify (l : V2d[]) (r : V2d[]) =
+        use lMat = new Mat(1, l.Length, MatType.CV_64FC2)
+        use rMat = new Mat(1, r.Length, MatType.CV_64FC2)
+        for i in 0 .. l.Length - 1 do
+            let lp = Vec2d(l.[i].X, l.[i].Y)
+            let rp = Vec2d(r.[i].X, r.[i].Y)
+            lMat.Set(0, i, lp)
+            rMat.Set(0, i, rp)
+            
+        use mask = new Mat()
+        use fMat = Cv2.FindFundamentalMat(InputArray.op_Implicit lMat, InputArray.op_Implicit rMat, FundamentalMatMethod.Ransac, 0.002, 0.99, OutputArray.op_Implicit mask)
+
+
+
+        let maskData : byte[] = Array.zeroCreate mask.Rows
+        mask.GetArray(0,0, maskData)
+        let used =
+            maskData 
+                |> Seq.indexed
+                |> Seq.choose (fun (i, v) -> if v <> 0uy then Some i else None)
+                |> Seq.toArray
+
+        use lMat = new Mat(1, used.Length, MatType.CV_64FC2)
+        use rMat = new Mat(1, used.Length, MatType.CV_64FC2)
+        let mutable i = 0
+        for pi in used do
+            let lp = Vec2d(l.[pi].X, l.[pi].Y)
+            let rp = Vec2d(r.[pi].X, r.[pi].Y)
+            lMat.Set(0, i, lp)
+            rMat.Set(0, i, rp)
+            i <- i + 1
+
+        use h1 = new Mat(4, 4, MatType.CV_64FC1)
+        use h2 = new Mat(4, 4, MatType.CV_64FC1)
+        let worked = Cv2.StereoRectifyUncalibrated(InputArray.op_Implicit lMat, InputArray.op_Implicit rMat, InputArray.op_Implicit fMat, Size(2.0, 2.0), OutputArray.op_Implicit h1, OutputArray.op_Implicit h2)
+        Log.warn "worked: %A" worked
+
+        let h1 = 
+            M44d(
+                h1.Get(0, 0), h1.Get(0, 1), 0.0, h1.Get(0, 2),
+                h1.Get(1, 0), h1.Get(1, 1), 0.0, h1.Get(1, 2),
+                0.0,          0.0,          1.0, 0.0,
+                h1.Get(2, 0), h1.Get(2, 1), 0.0, h1.Get(2, 2)
+            )
+
+        let h2 = 
+            M44d(
+                h2.Get(0, 0), h2.Get(0, 1), 0.0, h2.Get(0, 2),
+                h2.Get(1, 0), h2.Get(1, 1), 0.0, h2.Get(1, 2),
+                0.0,          0.0,          1.0, 0.0,
+                h2.Get(2, 0), h2.Get(2, 1), 0.0, h2.Get(2, 2)
+            )
+
+        h1, h2
+
+
+    let matchCandidates (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
         use matcher = new BFMatcher(normType = NormTypes.Hamming)
 
         use lMat = new Mat(l.Length, l.[0].descriptor.Dimension, MatType.CV_8UC1)
@@ -300,42 +389,175 @@ module Feature =
 
             ) |> Seq.toArray
 
+        reallyGoodMatches
 
-        if reallyGoodMatches.Length >= 12 then
+
+    let matchesOld (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+        let reallyGoodMatches = matchCandidates config l r
+
+        if reallyGoodMatches.Length >= 10 then
             Log.warn "found %d anchor matches" reallyGoodMatches.Length
 
-            let lPoints = reallyGoodMatches |> Array.map (fun (li,_) -> l.[li].ndc)
-            let rPoints = reallyGoodMatches |> Array.map (fun (_,ri) -> r.[ri].ndc)
-            let hom = homography lPoints rPoints
+            Array.toList reallyGoodMatches
 
-            let final = 
-                matches |> Seq.choose (fun m ->
-            
-                    let m0 = m.[0]
-                    let m1 = m.[1]
-                
-                    let lPoint = l.[m0.TrainIdx].ndc
-                    let rPoint = r.[m0.QueryIdx].ndc
-                    let rExpected = hom.TransformPosProj(lPoint)
-                    let distance = Vec.length (rPoint - rExpected)
-                    if distance < 0.02 then
-                        Some (m0.TrainIdx, m0.QueryIdx)
-                    else
-                        None
-
-                ) |> Seq.toArray
-
-            if final.Length >= 32 then
-
-                Log.warn "made %d out of it" final.Length
-                Array.toList final
-            else 
-                Log.warn "found no matches"
-                []
+//            let lPoints = reallyGoodMatches |> Array.map (fun (li,_) -> l.[li].ndc)
+//            let rPoints = reallyGoodMatches |> Array.map (fun (_,ri) -> r.[ri].ndc)
+//            let hom, used = homography lPoints rPoints
+//
+//
+//
+//
+//            let final = 
+//                used 
+//                    |> Seq.map (fun i -> reallyGoodMatches.[i])
+//                    |> Seq.toArray
+//                matches |> Seq.choose (fun m ->
+//            
+//                    let m0 = m.[0]
+//                    let m1 = m.[1]
+//                
+//                    let lPoint = l.[m0.TrainIdx].ndc
+//                    let rPoint = r.[m0.QueryIdx].ndc
+//
+//                    let rExpected = hom.TransformPosProj lPoint
+//
+//
+////                    let n = fMat * V3d(lPoint, 1.0) |> Vec.normalize
+////                    let distance = Vec.dot (V3d(rPoint, 1.0)) n |> abs
+//                    let distance = rExpected - rPoint |> Vec.length
+//                    if m0.Distance < 96.0f && distance < 0.01 then
+//                        Some (m0.TrainIdx, m0.QueryIdx)
+//                    else
+//                        None
+//
+//                ) |> Seq.toArray
+//
+//            if final.Length >= 20 then
+//
+//                Log.warn "made %d out of it" final.Length
+//                Array.toList final
+//            else 
+//                Log.warn "found no matches"
+//                []
 
         else
             Log.warn "found no matches"
             []
+
+    open Aardvark.Ceres
+
+    let matches (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+        let reallyGoodMatches = matchCandidates config l r
+
+        let distThreshold = config.distanceThreshold
+        if reallyGoodMatches.Length >= 12 then
+            let randomSubsetSolution() = 
+                let randomMatches =
+                    reallyGoodMatches.RandomOrder()
+                        |> Seq.take 12
+                        |> Seq.toArray
+                
+
+                let m0 = randomMatches |> Seq.mapi (fun i (li, _) -> i, l.[li].ndc) |> Map.ofSeq
+                let m1 = randomMatches |> Seq.mapi (fun i (_, ri) -> i, r.[ri].ndc) |> Map.ofSeq
+
+                Bundler.solveSimple 3 {
+                    input = { measurements = [| m0; m1 |] }
+                    cameras = Set.ofList [0; 1]
+                }
+
+            let countInliers (threshold : float) (sol : BundlerSolution) =
+                let c0 = sol.cameras.[0]
+                let c1 = sol.cameras.[1]
+
+                let mutable inliers = 0
+                for li, ri in reallyGoodMatches do
+                    let lPoint = l.[li].ndc
+                    let rPoint = r.[ri].ndc
+                    let lRay = c0.GetRay(lPoint)
+                    let rRay = c1.GetRay(rPoint)
+                    
+                    let pt = lRay.GetMiddlePoint(rRay)
+                    let lTest = c0.Project pt
+                    let rTest = c1.Project pt
+
+                    let lRes = lTest - lPoint |> Vec.length
+                    let rRes = rTest - rPoint |> Vec.length
+
+                    if lRes < threshold && rRes < threshold then
+                        inliers <- inliers + 1
+
+                    
+                    ()
+
+
+                inliers
+
+            let allInliners (threshold : float) (sol : BundlerSolution) =
+                let c0 = sol.cameras.[0]
+                let c1 = sol.cameras.[1]
+
+                let mutable inliers = 0
+                reallyGoodMatches |> Array.filter (fun (li, ri) ->
+                    let lPoint = l.[li].ndc
+                    let rPoint = r.[ri].ndc
+                    let lRay = c0.GetRay(lPoint)
+                    let rRay = c1.GetRay(rPoint)
+                    
+                    let pt = lRay.GetMiddlePoint(rRay)
+                    let lTest = c0.Project pt
+                    let rTest = c1.Project pt
+
+                    let lRes = lTest - lPoint |> Vec.length
+                    let rRes = rTest - rPoint |> Vec.length
+
+                    lRes < threshold && rRes < threshold
+                   )
+
+
+            let mutable maxScore = -1
+            let mutable bestSolution = Unchecked.defaultof<_>
+            for i in 1 .. 10 do
+                match randomSubsetSolution() with
+                    | Some sol -> 
+                        let score = countInliers distThreshold sol
+                        if score > maxScore then
+                            maxScore <- score
+                            bestSolution <- sol
+                    | _ ->
+                        ()
+
+
+
+
+
+            if maxScore >= 12 then
+                allInliners distThreshold bestSolution
+            else
+                [||]
+        else
+            [||]
+
+
+    let estimateHomography (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+        let reallyGoodMatches = matchCandidates config l r
+
+        if reallyGoodMatches.Length >= 10 then
+            let lPoints = reallyGoodMatches |> Array.map (fun (li,_) -> l.[li].ndc)
+            let rPoints = reallyGoodMatches |> Array.map (fun (_,ri) -> r.[ri].ndc)
+            let hom, used = homography lPoints rPoints
+            let cnt = used.Count
+
+            if cnt >= 8 then
+                Log.warn "found %d matches" cnt
+                Some(hom, cnt)
+            else 
+                Log.warn "found no matches"
+                None
+
+        else
+            Log.warn "found no matches"
+            None
 
 
     [<CustomEquality; NoComparison>]
@@ -369,7 +591,7 @@ module Feature =
 
     type FeatureGraph =
         {
-            files : string[]
+            images : PixImage[]
             config : MatchingConfig
             data : Feature[][]
             features : Dict<int, HashSet<FeatureNode>>
@@ -377,7 +599,7 @@ module Feature =
 
     [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
     module FeatureGraph =
-        let build (config : MatchingConfig) (files : string[]) (data : Feature[][]) =
+        let build (config : MatchingConfig) (images : PixImage[]) (data : Feature[][]) =
             let nodes = Dict<int * int, FeatureNode>()
             let features = Dict()
 
@@ -397,24 +619,47 @@ module Feature =
                     result
                 )
 
-            for lImg in 0 .. data.Length - 1  do
-                for rImg in lImg + 1 .. data.Length - 1 do
+            let edges = List<Edge<array<int * int>>>()
+
+            let allPairs = 
+                [|
+                    for lImg in 0 .. data.Length - 1  do
+                        for rImg in lImg + 1 .. data.Length - 1 do
+                            yield lImg, rImg
+                |]
+
+            let edges = 
+                allPairs |> Array.chooseParallel (fun (lImg, rImg) ->
                     let lFeatures = data.[lImg]
                     let rFeatures = data.[rImg]
+
                     let matches = matches config lFeatures rFeatures
+                    if matches.Length > 0 then
+                        Log.line "matched %d/%d: %d" lImg rImg matches.Length
+                        Some { i0 = lImg; i1 = rImg; weight = matches }
+                    else
+                        None
+                )
+                    
+            let spanningTree = 
+                edges
+                    |> Array.toList
+                    |> Graph.ofEdges
+                    |> Graph.minimumSpanningTree (fun l r -> compare r.Length l.Length)
 
-                    for (lFeature, rFeature) in matches do
-                        let lNode = getNode lImg lFeature
-                        let rNode = getNode rImg rFeature
-                        lNode.Add(rImg, rNode)
-                        rNode.Add(lImg, lNode)
+            Log.start "using"
+            for e in spanningTree do
+                let lImg = e.i0
+                let rImg = e.i1
+                Log.line "(%d, %d): %d" lImg rImg e.weight.Length
+                for (lFeature, rFeature) in e.weight do
+                    let lNode = getNode lImg lFeature
+                    let rNode = getNode rImg rFeature
+                    lNode.Add(rImg, rNode)
+                    rNode.Add(lImg, lNode)
+            Log.stop()
 
-                       
-
-
-                    ()
-
-            { data = data; config = config; files = files; features = features }
+            { data = data; config = config; images = images; features = features }
 
 
 
@@ -449,7 +694,7 @@ module Feature =
                 f
 
 
-            let paths = List<list<FeatureNode>>()
+            let paths = List<Set<int> * array<FeatureNode>>()
             while features.Count > 0 do
                 let list = List<FeatureNode>()
                 let start = takeNode()
@@ -480,34 +725,45 @@ module Feature =
                             traverse (Set.add dstImg visitedImages) (dstNode :: path) dstNode
 
                         | None ->
-                            if bad then [] 
-                            else path
+                            visitedImages, path
 
-                let path = traverse (Set.singleton start.image) [start] start
+                let usedImages, path = traverse (Set.singleton start.image) [start] start
+                let path = List.toArray path
 
-                if List.length path >= g.config.minTrackLength then
-                    paths.Add path
-                    let str = path |> List.map (fun f -> sprintf "(%d, %d)" f.image f.featureIndex) |> String.concat " -> "
+                if path.Length >= g.config.minTrackLength then
+                    paths.Add(usedImages, path)
+                    let str = path |> Array.map (fun f -> sprintf "(%d, %d)" f.image f.featureIndex) |> String.concat " -> "
                     Log.warn "found path: %s" str
 
 
             let measurements = Array.create g.data.Length Map.empty
             let ff = Array.create g.data.Length Map.empty
 
+            let targetCounts = Array.create g.data.Length 40
+
+            paths.QuickSortDescending(fun (_,p) -> p.Length)
 
             for pi in 0 .. paths.Count - 1 do
-                for node in paths.[pi] do
-                    let image = node.image
-                    let pos = node.feature.ndc
-                    measurements.[image] <- Map.add pi pos measurements.[image]
-                    ff.[image] <- Map.add pi node.feature ff.[image]
+                let (used, path) = paths.[pi]
+                let usePath = used |> Set.exists (fun u -> targetCounts.[u] > 0)
+                if usePath then
+                    for node in path do
+                        let image = node.image
+                        let pos = node.feature.ndc
+                        measurements.[image] <- Map.add pi pos measurements.[image]
+                        ff.[image] <- Map.add pi node.feature ff.[image]
+
+                    for u in used do
+                        targetCounts.[u] <- targetCounts.[u] - 1 
+                        
+                        
 
 
             let rand = RandomSystem()
             let colors = paths |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float paths.Count, 1.0, 1.0).ToC4b()) |> Seq.toArray
 
-            for i in 0 .. g.files.Length - 1 do
-                let file = PixImage.Create(g.files.[i]).ToPixImage<byte>()
+            for i in 0 .. g.images.Length - 1 do
+                let file = g.images.[i].ToPixImage<byte>()
                 let ff = ff.[i]
                 
                 for (pi,f) in Map.toSeq ff do
@@ -525,8 +781,8 @@ module Feature =
             { measurements = measurements }
 
 
-    let toBundlerInput (config : MatchingConfig) (files : string[]) (data : Feature[][]) =
-        let graph = FeatureGraph.build config files data
+    let toBundlerInput (config : MatchingConfig) (images : PixImage[]) (data : Feature[][]) =
+        let graph = FeatureGraph.build config images data
         FeatureGraph.toBundlerInput graph
 
 

@@ -6,7 +6,7 @@ open Aardvark.Ceres
 open Aardvark.SceneGraph
 open Aardvark.Application
 open Aardvark.Application.WinForms
-
+open FShade
 
 module BundlerTest =
     
@@ -83,22 +83,33 @@ module BundlerTest =
 
         input, sol
 
+        
+
     let kermit() =
-        let files = System.IO.Directory.GetFiles @"C:\Users\schorsch\Desktop\bundling\kermit" 
+        let images = 
+            System.IO.Directory.GetFiles @"C:\Users\schorsch\Desktop\bundling\kermit"
+                |> Array.map PixImage.Create
+
+        Log.startTimed "detecting features"
         let features = 
-            files
-                |> Array.map Akaze.ofFile
+            images |> Array.mapParallel Akaze.ofImage
+
+        Log.stop()
 
         let config =
             {
-                threshold = 0.7
-                minTrackLength = 5
+                threshold = 0.65
+                minTrackLength = 3
+                distanceThreshold = 0.003
             }
 
+        Log.startTimed "matching features"
         let problem = 
-            Feature.toBundlerInput config files features
+            Feature.toBundlerInput config images features
                 |> BundlerInput.preprocess
                 |> BundlerInput.toProblem
+
+        Log.stop()
 
         if problem.cameras.Count >  0 then
 
@@ -238,6 +249,10 @@ open System.IO
 [<EntryPoint>]
 let main argv =
     Aardvark.Init()
+
+    
+
+
     use app = new OpenGlApplication()
     use win = app.CreateSimpleRenderWindow(8)
 

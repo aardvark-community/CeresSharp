@@ -11,7 +11,7 @@ module Bundler =
 
     let private rand = RandomSystem()
 
-    let private improveInternal (iter : int) (points : V3d[]) (cameras : Camera3d[]) (measurements : array<Map<int, V2d>>) =
+    let private improveInternal (useDistortion : bool) (options : CeresOptions) (points : V3d[]) (cameras : Camera3d[]) (measurements : array<Map<int, V2d>>) =
         use p = new Problem()
         let guessedPoints   : V3d[] = points |> Array.copy
         let guessedCameras  : Camera3d[][] = cameras |> Array.map (fun c -> [| c |])
@@ -28,7 +28,10 @@ module Bundler =
                 let cam = cam.[0]
                 let mutable oi = 0
                 for kvp in measurements do
-                    let obs = cam.Project world.[kvp.Key]
+                    let obs =
+                        if useDistortion then cam.Project world.[kvp.Key]
+                        else cam.ProjectNoDistortion world.[kvp.Key]
+
                     let r = obs - kvp.Value
                     res.[oi + 0] <- r.X 
                     res.[oi + 1] <- r.Y 
@@ -38,14 +41,14 @@ module Bundler =
             )
         
 
-        let cost = p.Solve(CeresOptions(iter, CeresSolverType.SparseSchur, false, 1.0E-10, 1.0E-3, 1.0E-5))
+        let cost = p.Solve(options)
 
         let points = worldPoints.Result
         let cameras = camBlocks |> Array.map (fun b -> b.Result.[0])
 
         cost, points, cameras
 
-    let private improveSol (sol : BundlerSolution) =
+    let private improveSol (useDistortion : bool) (options : CeresOptions) (sol : BundlerSolution) =
         let parent = sol.problem
         let input = parent.input
         let cForward = sol.cameras |> Map.toSeq |> Seq.map fst |> Seq.toArray
@@ -80,7 +83,7 @@ module Bundler =
         let cost, points, cameras = 
             let points = sol.points |> Map.toSeq |> Seq.map snd |> Seq.toArray
             let cameras = sol.cameras |> Map.toSeq |> Seq.map snd |> Seq.toArray
-            improveInternal 400 points cameras subMeasurements
+            improveInternal useDistortion options points cameras subMeasurements
 
         {
             cost = cost
@@ -90,6 +93,7 @@ module Bundler =
         }
 
     let improve (sol : BundlerSolution) =
+        let options = CeresOptions(400, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-3, 1.0E-5)
         let p = sol.problem
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
         let tinyCost = 1.0E-5 * float measurementCount
@@ -99,13 +103,13 @@ module Bundler =
             sol
         else
             Log.startTimed "improve %d cameras" sol.cameras.Count
-            let res = improveSol sol
+            let res = improveSol true options sol
             Log.line "%.4f ==> %.4f" sol.cost res.cost
             Log.stop()
             res
 
-    let solve (p : BundlerProblem) =
-        Log.startTimed "solve %d cameras" p.cameras.Count
+    let solveSimple (cnt : int) (p : BundlerProblem) =
+        let options = CeresOptions(100, CeresSolverType.SparseSchur, false, 1.0E-10, 1.0E-2, 1.0E-3)
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
 
         let tinyCost = 1.0E-5 * float measurementCount
@@ -113,15 +117,34 @@ module Bundler =
         let mutable bestCost = Double.PositiveInfinity
         let mutable best : Option<BundlerSolution> = None
         let mutable iter = 0
-        while iter < 20 && bestCost > tinyCost do
-            let n = improveSol (BundlerSolution.random p)
+        while iter < cnt && bestCost > tinyCost do
+            let n = improveSol false options (BundlerSolution.random p)
             if n.cost < bestCost then
                 bestCost <- n.cost
                 best <- Some n
-            Log.line "%d: %.3f" iter n.cost
+            iter <- iter + 1
+
+        best
+
+    let solve (p : BundlerProblem) =
+        Log.startTimed "solve %d cameras" p.cameras.Count
+        let options = CeresOptions(700, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-4, 1.0E-6)
+        let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
+
+        let tinyCost = 1.0E-5 * float measurementCount
+
+        let mutable bestCost = Double.PositiveInfinity
+        let mutable best : Option<BundlerSolution> = None
+        let mutable iter = 0
+        while iter < 8 && bestCost > tinyCost do
+            let n = improveSol true options (BundlerSolution.random p)
+            if n.cost < bestCost then
+                bestCost <- n.cost
+                best <- Some n
+                Log.line "%d: %.3f" iter n.cost
             iter <- iter + 1
 
         Log.stop()
         Option.get best
 
-
+    

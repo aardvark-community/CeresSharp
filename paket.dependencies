@@ -10,7 +10,7 @@ nuget Aardvark.Application.WinForms.GL ~> 2.6.2
 nuget Aardvark.SceneGraph ~> 2.6.2
 nuget Aardvark.Rendering.Text ~> 2.6.2
 
-nuget Aardvark.OpenCvSharp ~> 2.3.10
+nuget Aardvark.OpenCvSharp ~> 2.4.0
 
 group Build
 content: none
