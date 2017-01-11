@@ -1,58 +1,40 @@
 ﻿namespace Ceres
+
+open CeresSharp
 open System
 open System.Runtime.InteropServices
+open Microsoft.FSharp.NativeInterop
+open Aardvark.Base
+
 #nowarn "9"
 
-module Test =
+module Entry =
 
-    [<Literal>]
-    let lib = "CeresCPP.dll"
+    [<EntryPoint>]
+    let main argv =
 
-    [<DllImport(lib)>]
-    extern int main()
+        use p = new Problem()
 
-module CameraCalibration =
-    [<Literal>]
-    let lib = "CeresCPP.dll"
+        let b = p.AddParameterBlock [| 1.0 |]
+        let c = p.AddParameterBlock [| 1.0 |]
 
-    [<DllImport(lib)>]
-    extern int private bundle_adjustment(
-        int flags,
-        int observation_count, double[] observations, int[] pointIndices, int[] extrinsicIndices, int[] intrinsicIndices,
-        int pointCount, int fixedPointCount, double[] pointArray,
-        int extrinsicsCount, int fixedExtrinsicsCount, double[] extrinsicsArray,
-        int intrinsicsCount, int fixedFocalPrincipalCount, double[] focalPrincipalArray,
-        int fixedDistortionCount, double[] distortionArray
+        p.AddCostFunction(2, b, c, fun b c ->
+            let x = b.[0]
+            let y = c.[0]
+
+            [|
+                x - y
+                x * x + y * y - 1.0
+            |]
         )
 
-    let BundleAdjustment
-        (flags: int)
-        (observationCount: int)
-        (observationArray: double[])
-        (pointIndices: int[])
-        (extrinsicsIndices: int[])
-        (intrinsicsIndices: int[])
-        (pointCount: int)
-        (fixedPointCount: int)
-        (pointArray: double[])
-        (extrinsicsCount: int)
-        (fixedExtrinsicsCount: int)
-        (extrinsics: double[])
-        (intrinsicsCount: int)
-        (fixedFocalPrincipalCount: int)
-        (focalPrincipalArray: double[])
-        (fixedDistortionCount: int)
-        (distortionArray: double[])
-        : int =
-        bundle_adjustment(flags, observationCount, observationArray, pointIndices, extrinsicsIndices, intrinsicsIndices,
-                          pointCount, fixedPointCount, pointArray,
-                          extrinsicsCount, fixedExtrinsicsCount, extrinsics,
-                          intrinsicsCount, fixedFocalPrincipalCount, focalPrincipalArray, fixedDistortionCount, distortionArray)
+        p.Solve(CeresOptions(50, CeresSolverType.DenseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) |> ignore
 
-//
-//module Entry =
-//    [<EntryPoint>]
-//    let main argv =
-//        //Derivatives.Ceres.sinCos()
-//        Derivatives.Bla.solveBla()
-//        0 
+        let b = b.Result 
+        let c = c.Result 
+
+        printfn "b = %A" b
+        printfn "c = %A" c
+
+
+        0 

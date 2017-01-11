@@ -1,12 +1,19 @@
-source https://nuget.org/api/v2
-source https://vrvis.myget.org/F/aardvark/api/v2
-source https://vrvis.myget.org/F/aardvark_public/api/v2
+source https://api.nuget.org/v3/index.json
+source https://vrvis.myget.org/F/aardvark_public/api/v3/index.json
+source https://vrvis.myget.org/F/aardvark/api/v3/index.json
 
-nuget Aardvark.Base ~> 2.2.2
-nuget Aardvark.Base.FSharp ~> 2.2.2
+nuget Aardvark.Base ~> 2.4.5
+nuget Aardvark.Base.FSharp ~> 2.4.5
+
+
+nuget Aardvark.Application.WinForms.GL ~> 2.6.2
+nuget Aardvark.SceneGraph ~> 2.6.2
+nuget Aardvark.Rendering.Text ~> 2.6.2
+
+nuget Aardvark.OpenCvSharp ~> 2.4.0
 
 group Build
 content: none
-source https://nuget.org/api/v2
-
+source https://api.nuget.org/v3/index.json
+source https://vrvis.myget.org/F/aardvark_public/api/v3/index.json
 github vrvis/Aardvark.Fake:standalone

@@ -417,3 +417,51 @@ type M44s =
         new(m00 : decimal, m01 : decimal, m02 : decimal, m03 : decimal, m10 : decimal, m11 : decimal, m12 : decimal, m13 : decimal, m20 : decimal, m21 : decimal, m22 : decimal, m23 : decimal, m30 : decimal, m31 : decimal, m32 : decimal, m33 : decimal) = { M00 = scalar m00; M01 = scalar m01; M02 = scalar m02; M03 = scalar m03; M10 = scalar m10; M11 = scalar m11; M12 = scalar m12; M13 = scalar m13; M20 = scalar m20; M21 = scalar m21; M22 = scalar m22; M23 = scalar m23; M30 = scalar m30; M31 = scalar m31; M32 = scalar m32; M33 = scalar m33 }
         new(m00 : scalar, m01 : scalar, m02 : scalar, m03 : scalar, m10 : scalar, m11 : scalar, m12 : scalar, m13 : scalar, m20 : scalar, m21 : scalar, m22 : scalar, m23 : scalar, m30 : scalar, m31 : scalar, m32 : scalar, m33 : scalar) = { M00 = m00; M01 = m01; M02 = m02; M03 = m03; M10 = m10; M11 = m11; M12 = m12; M13 = m13; M20 = m20; M21 = m21; M22 = m22; M23 = m23; M30 = m30; M31 = m31; M32 = m32; M33 = m33 }
     end
+
+
+type AngleAxis private() =
+    static member RotatePoint(aa : V3d, p : V3d) =
+        let theta2 = aa.LengthSquared
+        if not (Fun.IsTiny theta2) then
+            let theta = sqrt theta2
+            let costheta = cos theta
+            let sintheta = sin theta
+            let thetainverse = 1.0 / theta
+
+            let w = aa * thetainverse
+
+            let wCrossP = Vec.cross w p
+            let tmp = (Vec.dot w p) * (1.0 - costheta)
+
+
+            (p * costheta) + (wCrossP * sintheta) + (w * tmp)
+
+        else
+            let wCrossP = Vec.cross aa p
+            p + wCrossP
+
+    static member RotatePoint(aa : V3s, p : V3s) =
+        let theta2 = aa.LengthSquared
+        if not (Fun.IsTiny theta2.Value) then
+            let theta = sqrt theta2
+            let costheta = cos theta
+            let sintheta = sin theta
+            let thetainverse = 1.0 / theta
+
+            let w = aa * thetainverse
+
+            let wCrossP = Vec.cross w p
+            let tmp = (Vec.dot w p) * (1.0 - costheta)
+
+
+            (p * costheta) + (wCrossP * sintheta) + (w * tmp)
+
+        else
+            let wCrossP = Vec.cross aa p
+            p + wCrossP
+
+    static member Trafo(aa : V3d) =
+        let x = AngleAxis.RotatePoint(aa, V3d.IOO)
+        let y = AngleAxis.RotatePoint(aa, V3d.OIO)
+        let z = AngleAxis.RotatePoint(aa, V3d.OOI)
+        Trafo3d.FromBasis(x, y, z, V3d.Zero)

@@ -126,13 +126,13 @@ type scalar =
 
 
         static member (/) (l : scalar, r : scalar) =
-            scalar(l.Value / r.Value, Jacobian.Div(Jacobian.Add(Jacobian.Mul(l.Jacobian, r.Value), Jacobian.Mul(l.Value, r.Jacobian)), r.Value*r.Value))
+            scalar(l.Value / r.Value, Jacobian.Div(Jacobian.Sub(Jacobian.Mul(l.Jacobian, r.Value), Jacobian.Mul(l.Value, r.Jacobian)), r.Value*r.Value))
 
         static member (/) (l : scalar, r : float) =
             scalar(l.Value / r, Jacobian.Div(l.Jacobian, r))
 
         static member (/) (l : float, r : scalar) =
-            scalar(l / r.Value, Jacobian.Div(Jacobian.Mul(l, r.Jacobian), r.Value*r.Value))
+            scalar l / r
 
         static member Sin (v : scalar) =
             scalar(sin v.Value, Jacobian.Mul(cos v.Value, v.Jacobian))
@@ -141,7 +141,8 @@ type scalar =
             scalar(cos v.Value, Jacobian.Mul(-sin v.Value, v.Jacobian))
 
         static member Sqrt (v : scalar) =
-            scalar(sqrt v.Value, Jacobian.Div(v.Jacobian, 2.0 * sqrt v.Value))
+            let sq = sqrt v.Value
+            scalar(sq, Jacobian.Div(v.Jacobian, 2.0 * sq))
 
         static member Abs (v : scalar) =
             if v.Value > 0.0 then v
