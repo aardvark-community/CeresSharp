@@ -12,13 +12,13 @@ do Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
 
 let sln = ["src/Ceres.sln"]
 DefaultSetup.install sln
-
+(*
 Target "Deploy" (fun () ->
     Fake.MSBuildHelper.MSBuild "bin/Release" "build" [ "Configuration", "Deploy" ] sln |> printfn "%A"
 )
 
 "Deploy" ==> "AddNativeResources" ==> "CreatePackage"
-
+*)
 #if DEBUG
 do System.Diagnostics.Debugger.Launch() |> ignore
 #endif

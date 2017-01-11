@@ -10,7 +10,7 @@ open Aardvark.Base
 
 module Entry =
 
-    [<EntryPoint>]
+    //[<EntryPoint>]
     let main argv =
 
         use p = new Problem()
