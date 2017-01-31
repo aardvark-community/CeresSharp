@@ -104,10 +104,158 @@ type Camera3s(pos : V3s, aa : V3s, sf : scalar, d : V2s) =
         let d  = V2s(scalar.Variable(offset + 7, v.SqrtFocalLength), scalar.Variable(offset + 8, v.SqrtFocalLength))
         Camera3s(p, aa, sf, d)
 
+[<Struct>]
+type Match2d(pos : V2d, vel : V2d, o : V4d, li : int, ri : int) =
+    
+    member x.Left = li
+    member x.Right = ri
+
+    member x.LengthSquared =
+        pos.LengthSquared + vel.LengthSquared + o.LengthSquared
+
+    member x.Length = 
+        sqrt x.LengthSquared
+
+    member x.Pos = pos
+    member x.Vel = vel
+    member x.O = o
+
+    static member (-)(l : Match2d,r : Match2d) =
+        Match2d(l.Pos-r.Pos, l.Vel-r.Vel, l.O-r.O, -1, -1)
+
+    static member Dot(l : Match2d,r : Match2d) =
+        Vec.dot l.Pos r.Pos + Vec.dot l.Vel r.Vel + Vec.dot l.O r.O
+        
+
+module MatchProblem =       
+    open CeresSharp
+
+    let private random = RandomSystem()
+
+    let inline sum (n : int) (f : int -> 'a) =
+        let mutable res = LanguagePrimitives.GenericZero
+        for i in 0 .. n - 1 do
+            res <- res + f i
+        res
+
+    let inline sum' (z : 'a) (n : int) (f : int -> 'a) =
+        let mutable res = z
+        for i in 0 .. n - 1 do
+            res <- res + f i
+        res
+
+    let o (rotation : float) =
+        V4d(0.0, sin(rotation), 0.0, cos(rotation))
+
+
+    let delta = 0.5
+    let gamma = 1.0
+    let lambda = 0.5
+    let sigma = gamma * gamma
+
+    let huber (a : scalar) =   //huber
+        if abs a.Value <= delta then
+            0.5 * a * a
+        else
+            delta * (abs a - 0.5 * delta)
+
+    let likelihood ( ms : Match2d[] ) =
+        use p = new Problem()
+
+        let w = p.AddParameterBlock(Array.init ms.Length (ignore >> random.UniformDouble))
+
+        let N = ms.Length
+        let G =
+            Array2D.init N N 
+                ( fun i j -> 
+                    exp (- (ms.[i] - ms.[j]).LengthSquared / sigma ) )
+
+
+        p.AddCostFunction ( 1, w, fun w ->
+            let f m =   
+                sum N (fun i ->
+                    w.[i] * exp (- (m - ms.[i]).LengthSquared / sigma )
+                )
+
+            let wGw = 
+                sum N (fun i ->
+                    w.[i] *
+                    sum N (fun j ->
+                        G.[i,j] * w.[j]
+                    )
+                )
+
+            [| sum N (fun i -> huber(1.0 - f ms.[i])) + lambda * wGw |]
+        )
+
+        let cost = p.Solve(CeresOptions(1000, CeresSolverType.SparseSchur, true, 1.0E-3, 1.0E-3, 1.0E-3))
+        let w = w.Result
+        let f m =   
+            sum N (fun i ->
+                w.[i] * exp (- (m - ms.[i]).LengthSquared / sigma )
+            )
+
+        f
+
+
+    let private affineComponent (c : int) (G : float[,]) (ps : V4d[]) =
+        use px = new Problem()
+        let N = ps.Length
+        
+        let wx = px.AddParameterBlock(Array.init N (ignore >> random.UniformV3d))
+        let Hx = px.AddParameterBlock [| V3d.Zero |]
+        
+        let g (v : V4d) =
+            exp (-v.LengthSquared / sigma)
+
+        px.AddCostFunction(1, wx, Hx, fun w H ->
+            let H = H.[0]
+            let f (p : V4d) = H + sum N (fun j -> w.[j] * g(p - ps.[j]))
+            let q (p : V4d) = Vec.dot (f p) (V3s p.XYI)
+
+
+            let E = sum N (fun j -> huber(ps.[j].[c] + ps.[j].[c+2] - q(ps.[j])))
+
+            let wGw = 
+                sum N (fun i ->
+                    w.[i] *
+                    sum N (fun j ->
+                        G.[i,j] * w.[j]
+                    )
+                )
+
+            [| E + lambda * (wGw.X + wGw.Y + wGw.Z) |]
+        )
+
+        px.Solve(CeresOptions(1000, CeresSolverType.SparseSchur, true, 1.0E-3, 1.0E-3, 1.0E-3)) |> ignore
+        
+        let H = Hx.Result.[0]
+        let w = wx.Result
+        let f (p : V4d) = H + sum' V3d.Zero N (fun j -> w.[j] * g(p - ps.[j]))
+        let q (p : V4d) = Vec.dot (f p) p.XYI
+        q
+
+
+    let affine ( ms : Match2d[] ) =
+        
+        let ps = ms |> Array.map (fun m -> V4d(m.Pos.X, m.Pos.Y, m.Vel.X, m.Vel.Y))
+        let N = ms.Length
+        let ms = ()
+
+        let g (v : V4d) = exp (-v.LengthSquared / sigma)
+
+        let G = Array2D.init N N ( fun i j -> g(ps.[i] - ps.[j]))
+
+        let qx = affineComponent 0 G ps
+        let qy = affineComponent 1 G ps
+
+        let q (p : V4d) = V2d(qx p, qy p)
+        q
+
 
 type BundlerInput =
     {
-        measurements : array<Map<int, V2d>>
+        measurements : Map<int,Map<int, V2d>>
     }
 
 type BundlerProblem =
@@ -134,6 +282,7 @@ type BundlerError =
     }
 
 
+
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BundlerProblem =
 
@@ -149,7 +298,7 @@ module BundlerSolution =
     let errorMetrics (s : BundlerSolution) =
         let errors =
             s.problem.cameras
-                |> Seq.map (fun ci ->
+                |> Seq.collect (fun ci ->
                     let measurements = s.problem.input.measurements.[ci]
                     let cam = s.cameras.[ci]
 
@@ -161,7 +310,6 @@ module BundlerSolution =
                             v, Vec.length (0.5 * v) // 0.5 because [-1,1]
                         ) 
                     )
-                |> Seq.concat
                 |> Seq.toArray
 
         let mutable sumSq = 0.0
@@ -246,8 +394,8 @@ module BundlerInput =
         let counts = Dict<int, ref<int>>()
 
         // count how often each point is referenced
-        for i in 0 .. input.measurements.Length - 1 do
-            let m = input.measurements.[i]
+        for kvp in input.measurements do
+            let m = kvp.Value
             for kvp in m do
                 let r = counts.GetOrCreate(kvp.Key, fun _ -> ref 0)
                 r := !r + 1
@@ -261,9 +409,11 @@ module BundlerInput =
         
         // remove invalid points from all measurements
         let measurements =
-            input.measurements |> Array.map (fun m ->
+            input.measurements |> Map.map (fun _ m ->
                 m |> Map.filter (fun pi _ -> valid.Contains pi)
             )
+
+        Log.line "reduced %A -> %A (visible from 2 cams)" counts.Count (measurements |> Map.toArray |> Array.map snd).[0].Count
 
         // prune them from the input
         { input with measurements = measurements }
@@ -271,15 +421,18 @@ module BundlerInput =
     let toProblem (i : BundlerInput) =
         // cameras that see less than 8 points are not stable
         let cameras = 
-            i.measurements |> Array.choosei (fun i m -> 
+            i.measurements |> Map.filter (fun i m -> 
                 if m.Count < 8 then
-                    None
+                    Log.warn "Camera %A has less than 8 points (%A) and is discarded." i m.Count
+                    false
                 else
-                    Some i
+                    true
             )
+
+        if cameras.Count = 0 then Log.error "No stable cameras found, solution impossible."
 
         {
             input = i
-            cameras = Set.ofArray cameras
+            cameras = cameras |> Map.toArray |> Array.map fst |> Set.ofArray 
         }
 

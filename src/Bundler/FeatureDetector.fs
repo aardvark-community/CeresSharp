@@ -1,6 +1,7 @@
 ﻿namespace Aardvark.Ceres
 
 open System
+open System.IO
 open Aardvark.Base
 
 #nowarn "9"
@@ -24,7 +25,11 @@ type FeatureDescriptor internal(raw : float[]) =
         for i in 0 .. l.Length - 1 do
             let v = l.[i] - r.[i]
             res <- res + v * v
-        res
+        sqrt res
+
+//sift
+///%f1= [x ,y, scale, rotation, tilt(t), other_rot (phi)];
+
 
 type Feature =
     {
@@ -175,7 +180,7 @@ module Akaze =
 
             {
                 ndc = V2d(2.0 * x - 1.0, 1.0 - 2.0 * y)
-                angle = float f.Angle
+                angle = float f.Angle * Constant.RadiansPerDegree
                 size = float f.Size
                 response = float f.Response
                 descriptor = FeatureDescriptor (desc |> Array.map (fun v -> float v / 255.0))
@@ -237,6 +242,7 @@ module Orb =
 type MatchingConfig =
     {
         threshold : float
+        guidedThreshold : float
         minTrackLength : int
         distanceThreshold : float
     }
@@ -249,7 +255,7 @@ module Feature =
     open Microsoft.FSharp.NativeInterop
     open CeresSharp
 
-    let private fundamentalMat (l : V2d[]) (r : V2d[]) =
+    let private fundamentalMat (config : MatchingConfig) (l : V2d[]) (r : V2d[]) =
 
 //        let la = l |> Array.map (fun l -> V3d(l, 0.0))
 //        let ra = r |> Array.map (fun r -> V3d(r, 0.0))
@@ -265,8 +271,7 @@ module Feature =
             lMat.Set(0, i, lp)
             rMat.Set(0, i, rp)
 
-
-        use res = Cv2.FindFundamentalMat(InputArray.op_Implicit lMat, InputArray.op_Implicit rMat, FundamentalMatMethod.Ransac, 0.008)
+        use res = Cv2.FindFundamentalMat(InputArray.op_Implicit rMat, InputArray.op_Implicit lMat, FundamentalMatMethod.LMedS, config.distanceThreshold, 0.999)
    
         M33d(
             res.Get(0, 0), res.Get(0, 1), res.Get(0, 2),
@@ -286,6 +291,8 @@ module Feature =
         use mask = new Mat()
         use res = Cv2.FindHomography(InputArray.op_Implicit lMat, InputArray.op_Implicit rMat, HomographyMethods.Ransac, 0.002, OutputArray.op_Implicit mask)
    
+        
+
         let maskData : byte[] = Array.zeroCreate mask.Rows
         mask.GetArray(0,0, maskData)
 
@@ -303,7 +310,6 @@ module Feature =
             )
 
         homography, used
-
 
     let private stereoRectify (l : V2d[]) (r : V2d[]) =
         use lMat = new Mat(1, l.Length, MatType.CV_64FC2)
@@ -360,7 +366,6 @@ module Feature =
 
         h1, h2
 
-
     let matchCandidates (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
         use matcher = new BFMatcher(normType = NormTypes.Hamming)
 
@@ -390,7 +395,6 @@ module Feature =
             ) |> Seq.toArray
 
         reallyGoodMatches
-
 
     let matchesOld (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
         let reallyGoodMatches = matchCandidates config l r
@@ -446,7 +450,7 @@ module Feature =
 
     open Aardvark.Ceres
 
-    let matches (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+    let matchesNotSoOld (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
         let reallyGoodMatches = matchCandidates config l r
 
         let distThreshold = config.distanceThreshold
@@ -462,7 +466,7 @@ module Feature =
                 let m1 = randomMatches |> Seq.mapi (fun i (_, ri) -> i, r.[ri].ndc) |> Map.ofSeq
 
                 Bundler.solveSimple 3 {
-                    input = { measurements = [| m0; m1 |] }
+                    input = { measurements = [| 0, m0; 1, m1 |] |> Map.ofArray }
                     cameras = Set.ofList [0; 1]
                 }
 
@@ -538,6 +542,74 @@ module Feature =
         else
             [||]
 
+    let matches (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+        let reallyGoodMatches = matchCandidates config l r
+
+        if reallyGoodMatches.Length >= 10 then
+
+            let lPoints = reallyGoodMatches |> Array.map (fun (li,_) -> l.[li].ndc)
+            let rPoints = reallyGoodMatches |> Array.map (fun (_,ri) -> r.[ri].ndc)
+            let F = fundamentalMat config lPoints rPoints
+            let F = F.Transposed
+
+//            let lI = reallyGoodMatches |> Array.map fst
+//            let rI = reallyGoodMatches |> Array.map snd
+
+            let resultList = List()
+            let lines = List()
+
+            let getLine li =
+                let line = F * V3d(l.[li].ndc,1.0)
+                Plane2d(line.XY, line.Z)
+
+            for li in 0 .. l.Length-1 do
+                let x = l.[li]
+
+                let line = F * V3d(x.ndc,1.0)
+                let p = Plane2d(line.XY, -line.Z)
+
+
+                // n . p - d = 0
+                // (n * f . p) - d * f = 0
+                //let line = line / line.XY.Length
+
+                let candidates = 
+                    r |> Array.choosei (
+                        fun ri r -> 
+                            let dist = p.Normalized.Height r.ndc |> abs //Vec.dot line (V3d(r.ndc,1.0)) |> abs
+                            if dist < config.distanceThreshold then
+                                let featureDist = FeatureDescriptor.Distance (x.descriptor,r.descriptor)
+                                if featureDist < 0.5 then
+                                    Some (ri,featureDist)
+                                else
+                                    None
+                            else
+                                None
+                    ) |> Array.sortBy snd
+//                 
+                if candidates.Length = 1 then
+                    let (fi,fd) = candidates.[0]
+                    if fd < 0.15 then
+                        lines.Add(p)
+                        resultList.Add(li,fi)
+
+                if candidates.Length >= 2 then
+                    let (fi,fd) = candidates.[0]
+                    let (_,sd) = candidates.[1]
+                    if fd < (config.guidedThreshold) * sd then
+                        let p = Plane2d(line.XY, -line.Z)
+                        lines.Add(p)
+                        resultList.Add(li,fi)
+
+            Log.warn "rgm=%A -> funMat=%A" reallyGoodMatches.Length resultList.Count
+            
+
+            resultList.ToArray(), lines.ToArray()
+            //reallyGoodMatches, reallyGoodMatches |> Array.map (fst >> getLine)
+        else
+            Log.warn "found not enough matches (only %A)" reallyGoodMatches.Length
+            [||], [||]
+
 
     let estimateHomography (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
         let reallyGoodMatches = matchCandidates config l r
@@ -591,15 +663,36 @@ module Feature =
 
     type FeatureGraph =
         {
-            images : PixImage[]
+            images : PixImage<byte>[]
             config : MatchingConfig
             data : Feature[][]
             features : Dict<int, HashSet<FeatureNode>>
+            edges : Edge<(int*int)[]>[]
         }
+
+    let private rgbaFromHsva (h : float, s : float, v : float) =
+        let c = v * s
+        let hh = (h * 6.0) % 6.0
+        let x = c * (1.0 - abs(hh % 2.0 - 1.0))
+        let a = 1.0
+        if (0.0 <= h && h < 1.0) then
+            C4f(c, x, 0.0, a)
+        else if (1.0 <= h && h < 2.0) then
+            C4f(x, c, 0.0, a)
+        else if (2.0 <= h && h < 3.0) then
+            C4f(0.0, c, x, a)
+        else if (3.0 <= h && h < 4.0) then
+            C4f(0.0, x, c, a)
+        else if (4.0 <= h && h < 5.0) then
+            C4f(x, 0.0, c, a)
+        else if (5.0 <= h && h < 6.0) then
+            C4f(c, 0.0, x, a)
+        else 
+            C4f(0.0, 0.0, 0.0, a)
 
     [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
     module FeatureGraph =
-        let build (config : MatchingConfig) (images : PixImage[]) (data : Feature[][]) =
+        let build (config : MatchingConfig) (images : PixImage<byte>[]) (data : Feature[][]) =
             let nodes = Dict<int * int, FeatureNode>()
             let features = Dict()
 
@@ -633,7 +726,7 @@ module Feature =
                     let lFeatures = data.[lImg]
                     let rFeatures = data.[rImg]
 
-                    let matches = matches config lFeatures rFeatures
+                    let matches,_ = matches config lFeatures rFeatures
                     if matches.Length > 0 then
                         Log.line "matched %d/%d: %d" lImg rImg matches.Length
                         Some { i0 = lImg; i1 = rImg; weight = matches }
@@ -659,29 +752,8 @@ module Feature =
                     rNode.Add(lImg, lNode)
             Log.stop()
 
-            { data = data; config = config; images = images; features = features }
+            { data = data; config = config; images = images; features = features; edges = spanningTree }
 
-
-
-        let private rgbaFromHsva (h : float, s : float, v : float) =
-            let c = v * s
-            let hh = (h * 6.0) % 6.0
-            let x = c * (1.0 - abs(hh % 2.0 - 1.0))
-            let a = 1.0
-            if (0.0 <= h && h < 1.0) then
-                C4f(c, x, 0.0, a)
-            else if (1.0 <= h && h < 2.0) then
-                C4f(x, c, 0.0, a)
-            else if (2.0 <= h && h < 3.0) then
-                C4f(0.0, c, x, a)
-            else if (3.0 <= h && h < 4.0) then
-                C4f(0.0, x, c, a)
-            else if (4.0 <= h && h < 5.0) then
-                C4f(x, 0.0, c, a)
-            else if (5.0 <= h && h < 6.0) then
-                C4f(c, 0.0, x, a)
-            else 
-                C4f(0.0, 0.0, 0.0, a)
 
         let toBundlerInput (g : FeatureGraph) =
             let features = g.features
@@ -701,13 +773,13 @@ module Feature =
                 list.Add start
 
                 let rec traverse (visitedImages : Set<int>) (path : list<FeatureNode>) (start : FeatureNode) =
-                    let mutable bad = false
-                    for (dstImg, dstNode) in start.corresponding |> Dict.toArray do
-                        // remove all connections that go to an image that was already
-                        // visited and represent a non-chosen feature
-                        if Set.contains dstImg visitedImages then
-                            start.Clear dstImg
-                            bad <- true
+//                    let mutable bad = false
+//                    for (dstImg, dstNode) in start.corresponding |> Dict.toArray do
+//                        // remove all connections that go to an image that was already
+//                        // visited and represent a non-chosen feature
+//                        if Set.contains dstImg visitedImages then
+//                            start.Clear dstImg
+//                            bad <- true
 
                     let next = 
                         start.corresponding |> Dict.toSeq |> Seq.tryPick (fun (ii,other) -> 
@@ -769,21 +841,179 @@ module Feature =
                 for (pi,f) in Map.toSeq ff do
                     let p = f.ndc
                     let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
-                    let size = (ceil (f.size) |> int)
+                    let size = clamp 15 30 (ceil (f.size) |> int)
 
                     file.GetMatrix<C4b>().SetCross(pp, size, colors.[pi])
                     file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
                     
 
-                file.SaveAsImage (Path.combine [@"C:\Users\schorsch\Desktop\test"; sprintf "image%d.jpg" i])
+                let path = sprintf @"C:\bla\yolo\k-sub\gd%A_t%A_mtl%A_dt%A" g.config.guidedThreshold g.config.threshold g.config.minTrackLength g.config.distanceThreshold
+
+                if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+
+                file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
 
 
-            { measurements = measurements }
+            { measurements = measurements |> Array.mapi ( fun i x -> i,x) |> Map.ofArray }
 
 
-    let toBundlerInput (config : MatchingConfig) (images : PixImage[]) (data : Feature[][]) =
+
+    let toBundlerInput (config : MatchingConfig) (images : PixImage<byte>[]) (data : Feature[][]) =
         let graph = FeatureGraph.build config images data
         FeatureGraph.toBundlerInput graph
 
+    
+    
+
+    let iterate (g : FeatureGraph) (debugPath : Option<string>) =
+        let debugOutput (measureMap : Map<int,Map<int,V2d>>) cam (run : Option<int>) =
+            match debugPath with
+            | None -> ()
+            | Some path ->
+                
+                let rand = RandomSystem()
+                let colors = [1.0..2000.0] |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float [1.0..2000.0].Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
+
+                let outputCam idx =
+                    let file = g.images.[idx]
+                    let map = measureMap.[idx]
+                    let mutable fNumber = 0
+                    for (fi,v2) in map |> Map.toArray do
+                        let f = g.data.[idx].[fi]
+                        let p = f.ndc
+                        let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
+                        let size = clamp 15 30 (ceil (f.size) |> int)
+
+                        file.GetMatrix<C4b>().SetCross(pp, size, colors.[fNumber])
+                        file.GetMatrix<C4b>().SetCircle(pp, size, colors.[fNumber])
+                        fNumber <- fNumber+1
+                        
+                    let path = sprintf @"%s\t%A_mtl%A_dt%A" path g.config.threshold g.config.minTrackLength g.config.distanceThreshold
+                    //let path = sprintf @"%s\%A" path g.config.distanceThreshold
+
+                    if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+
+                    let fn =    
+                        match run with
+                        | None ->     sprintf "image%d.jpg" idx
+                        | Some run -> sprintf "%A_image%d.jpg" run idx
+
+                    file.SaveAsImage (Path.combine [path; fn])
+
+                outputCam cam
+
+        let getMeasurement cam idx =
+            g.data.[cam].[idx].ndc
+
+        //assumes these edges are sorted most->least matches
+        let processNewEdge (b : Edge<(int * int)[]>) =
+            let cam0 = b.i0
+            let cam1 = b.i1
+
+            let bBundlerInput = 
+
+                let measurements =
+                    [|
+                        cam0,Map.ofArray [| for (p0,_) in b.weight do yield p0, getMeasurement cam0 p0 |]
+                        cam1,Map.ofArray [| for (_,p1) in b.weight do yield p1, getMeasurement cam1 p1 |]
+                    |] |> Map.ofArray
+
+                { measurements = measurements }
+
+            let preprocessed = 
+                bBundlerInput 
+                    |> BundlerInput.preprocess
+
+            let measureMap =
+                [| cam0,preprocessed.measurements.[cam0] ; cam1,preprocessed.measurements.[cam1] |] |> Map.ofArray
+
+            debugOutput measureMap cam0 (Some 0)
+            debugOutput measureMap cam1 (Some 0)
+
+            let solution = 
+                preprocessed
+                |> BundlerInput.toProblem
+                |> Bundler.solve
+
+            let involvedCameras = [|cam0; cam1|]
+
+            solution,involvedCameras
+
+        let mutable runs = 1
+        let addEdgeToExisting (solution : BundlerSolution) (solvedCameras : int[]) (b : Edge<(int*int)[]>) =
+            let ((newCam,newWeights),(knownCam,knownWeights)) =
+                if solvedCameras |> Array.contains b.i0 then 
+                    (b.i1, b.weight |> Array.map snd),(b.i0, b.weight |> Array.map fst)
+                else 
+                    (b.i0, b.weight |> Array.map fst),(b.i1, b.weight |> Array.map snd)
+
+            let (bBundlerInput, measureMap) = 
+
+                let measurements =
+                    [|
+                        knownCam,Map.ofArray [| for p in knownWeights    do yield p, getMeasurement knownCam p |]
+                        newCam,Map.ofArray [| for p in newWeights      do yield p, getMeasurement newCam   p |]
+                    |] |> Map.ofArray
+
+                let measureMap =
+                    [| knownCam,measurements.[knownCam] ; newCam,measurements.[newCam] |] |> Map.ofArray
+
+                { measurements = measurements }, measureMap
+
+            //preprocess to make measurement set consistent for these two cameras
+            let preprocessed = 
+                bBundlerInput 
+                    |> BundlerInput.preprocess
+                    
+            debugOutput measureMap knownCam (Some runs)
+            debugOutput measureMap newCam   (Some runs)
+            runs <- runs+1
+
+            let solution = 
+                //after preprocessing, throw away the already known camera measurements and only keep the unknown one
+                { measurements = [| newCam, preprocessed.measurements.[newCam] |] |> Map.ofArray }
+                |> BundlerInput.toProblem
+                |> Bundler.solveTowardsKnown solution   //this combines the old and new solutions. all measurements are in there once
+
+
+
+            let involvedCameras =   [| 
+                                        yield! solvedCameras
+                                        yield newCam
+                                    |]
+
+            solution,involvedCameras
+
+        match g.edges.Length > 0 with
+            | true ->
+                Log.line "Processing first edge using cams (%A,%A)" g.edges.[0].i0 g.edges.[0].i1
+                let (baseSolution,involvedCams) = processNewEdge g.edges.[0]
+                
+                let mutable solution = (baseSolution,involvedCams)
+                for i in 1..g.edges.Length-1 do
+                    let candidate = g.edges.[i]
+                    Log.line "Adding new edge KNOWN=%A to NEW=%A" candidate.i0 candidate.i1
+
+                    let (sol, cams) = addEdgeToExisting (solution |> fst) (solution |> snd) candidate
+
+                    solution <- (sol,cams)
+
+                    let err = sol |> BundlerSolution.errorMetrics
+                    Log.start "error metrics"
+                    Log.line "cost:    %A" err.cost
+                    Log.line "average: %.4f%%" (100.0 * err.average)
+                    Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
+                    Log.line "min:     %.4f%%" (100.0 * err.min)
+                    Log.line "max:     %.4f%%" (100.0 * err.max)
+                    Log.stop()
+
+                Some (solution |> fst)
+            | false -> 
+                Log.warn "Match graph is empty. Run (threshold=%A;\tdistanceThresh=%A) has no solutions." g.config.threshold g.config.distanceThreshold
+                None
+
+    let solveIteratively (config : MatchingConfig) (outputPath : Option<String>) (images : PixImage<byte>[]) (data : Feature[][]) =
+        let graph = FeatureGraph.build config images data
+        iterate graph outputPath
 
 

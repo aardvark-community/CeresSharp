@@ -11,15 +11,24 @@ module Bundler =
 
     let private rand = RandomSystem()
 
-    let private improveInternal (useDistortion : bool) (options : CeresOptions) (points : V3d[]) (cameras : Camera3d[]) (measurements : array<Map<int, V2d>>) =
+    let private improveInternal (useDistortion : bool) (options : CeresOptions) (points : V3d[]) (cameras : Camera3d[]) (measurements : Map<int,Map<int, V2d>>) =
         use p = new Problem()
         let guessedPoints   : V3d[] = points |> Array.copy
-        let guessedCameras  : Camera3d[][] = cameras |> Array.map (fun c -> [| c |])
+        let guessedCameras  : Map<int,Camera3d[]> = //cameras |> Array.map (fun c -> [| c |])
+            [|
+                let mutable cc = 0
+                for kvp in measurements do
+                    let ci = kvp.Key
+                    let cam = [| cameras.[cc] |]
+                    yield ci, cam
+                    cc <- cc+1
+            |] |> Map.ofArray
 
         let worldPoints     = p.AddParameterBlock guessedPoints
-        let camBlocks       = guessedCameras |> Array.map (fun c -> p.AddParameterBlock<Camera3d, Camera3s>(c))
+        let camBlocks       = guessedCameras |> Map.map (fun _ c -> p.AddParameterBlock<Camera3d, Camera3s>(c))
 
-        for ci in 0 .. guessedCameras.Length - 1 do
+        for kvp in measurements do
+            let ci = kvp.Key
             let measurements = measurements.[ci] |> Seq.toArray
             let residuals = 2 * measurements.Length
             let res = Array.zeroCreate residuals
@@ -44,9 +53,42 @@ module Bundler =
         let cost = p.Solve(options)
 
         let points = worldPoints.Result
-        let cameras = camBlocks |> Array.map (fun b -> b.Result.[0])
+        let cameras = camBlocks |> Map.map (fun k b -> b.Result.[0])
 
         cost, points, cameras
+
+    let private improvePointCloudAffine (useDistortion : bool) (options : CeresOptions) (knownPoints : Map<int,V3d>) (newCamera : Camera3d) (measurements : Map<int, V2d>) =
+        use p = new Problem()
+
+        let pcScale     = p.AddParameterBlock [| V3d.III |]
+        let camBlock    = p.AddParameterBlock<Camera3d, Camera3s>([| newCamera |]) 
+
+        let residuals = 2 * knownPoints.Count
+        let res = Array.zeroCreate residuals
+
+        p.AddCostFunction(residuals, pcScale, camBlock, fun scale cam ->
+            let cam = cam.[0]
+            let mutable oi = 0
+            for kvp in knownPoints do
+                let obs = 
+                    let p = scale.[0] * kvp.Value
+                    if useDistortion then cam.Project p
+                    else cam.ProjectNoDistortion p
+
+                let r = obs - measurements.[kvp.Key]
+                res.[oi + 0] <- r.X 
+                res.[oi + 1] <- r.Y 
+                oi <- oi + 2
+
+            res
+        )
+
+        let cost = p.Solve(options)
+
+        let newScale = pcScale.Result.[0]
+        let newCamera = camBlock.Result.[0]
+
+        cost, newScale, newCamera
 
     let private improveSol (useDistortion : bool) (options : CeresOptions) (sol : BundlerSolution) =
         let parent = sol.problem
@@ -54,14 +96,16 @@ module Bundler =
         let cForward = sol.cameras |> Map.toSeq |> Seq.map fst |> Seq.toArray
 
         let mutable cameraCount = 0
-        let cameraIndices = Set.toArray sol.problem.cameras
+        //let cameraIndices = Set.toArray sol.problem.cameras
 
         let subMeasurements =
             input.measurements
-                |> Array.filteri (fun ci _ -> Map.containsKey ci sol.cameras)
+                |> Map.filter (fun ci _ -> Map.containsKey ci sol.cameras)
 
         let subPoints =
             subMeasurements
+                |> Map.toSeq
+                |> Seq.map snd
                 |> Seq.collect (Map.toSeq >> Seq.map fst)
                 |> Set.ofSeq
                 |> Set.toArray
@@ -75,10 +119,9 @@ module Bundler =
 
         let subMeasurements =
             subMeasurements
-                |> Array.map (fun m ->
+                |> Map.map (fun _ m ->
                     m |> Map.toSeq |> Seq.map (fun (pi, v) -> innerPointIndices.[pi], v) |> Map.ofSeq
                 )
-
 
         let cost, points, cameras = 
             let points = sol.points |> Map.toSeq |> Seq.map snd |> Seq.toArray
@@ -89,7 +132,7 @@ module Bundler =
             cost = cost
             problem = parent
             points = points |> Seq.mapi (fun i p -> subPoints.[i], p) |> Map.ofSeq
-            cameras = cameras |> Seq.mapi (fun i c -> cameraIndices.[i], c) |> Map.ofSeq
+            cameras = cameras
         }
 
     let improve (sol : BundlerSolution) =
@@ -147,4 +190,46 @@ module Bundler =
         Log.stop()
         Option.get best
 
+    let solveTowardsKnown (known : BundlerSolution) (unknown : BundlerProblem) = 
+        Log.startTimed "Adding a camera %A to solution" (unknown.cameras |> Set.toArray).[0]
+        let options = CeresOptions(700, CeresSolverType.SparseSchur, false, 1.0E-10, 1.0E-4, 1.0E-6)
+        
+        let cam = Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.0, V3d.OOI)
+
+        let unknownMeasurements = unknown.input.measurements.[(unknown.cameras |> Set.toArray).[0]]
+        let remainingKnown = 
+            let n = unknownMeasurements
+            let k = known.points
+
+            let remainingKnown =
+                [
+                    for kvp in n do
+                        match k |> Map.tryFind kvp.Key with
+                        | Some value -> yield kvp.Key,value
+                        | _ -> ()
+                ] |> Map.ofList
+            
+            Log.line "points common with established cloud: %A -> %A" n.Count remainingKnown.Count
+
+            remainingKnown
+
+        let (cost, scaleForKnown, newCam) = improvePointCloudAffine true options remainingKnown cam unknownMeasurements
+        
+        let scaledPoints =
+            known.points |> Map.map ( fun _ v -> scaleForKnown * v)
+
+        let scaledCam = 
+            known.cameras |> Map.map ( fun _ cam -> cam.Transformed(Trafo3d.Scale scaleForKnown) )
+
+        let combinedSolution =
+            {
+                cost = cost
+                problem = { unknown with input ={ unknown.input with measurements = [(unknown.cameras |> Set.toArray).[0],[ for kvp in remainingKnown do match unknownMeasurements.TryFind kvp.Key with Some v -> yield kvp.Key,v | _ -> () ] |> Map.ofList ] |> Map.ofList }}
+                points = scaledPoints
+                cameras = scaledCam |> Map.union ( [ (unknown.cameras |> Set.toArray).[0], newCam ] |> Map.ofList )
+            }
+
+        Log.stop()
+
+        combinedSolution
     

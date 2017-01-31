@@ -123,6 +123,15 @@ type V3s =
         static member (*) (l : V3s, r : scalar) = V3s(l.X * r, l.Y * r, l.Z * r)
         static member (/) (l : scalar, r : V3s) = V3s(l / r.X, l / r.Y, l / r.Z)
         static member (/) (l : V3s, r : scalar) = V3s(l.X / r, l.Y / r, l.Z / r)
+
+        member x.Item 
+            with get(i : int) =
+                match i with
+                    | 0 -> x.X
+                    | 1 -> x.Y
+                    | 2 -> x.Z
+                    | _ -> raise <| System.IndexOutOfRangeException()
+
         new(x : int8, y : int8, z : int8) = { X = scalar x; Y = scalar y; Z = scalar z }
         new(x : uint8, y : uint8, z : uint8) = { X = scalar x; Y = scalar y; Z = scalar z }
         new(x : int16, y : int16, z : int16) = { X = scalar x; Y = scalar y; Z = scalar z }

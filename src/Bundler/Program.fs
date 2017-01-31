@@ -27,8 +27,8 @@ module BundlerTest =
                                 yield i, p
                     }
 
-                Map.ofSeq corr
-            )
+                ci,Map.ofSeq corr
+            ) |> Map.ofArray
 
         let input = 
             BundlerInput.preprocess {
@@ -84,11 +84,123 @@ module BundlerTest =
         input, sol
 
         
+    let haus() =
+        let images = 
+            System.IO.Directory.GetFiles @"C:\bla\yolo\k-sub"
+                |> Array.map PixImage.Create
+                |> Array.map (fun pi -> pi.AsPixImage<byte>())
+
+        let features = 
+            images |> Array.mapParallel Akaze.ofImage
+
+        let config =
+            {
+                threshold = 0.65
+                guidedThreshold = 0.8
+                minTrackLength = 2
+                distanceThreshold = 0.006
+            }
+
+        let problem = 
+            Feature.toBundlerInput config images features
+
+        ()
+    open System.IO
+    let iterative() =
+        let path = @"C:\bla\yolo\k-sub"
+        let images = 
+            System.IO.Directory.GetFiles path
+                |> Array.map PixImage.Create
+                |> Array.map (fun pi -> pi.AsPixImage<byte>())
+
+        Log.startTimed "detecting features"
+        let features = 
+            images |> Array.mapParallel Akaze.ofImage
+
+        features |> Array.iter (Array.length >> printfn "feature#: %A")
+
+        let solution = 
+            
+            let config =
+                {
+                    threshold = 0.5
+                    guidedThreshold = 0.3
+                    minTrackLength = 2
+                    distanceThreshold = 0.008
+                }
+
+            let matches, lines = Feature.matches config features.[0] features.[1]
+            if matches.Length > 0 then
+                Log.line "matched %d/%d: %d" 0 1 matches.Length
+
+            let lImage = images.[0]
+            let rImage = images.[1]
+            let rand = RandomSystem()
+
+            let pp (p : V2d) =
+                let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d rImage.Size)
+                pp
+
+            for (li,ri), line in Array.zip matches lines do
+                            
+                let col = rand.UniformC3f().ToC4b()
+
+                let lf = features.[0].[li]
+                let rf = features.[1].[ri]
+                let setP f (file : PixImage<byte>) =
+                    let p = f.ndc
+                    let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
+                    let size = clamp 15 30 (ceil (f.size) |> int)
+
+                    file.GetMatrix<C4b>().SetCross(pp, size,    col)
+                    file.GetMatrix<C4b>().SetCircle(pp, size,   col)
+                            
+
+
+
+                setP lf lImage
+                setP rf rImage
+
+                let mutable line2d = Line2d()
+                if Box2d(-V2d.II, V2d.II).Intersects(line, &line2d) then
+                    let p0 = line2d.P0
+                    let p1 = line2d.P1
+                    rImage.GetMatrix<C4b>().SetLine(pp p0, pp p1, col)
+
+
+                        
+            let path = sprintf @"C:\bla\yolo\k-sub\out"
+
+            if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+
+            lImage.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" 0])
+            rImage.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" 1])
+
+
+        System.Environment.Exit 0
+        Log.stop()
+//
+//        let config =
+//            {
+//                threshold = 0.65
+//                minTrackLength = 3
+//                distanceThreshold = 0.003
+//            }
+//
+//        Log.startTimed "solving iteratively"
+//        
+//        let solution = Feature.solveIteratively config (Some path) images features
+//
+//        Log.stop ()
+
+        failwith ""
+            
 
     let kermit() =
         let images = 
             System.IO.Directory.GetFiles @"C:\Users\schorsch\Desktop\bundling\kermit"
                 |> Array.map PixImage.Create
+                |> Array.map (fun pi -> pi.AsPixImage<byte>())
 
         Log.startTimed "detecting features"
         let features = 
@@ -99,6 +211,7 @@ module BundlerTest =
         let config =
             {
                 threshold = 0.65
+                guidedThreshold = 0.8
                 minTrackLength = 3
                 distanceThreshold = 0.003
             }
@@ -248,22 +361,131 @@ open System.IO
 
 [<EntryPoint>]
 let main argv =
+    Ag.initialize()
     Aardvark.Init()
 
-    
+    let path = @"C:\bla\yolo\k-sub"
+
+
 
 
     use app = new OpenGlApplication()
     use win = app.CreateSimpleRenderWindow(8)
 
-    let cameraView = CameraView.lookAt (V3d(6,6,6)) V3d.Zero V3d.OOI
-    let cameraView = cameraView |> DefaultCameraController.control win.Mouse win.Keyboard win.Time
+
+    let cameraView = CameraView.lookAt (V3d(0.0, 0.0, 2.0)) V3d.Zero V3d.OIO
+
+    let cameraView = cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 0.2) win.Mouse win.Keyboard win.Time
     let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
 
-    
+    let plane (isLeft : bool) (img : PixImage<byte>) = 
+        let sizeX = float img.Size.X
+        let sizeY = float img.Size.Y
+        let aspect = sizeY/sizeX   
+
+        let trans = if isLeft then -1.0 else 1.0
+
+        Sg.fullScreenQuad 
+            |> Sg.transform (Trafo3d.Scale(1.0,aspect,1.0) * Trafo3d.Translation(trans,0.0,0.0))
+            |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap(img),true))
+
+    let images = 
+        System.IO.Directory.GetFiles path
+            |> Array.map PixImage.Create
+            |> Array.map (fun pi -> pi.AsPixImage<byte>())
+
+    let features =
+        images |> Array.mapParallel Akaze.ofImage
+
+    let lFtr = features.[0]
+    let rFtr = features.[1]
+
+    let config =
+        {
+            threshold = 0.8
+            guidedThreshold = 0.3
+            minTrackLength = 2
+            distanceThreshold = 0.008
+        }
+
+    let mc = 
+        Feature.matchCandidates config lFtr rFtr
+
+    let good = mc
+
+
+    let good =
+        let m2d =
+            mc |> Array.map ( fun (li,ri) ->
+                let lf = lFtr.[li]
+                let rf = rFtr.[ri]
+                Match2d(lf.ndc, rf.ndc - lf.ndc, MatchProblem.o (rf.angle - lf.angle), li, ri)
+            )
+
+        let f = MatchProblem.likelihood m2d
+
+        let m2g =
+            m2d |> Array.filter (fun m -> f m >= 0.5)
+
+
+//        let good =  
+//            m2g |> Array.map (fun m -> m.Left, m.Right)
+
+
+        let good =  
+            let q = MatchProblem.affine m2g
+            m2g |> Array.choose (fun m -> 
+                let p = V4d(m.Pos.X, m.Pos.Y, m.Vel.X, m.Vel.Y)
+                let q1 = q p
+                let dist = q1 - (m.Pos + m.Vel) |> Vec.lengthSquared
+                printfn "%A" dist
+
+                // dot ([1,1] + 1) ([1,1] + 1)
+                // dot (a + b) c = dot a c + dot b c
+                // dot [1,1] [1,1] + 2 * dot 1 [1,1] + dot 1 1
+
+                if dist < 0.01 then Some (m.Left, m.Right)
+                else None
+            )
+
+        good
+
+    printfn "%A -> %A" mc.Length good.Length 
+
+    let lImg = images.[0]
+    let rImg = images.[1]
+
+    let lAspect = float lImg.Size.Y / float lImg.Size.X
+    let rAspect = float rImg.Size.Y / float rImg.Size.X
+
+    let rand = RandomSystem()
+
+    let lines = 
+        good |> Array.collect (fun (li, ri) -> 
+            let lf = lFtr.[li]
+            let rf = rFtr.[ri]
+            let p0 = lf.ndc - V2d(1.0, 0.0)
+            let p1 = rf.ndc + V2d(1.0, 0.0)
+            [| V3d(p0.X, lAspect * p0.Y , 0.001); V3d(p1.X, rAspect * p1.Y, 0.001)|]
+        )
+
+    let colors = Array.init good.Length (ignore >> rand.UniformC3f >> C4b) |> Array.collect (fun v -> [| v; v |])
+
+    let lineSg = 
+        Sg.draw IndexedGeometryMode.LineList
+            |> Sg.vertexAttribute DefaultSemantic.Positions (Mod.constant lines)
+            |> Sg.vertexAttribute DefaultSemantic.Colors (Mod.constant colors)
+            |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.vertexColor
+            }
     let sg = 
-        testKermit()
-            |> Sg.uniform "ViewportSize" win.Sizes
+        [plane true lImg; plane false rImg; lineSg]
+            |> Sg.ofList
+            |> Sg.shader {
+                    do! DefaultSurfaces.trafo
+                    do! DefaultSurfaces.diffuseTexture
+                }
             |> Sg.viewTrafo (cameraView |> Mod.map CameraView.viewTrafo)
             |> Sg.projTrafo (frustum |> Mod.map Frustum.projTrafo)
 
