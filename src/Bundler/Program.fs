@@ -410,47 +410,13 @@ let main argv =
 
     let mc = 
         Feature.matchCandidates config lFtr rFtr
+    let m2d =
+        mc |> Array.map ( fun (li,ri) ->
+            let lf = lFtr.[li]
+            let rf = rFtr.[ri]
+            Match2d(lf.ndc, rf.ndc - lf.ndc, MatchProblem.o (rf.angle - lf.angle), li, ri)
+        )
 
-    let good = mc
-
-
-    let good =
-        let m2d =
-            mc |> Array.map ( fun (li,ri) ->
-                let lf = lFtr.[li]
-                let rf = rFtr.[ri]
-                Match2d(lf.ndc, rf.ndc - lf.ndc, MatchProblem.o (rf.angle - lf.angle), li, ri)
-            )
-
-        let f = MatchProblem.likelihood m2d
-
-        let m2g =
-            m2d |> Array.filter (fun m -> f m >= 0.5)
-
-
-//        let good =  
-//            m2g |> Array.map (fun m -> m.Left, m.Right)
-
-
-        let good =  
-            let q = MatchProblem.affine m2g
-            m2g |> Array.choose (fun m -> 
-                let p = V4d(m.Pos.X, m.Pos.Y, m.Vel.X, m.Vel.Y)
-                let q1 = q p
-                let dist = q1 - (m.Pos + m.Vel) |> Vec.lengthSquared
-                printfn "%A" dist
-
-                // dot ([1,1] + 1) ([1,1] + 1)
-                // dot (a + b) c = dot a c + dot b c
-                // dot [1,1] [1,1] + 2 * dot 1 [1,1] + dot 1 1
-
-                if dist < 0.01 then Some (m.Left, m.Right)
-                else None
-            )
-
-        good
-
-    printfn "%A -> %A" mc.Length good.Length 
 
     let lImg = images.[0]
     let rImg = images.[1]
@@ -460,21 +426,49 @@ let main argv =
 
     let rand = RandomSystem()
 
-    let lines = 
-        good |> Array.collect (fun (li, ri) -> 
-            let lf = lFtr.[li]
-            let rf = rFtr.[ri]
-            let p0 = lf.ndc - V2d(1.0, 0.0)
-            let p1 = rf.ndc + V2d(1.0, 0.0)
-            [| V3d(p0.X, lAspect * p0.Y , 0.001); V3d(p1.X, rAspect * p1.Y, 0.001)|]
-        )
 
-    let colors = Array.init good.Length (ignore >> rand.UniformC3f >> C4b) |> Array.collect (fun v -> [| v; v |])
+    let matches (lampta : float) (sickma : float) =
+        Log.startTimed "matching { lampta: %A; sickma: %A }" lampta sickma
+        let fn = MatchProblem.likelihood lampta sickma m2d
+
+        let m2g =
+            m2d |> Array.filter (fun m -> 
+                fn m >= 0.5
+            )
+
+        Log.line "found %d matches (%d candidates)" m2g.Length m2d.Length
+        Log.stop()
+
+        let good = 
+            m2g |> Array.map (fun m -> m.Left, m.Right)
+
+        let lines = 
+            good |> Array.collect (fun (li, ri) -> 
+                let lf = lFtr.[li]
+                let rf = rFtr.[ri]
+                let p0 = lf.ndc - V2d(1.0, 0.0)
+                let p1 = rf.ndc + V2d(1.0, 0.0)
+                [| V3d(p0.X, lAspect * p0.Y , 0.001); V3d(p1.X, rAspect * p1.Y, 0.001)|]
+            )
+
+        let colors = Array.init good.Length (ignore >> rand.UniformC3f >> C4b) |> Array.collect (fun v -> [| v; v |])
+
+        lines, colors
+
+
+    let currentLampta = Mod.init 35.0
+    let currentSickma = Mod.init 0.5
+
+    let result = Mod.map2 matches currentLampta currentSickma
+
+
+
+
 
     let lineSg = 
         Sg.draw IndexedGeometryMode.LineList
-            |> Sg.vertexAttribute DefaultSemantic.Positions (Mod.constant lines)
-            |> Sg.vertexAttribute DefaultSemantic.Colors (Mod.constant colors)
+            |> Sg.vertexAttribute DefaultSemantic.Positions (Mod.map fst result)
+            |> Sg.vertexAttribute DefaultSemantic.Colors (Mod.map snd result)
             |> Sg.shader {
                 do! DefaultSurfaces.trafo
                 do! DefaultSurfaces.vertexColor
@@ -491,6 +485,27 @@ let main argv =
 
     let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
     win.RenderTask <- task
+
+    let runner =
+        async {
+            do! Async.SwitchToNewThread()
+            while true do
+                Console.Write("bundler# ")
+                let line = Console.ReadLine()
+
+                let rx = System.Text.RegularExpressions.Regex @"^[ \t]*(?<par>l|s)[ \t]*\=[ \t]*(?<value>[0-9]+(\.[0-9]+)?)$"
+                let m = rx.Match line
+                if m.Success then
+                    let name = m.Groups.["par"].Value
+                    let value = System.Double.Parse(m.Groups.["value"].Value, System.Globalization.CultureInfo.InvariantCulture)
+                    match name with
+                        | "l" -> transact(fun () -> currentLampta.Value <- value)
+                        | _ -> transact(fun () -> currentSickma.Value <- value)
+
+        }
+
+    Async.Start runner
+
 
     win.Run()
 
