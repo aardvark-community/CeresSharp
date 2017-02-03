@@ -136,6 +136,171 @@ module MatchProblem =
             res <- res + f i
         res
 
+    let m2v (m : Match2d) = V4d(m.Pos.X, m.Pos.Y, m.Vel.X, m.Vel.Y)
+
+    let q_dim (lambda : float) (sigma : float) (ms : V4d[]) (qdach : V4d -> float) =
+        let N = ms.Length
+
+        let x i = ms.[i].X
+        let y i = ms.[i].Y
+        let vx i = ms.[i].Z
+        let vy i = ms.[i].W
+        let e i = qdach ms.[i]
+
+        let G = 
+            Array2D.init N N ( fun i j -> 
+                exp (- (ms.[i] - ms.[j]).LengthSquared / sigma ) 
+            )
+
+        let rv f = 
+            Array.init N ( fun k ->
+                sum N ( fun i -> 
+                    f k i 
+                )
+            )
+
+        let r_U = rv ( fun k i -> ( - x i * e i ) * G.[i,k] )
+        let r_V = rv ( fun k i -> ( - y i * e i ) * G.[i,k] )
+        let r_W = rv ( fun k i -> ( - 1.0 * e i ) * G.[i,k] )
+
+        let r_H = sum N ( fun i -> ( - x i * e i ) )
+        let r_I = sum N ( fun i -> ( - y i * e i ) )
+        let r_J = sum N ( fun i -> ( - 1.0 * e i ) )
+
+        let r = [| r_U; r_V; r_W; [|r_H|]; [|r_I|]; [|r_J|] |] |> Array.concat
+
+
+        let M =
+            let arrays = 
+                [|
+                    for k in 0..N-1 do  //d/du
+                        yield [|
+                            for i in 0..N-1 do      //u
+                                yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> x j * x j * G.[i,j] * G.[j,k] )
+                            for i in 0..N-1 do      //v
+                                yield sum N ( fun j -> x j * y j * G.[i,j] * G.[j,k] )
+                            for i in 0..N-1 do      //w
+                                yield sum N ( fun j -> x j * G.[i,j] * G.[j,k] )
+
+                            yield sum N ( fun i -> x i * x i * G.[i,k] )  //H
+                            yield sum N ( fun i -> x i * y i * G.[i,k] )  //I
+                            yield sum N ( fun i -> x i * G.[i,k] )        //J
+                        |]
+
+
+                    for k in 0..N-1 do  //d/dv
+                        yield [|
+                            for i in 0..N-1 do      //u
+                                yield sum N ( fun j -> x j * y j * G.[i,j] * G.[j,k] )
+                            for i in 0..N-1 do      //v
+                                yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> y j * y j * G.[i,j] * G.[j,k] )
+                            for i in 0..N-1 do      //w
+                                yield sum N ( fun j -> y j * G.[i,j] * G.[j,k] )
+
+                            yield sum N ( fun i -> y i * x i * G.[i,k] )  //H
+                            yield sum N ( fun i -> y i * y i * G.[i,k] )  //I
+                            yield sum N ( fun i -> y i * G.[i,k] )        //J
+                        |]
+
+
+                    for k in 0..N-1 do  //d/dw
+                        yield [|
+                            for i in 0..N-1 do      //u
+                                yield sum N ( fun j -> x j * G.[i,j] * G.[j,k] )
+                            for i in 0..N-1 do      //v
+                                yield sum N ( fun j -> y j * G.[i,j] * G.[j,k] )
+                            for i in 0..N-1 do      //w
+                                yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> G.[i,j] * G.[j,k] )
+
+                            yield sum N ( fun i -> x i * G.[i,k] )        //H
+                            yield sum N ( fun i -> y i * G.[i,k] )        //I
+                            yield sum N ( fun i -> G.[i,k] )              //J
+                        |]
+
+
+                    yield [|            //d/dH
+                            for i in 0..N-1 do      //u
+                                yield sum N ( fun j -> x j * x j * G.[i,j] )
+                            for i in 0..N-1 do      //v
+                                yield sum N ( fun j -> x j * y j * G.[i,j] )
+                            for i in 0..N-1 do      //w
+                                yield sum N ( fun j -> x j * G.[i,j] )
+
+                            yield sum N ( fun i -> x i * x i )        //H
+                            yield sum N ( fun i -> x i * y i )        //I
+                            yield sum N ( fun i -> x i )              //J
+                    |]
+
+
+                    yield [|            //d/dI
+                            for i in 0..N-1 do      //u
+                                yield sum N ( fun j -> y j * x j * G.[i,j] )
+                            for i in 0..N-1 do      //v
+                                yield sum N ( fun j -> y j * y j * G.[i,j] )
+                            for i in 0..N-1 do      //w
+                                yield sum N ( fun j -> y j * G.[i,j] )
+
+                            yield sum N ( fun i -> y i * x i )        //H
+                            yield sum N ( fun i -> y i * y i )        //I
+                            yield sum N ( fun i -> y i )              //J
+                    |]
+
+
+                    yield [|            //d/dJ
+                            for i in 0..N-1 do      //u
+                                yield sum N ( fun j -> x j * G.[i,j] )
+                            for i in 0..N-1 do      //v
+                                yield sum N ( fun j -> y j * G.[i,j] )
+                            for i in 0..N-1 do      //w
+                                yield sum N ( fun j -> G.[i,j] )
+
+                            yield sum N ( fun i -> x i )        //H
+                            yield sum N ( fun i -> y i )        //I
+                            yield float N                       //J
+                    |]
+                |]
+
+            Array2D.init (arrays |> Array.length) (arrays.[0] |> Array.length) ( fun i j -> arrays.[j].[i] )
+
+        let perm = M.LuFactorize()
+        let w = M.LuSolve(perm, r)
+        
+        let U = [| for i in   0 ..   N-1 do yield w.[i] |]
+        let V = [| for i in   N .. 2*N-1 do yield w.[i] |]
+        let W = [| for i in 2*N .. 3*N-1 do yield w.[i] |]
+        let H = w.[3*N]
+        let I = w.[3*N+1]
+        let J = w.[3*N+2]
+
+        let f_U (m:V4d) = H + sum N ( fun j -> U.[j] * exp (- (m - ms.[j]).LengthSquared / sigma ) ) 
+        let f_V (m:V4d) = I + sum N ( fun j -> V.[j] * exp (- (m - ms.[j]).LengthSquared / sigma ) ) 
+        let f_W (m:V4d) = J + sum N ( fun j -> W.[j] * exp (- (m - ms.[j]).LengthSquared / sigma ) ) 
+
+        let q (m:V4d) = (f_U m) * m.X + (f_V m) * m.Y + (f_W m)
+        
+        let psi =
+            sum N ( fun i ->
+                sum N ( fun j ->
+                    U.[i] * G.[i,j] * U.[j] + V.[i] * G.[i,j] * V.[j] + W.[i] * G.[i,j] * W.[j]
+                )
+            )
+        
+        let E_dim = sum N ( fun j -> 0.5 * ( e j - q(ms.[j]) ) ** 2.0 ) + lambda * psi
+        printfn "!! E=%A " E_dim
+
+        q
+    
+    let affineDistance (lambda : float) (sigma : float) ( ms : Match2d[] ) =
+        let ps = ms |> Array.map m2v
+        let N = ps.Length
+
+        let qx = q_dim lambda sigma ps ( fun v -> v.X + v.Z )
+        let qy = q_dim lambda sigma ps ( fun v -> v.Y + v.W )
+
+        let d (m : Match2d) = let p = m2v m in V2d((qx p - ( p.X + p.Z )), (qy p - ( p.Y + p.W )))
+
+        d
+
     let likelihood (lambda : float) (sigma : float) ( ms : Match2d[] ) =    
         let N = ms.Length
 
@@ -144,6 +309,8 @@ module MatchProblem =
                 exp (- (ms.[i] - ms.[j]).LengthSquared / sigma ) 
             )
 
+
+        // d/duk E(H,I,J,u,v,w) = sumi( [ xi + x~i -Hxi -xi*sumj(uj*Gij) -yi*sumj(vj*Gij) -J -sumj(wj*Gij) ] * [-xi*Gik] + 2lGik*uk )
 
         // Mik = sumj [Gjk * Gji] + l * (Gki + Gik)
         // ri = sumj [ Gji ]

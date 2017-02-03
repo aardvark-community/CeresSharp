@@ -402,7 +402,7 @@ let main argv =
 
     let config =
         {
-            threshold = 0.8
+            threshold = 0.9
             guidedThreshold = 0.3
             minTrackLength = 2
             distanceThreshold = 0.008
@@ -426,8 +426,11 @@ let main argv =
 
     let rand = RandomSystem()
 
+    let averageByV2 (f : 'a -> V2d) (vs : 'a[]) =
+        (vs |> Array.fold ( fun vs v -> vs + f v ) V2d.OO) / (float vs.Length)
+        
 
-    let matches (lampta : float) (sickma : float) =
+    let matches (lampta : float) (sickma : float) (affineLambda : float) (affineSigma : float) (useAffine : bool) =
         Log.startTimed "matching { lampta: %A; sickma: %A }" lampta sickma
         let fn = MatchProblem.likelihood lampta sickma m2d
 
@@ -437,6 +440,35 @@ let main argv =
             )
 
         Log.line "found %d matches (%d candidates)" m2g.Length m2d.Length
+        
+        let m2g =
+            if useAffine then
+                if m2g.Length >= 20 then 
+                    let qn = MatchProblem.affineDistance affineLambda affineSigma m2g
+
+                    let (supermatches,ws) = 
+                        m2g |> Array.map ( fun m ->
+                            let w = qn m
+                            m,w
+                        )   |> Array.unzip
+
+                    let thresh = 0.11
+                    let supermatches = supermatches |> Array.filteri ( fun i _ -> ws.[i].LengthSquared < thresh)
+
+                    Log.line "(la=%A sa=%A) affine matches remaining: %A" affineLambda affineSigma supermatches.Length
+
+                    let avg = ws |> averageByV2 id
+                    let vari = ws |> averageByV2 ( fun w -> (w - avg) * (w - avg) )
+
+                    Log.line "Weight stats: \n totalcount=%A \n thresh=%A \n belowThresh=%A \n average=%A \t (var=%A)\n" ws.Length thresh supermatches.Length avg vari
+
+                    supermatches
+                else
+                    Log.warn "not enough points (only %A, need 20) for supermatch" m2g.Length
+                    m2g
+            else
+                m2g
+        
         Log.stop()
 
         let good = 
@@ -458,12 +490,18 @@ let main argv =
 
     let currentLampta = Mod.init 35.0
     let currentSickma = Mod.init 0.5
+    let aLambda = Mod.init 20.0
+    let aSigma = Mod.init 0.5
+    let useA = Mod.init true
 
-    let result = Mod.map2 matches currentLampta currentSickma
-
-
-
-
+    let result = Mod.custom ( fun a ->
+            let l = currentLampta.GetValue a
+            let s = currentSickma.GetValue a
+            let al = aLambda.GetValue a
+            let as' = aSigma.GetValue a
+            let ua = useA.GetValue a
+            matches l s al as' ua
+         )
 
     let lineSg = 
         Sg.draw IndexedGeometryMode.LineList
@@ -493,14 +531,18 @@ let main argv =
                 Console.Write("bundler# ")
                 let line = Console.ReadLine()
 
-                let rx = System.Text.RegularExpressions.Regex @"^[ \t]*(?<par>l|s)[ \t]*\=[ \t]*(?<value>[0-9]+(\.[0-9]+)?)$"
+                let rx = System.Text.RegularExpressions.Regex @"^[ \t]*(?<par>[a-zA-Z]+)[ \t=]+(?<value>[0-9]+(\.[0-9]+)?)$"
                 let m = rx.Match line
                 if m.Success then
                     let name = m.Groups.["par"].Value
                     let value = System.Double.Parse(m.Groups.["value"].Value, System.Globalization.CultureInfo.InvariantCulture)
                     match name with
                         | "l" -> transact(fun () -> currentLampta.Value <- value)
-                        | _ -> transact(fun () -> currentSickma.Value <- value)
+                        | "s" -> transact(fun () -> currentSickma.Value <- value)
+                        | "la" -> transact(fun () -> aLambda.Value <- value)
+                        | "sa" -> transact(fun () -> aSigma.Value <- value)
+                        | "u" -> transact(fun () -> useA.Value <- (value > 0.5))
+                        | _ -> ()
 
         }
 
