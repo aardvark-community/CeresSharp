@@ -394,11 +394,19 @@ let main argv =
             |> Array.map PixImage.Create
             |> Array.map (fun pi -> pi.AsPixImage<byte>())
 
-    let features =
-        images |> Array.mapParallel Akaze.ofImage
-
-    let lFtr = features.[0]
-    let rFtr = features.[1]
+//    let features =
+//        images |> Array.mapParallel Akaze.ofImage
+//
+//    let lFtr = features.[0]
+//    let rFtr = features.[1]
+    
+    let currentImgs = Mod.init (images.[0], images.[1])
+    
+    let currentLampta = Mod.init 35.0
+    let currentSickma = Mod.init 0.5
+    let aLambda = Mod.init 20.0
+    let aSigma = Mod.init 0.5
+    let useA = Mod.init true
 
     let config =
         {
@@ -408,98 +416,95 @@ let main argv =
             distanceThreshold = 0.008
         }
 
-    let mc = 
-        Feature.matchCandidates config lFtr rFtr
-    let m2d =
-        mc |> Array.map ( fun (li,ri) ->
-            let lf = lFtr.[li]
-            let rf = rFtr.[ri]
-            Match2d(lf.ndc, rf.ndc - lf.ndc, MatchProblem.o (rf.angle - lf.angle), li, ri)
-        )
-
-
-    let lImg = images.[0]
-    let rImg = images.[1]
-
-    let lAspect = float lImg.Size.Y / float lImg.Size.X
-    let rAspect = float rImg.Size.Y / float rImg.Size.X
-
-    let rand = RandomSystem()
-
-    let averageByV2 (f : 'a -> V2d) (vs : 'a[]) =
-        (vs |> Array.fold ( fun vs v -> vs + f v ) V2d.OO) / (float vs.Length)
-        
-
-    let matches (lampta : float) (sickma : float) (affineLambda : float) (affineSigma : float) (useAffine : bool) =
-        Log.startTimed "matching { lampta: %A; sickma: %A }" lampta sickma
-        let fn = MatchProblem.likelihood lampta sickma m2d
-
-        let m2g =
-            m2d |> Array.filter (fun m -> 
-                fn m >= 0.5
-            )
-
-        Log.line "found %d matches (%d candidates)" m2g.Length m2d.Length
-        
-        let m2g =
-            if useAffine then
-                if m2g.Length >= 20 then 
-                    let qn = MatchProblem.affineDistance affineLambda affineSigma m2g
-
-                    let (supermatches,ws) = 
-                        m2g |> Array.map ( fun m ->
-                            let w = qn m
-                            m,w
-                        )   |> Array.unzip
-
-                    let thresh = 0.01
-                    let supermatches = supermatches |> Array.filteri ( fun i _ -> ws.[i].LengthSquared < thresh)
-
-                    Log.line "(la=%A sa=%A) affine matches remaining: %A" affineLambda affineSigma supermatches.Length
-
-                    let avg = ws |> averageByV2 id
-                    let vari = ws |> averageByV2 ( fun w -> (w - avg) * (w - avg) )
-
-                    Log.line "Weight stats: \n totalcount=%A \n thresh=%A \n belowThresh=%A \n average=%A \t (var=%A)\n" ws.Length thresh supermatches.Length avg vari
-
-                    supermatches
-                else
-                    Log.warn "not enough points (only %A, need 20) for supermatch" m2g.Length
-                    m2g
-            else
-                m2g
-        
-        Log.stop()
-
-        let good = 
-            m2g |> Array.map (fun m -> m.Left, m.Right)
-
-        let lines = 
-            good |> Array.collect (fun (li, ri) -> 
-                let lf = lFtr.[li]
-                let rf = rFtr.[ri]
-                let p0 = lf.ndc - V2d(1.0, 0.0)
-                let p1 = rf.ndc + V2d(1.0, 0.0)
-                [| V3d(p0.X, lAspect * p0.Y , 0.001); V3d(p1.X, rAspect * p1.Y, 0.001)|]
-            )
-
-        let colors = Array.init good.Length (ignore >> rand.UniformC3f >> C4b) |> Array.collect (fun v -> [| v; v |])
-
-        lines, colors
-
-
-    let currentLampta = Mod.init 35.0
-    let currentSickma = Mod.init 0.5
-    let aLambda = Mod.init 20.0
-    let aSigma = Mod.init 0.5
-    let useA = Mod.init true
-
     let result = Mod.custom ( fun a ->
+
+            let (lImg,rImg) = currentImgs.GetValue a
+
+            let (lFtr,rFtr) = lImg |> Akaze.ofImage, rImg |> Akaze.ofImage
+
+            let mc = 
+                Feature.matchCandidates config lFtr rFtr
+            let m2d =
+                mc |> Array.map ( fun (li,ri) ->
+                    let lf = lFtr.[li]
+                    let rf = rFtr.[ri]
+                    Match2d(lf.ndc, rf.ndc - lf.ndc, MatchProblem.o (rf.angle - lf.angle), li, ri)
+                )
+
+
+            let lAspect = float lImg.Size.Y / float lImg.Size.X
+            let rAspect = float rImg.Size.Y / float rImg.Size.X
+
+            let rand = RandomSystem()
+
+            let averageByV2 (f : 'a -> V2d) (vs : 'a[]) =
+                (vs |> Array.fold ( fun vs v -> vs + f v ) V2d.OO) / (float vs.Length)
+        
+
+            let matches (lampta : float) (sickma : float) (affineLambda : float) (affineSigma : float) (useAffine : bool) =
+                Log.startTimed "matching { lampta: %A; sickma: %A }" lampta sickma
+                let fn = MatchProblem.likelihood lampta sickma m2d
+
+                let m2g =
+                    m2d |> Array.filter (fun m -> 
+                        fn m >= 0.5
+                    )
+
+                Log.line "found %d matches (%d candidates)" m2g.Length m2d.Length
+        
+                let m2g =
+                    if useAffine then
+                        if m2g.Length >= 20 then 
+                            let qn = MatchProblem.affineDistance affineLambda affineSigma m2g
+
+                            let (supermatches,ws) = 
+                                m2g |> Array.map ( fun m ->
+                                    let w = qn m
+                                    m,w
+                                )   |> Array.unzip
+
+                            let thresh = 0.01
+                            let supermatches = supermatches |> Array.filteri ( fun i _ -> ws.[i].LengthSquared < thresh)
+
+                            Log.line "(la=%A sa=%A) affine matches remaining: %A" affineLambda affineSigma supermatches.Length
+
+                            let avg = ws |> averageByV2 id
+                            let vari = ws |> averageByV2 ( fun w -> (w - avg) * (w - avg) )
+
+                            Log.line "Weight stats: \n totalcount=%A \n thresh=%A \n belowThresh=%A \n average=%A \t (var=%A)\n" ws.Length thresh supermatches.Length avg vari
+
+                            supermatches
+                        else
+                            Log.warn "not enough points (only %A, need 20) for supermatch" m2g.Length
+                            m2g
+                    else
+                        m2g
+        
+                Log.stop()
+
+                let good = 
+                    m2g |> Array.map (fun m -> m.Left, m.Right)
+
+                let lines = 
+                    good |> Array.collect (fun (li, ri) -> 
+                        let lf = lFtr.[li]
+                        let rf = rFtr.[ri]
+                        let p0 = lf.ndc - V2d(1.0, 0.0)
+                        let p1 = rf.ndc + V2d(1.0, 0.0)
+                        [| V3d(p0.X, lAspect * p0.Y , 0.001); V3d(p1.X, rAspect * p1.Y, 0.001)|]
+                    )
+
+                let colors = Array.init good.Length (ignore >> rand.UniformC3f >> C4b) |> Array.collect (fun v -> [| v; v |])
+
+                lines, colors
+
+
             let l = currentLampta.GetValue a
             let s = currentSickma.GetValue a
             let al = aLambda.GetValue a
             let as' = aSigma.GetValue a
             let ua = useA.GetValue a
+
             matches l s al as' ua
          )
 
@@ -512,8 +517,13 @@ let main argv =
                 do! DefaultSurfaces.vertexColor
             }
     let sg = 
-        [plane true lImg; plane false rImg; lineSg]
-            |> Sg.ofList
+        aset {
+            yield lineSg 
+            let! imgs = currentImgs
+            let (lImg, rImg) = imgs
+            yield plane true  lImg
+            yield plane false rImg
+        }   |> Sg.set
             |> Sg.shader {
                     do! DefaultSurfaces.trafo
                     do! DefaultSurfaces.diffuseTexture
@@ -524,30 +534,56 @@ let main argv =
     let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
     win.RenderTask <- task
 
+    let getImgs (ss : string[]) =
+        ss |> Array.filter ( fun s -> 
+            let e = (System.IO.Path.GetExtension s).ToLower()
+            e = ".jpg" || e = ".png" || e = ".jpeg" || e = ".gif" || e = ".tiff"
+        )
+
     let runner =
         async {
             do! Async.SwitchToNewThread()
             while true do
                 Console.Write("bundler# ")
                 let line = Console.ReadLine()
-
-                let rx = System.Text.RegularExpressions.Regex @"^[ \t]*(?<par>[a-zA-Z]+)[ \t=]+(?<value>[0-9]+(\.[0-9]+)?)$"
-                let m = rx.Match line
-                if m.Success then
-                    let name = m.Groups.["par"].Value
-                    let value = System.Double.Parse(m.Groups.["value"].Value, System.Globalization.CultureInfo.InvariantCulture)
-                    match name with
+                match line = "" with
+                | true -> printfn "\n"
+                | false -> 
+                    let rx = System.Text.RegularExpressions.Regex @"^[ \t]*(?<par>[a-zA-Z]+)[ \t=]+(?<value>[0-9]+(\.[0-9]+)?)$"
+                    let m = rx.Match line
+                    if m.Success then
+                        let name = m.Groups.["par"].Value
+                        let value = m.Groups.["value"].Value
+                        let value = System.Double.Parse(value, System.Globalization.CultureInfo.InvariantCulture)
+                        match name with
                         | "l" -> transact(fun () -> currentLampta.Value <- value)
                         | "s" -> transact(fun () -> currentSickma.Value <- value)
                         | "la" -> transact(fun () -> aLambda.Value <- value)
                         | "sa" -> transact(fun () -> aSigma.Value <- value)
                         | "u" -> transact(fun () -> useA.Value <- (value > 0.5))
-                        | _ -> ()
+                        | _ -> Log.warn "Invalid numeric input: %A" line
 
+                    else
+                        let rxText = System.Text.RegularExpressions.Regex @"^[ \t]*(?<par>[a-zA-Z]+)[ \t=]+(?<value>[0-9a-zA-Z:\\]+)$" 
+                        let m = rxText.Match line
+                        if m.Success then
+                            let name = m.Groups.["par"].Value
+                            let value = m.Groups.["value"].Value
+                            match name with
+                            | "i" -> 
+                                match System.IO.Directory.Exists value with
+                                | false -> Log.warn "Directory does not exist: %A" value
+                                | true ->
+                                    let imgs = System.IO.Directory.GetFiles value |> getImgs
+                                    match imgs.Length >= 2 with
+                                    | false -> Log.warn "Only found %A images (need exactly 2) in directory %A" imgs.Length value
+                                    | true -> transact( fun _ -> currentImgs.Value <- (imgs.[0] |> PixImage<byte>, imgs.[1] |> PixImage<byte>) )
+                            | _ -> Log.warn "Invalid string input: %A" line
+                        else
+                            Log.warn "Regex didn't parse: %A" line
         }
 
     Async.Start runner
-
 
     win.Run()
 
