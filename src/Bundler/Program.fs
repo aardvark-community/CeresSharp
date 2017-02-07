@@ -452,7 +452,7 @@ let main argv =
                             m,w
                         )   |> Array.unzip
 
-                    let thresh = 0.11
+                    let thresh = 0.01
                     let supermatches = supermatches |> Array.filteri ( fun i _ -> ws.[i].LengthSquared < thresh)
 
                     Log.line "(la=%A sa=%A) affine matches remaining: %A" affineLambda affineSigma supermatches.Length

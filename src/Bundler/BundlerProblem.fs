@@ -159,13 +159,13 @@ module MatchProblem =
                 )
             )
 
-        let r_U = rv ( fun k i -> ( - x i * e i ) * G.[i,k] )
-        let r_V = rv ( fun k i -> ( - y i * e i ) * G.[i,k] )
-        let r_W = rv ( fun k i -> ( - 1.0 * e i ) * G.[i,k] )
+        let r_U = rv ( fun k i ->  ( x i * e i ) * G.[i,k] )
+        let r_V = rv ( fun k i ->  ( y i * e i ) * G.[i,k] )
+        let r_W = rv ( fun k i ->  ( e i ) * G.[i,k] )
 
-        let r_H = sum N ( fun i -> ( - x i * e i ) )
-        let r_I = sum N ( fun i -> ( - y i * e i ) )
-        let r_J = sum N ( fun i -> ( - 1.0 * e i ) )
+        let r_H = sum N ( fun i -> ( x i * e i ) )
+        let r_I = sum N ( fun i -> ( y i * e i ) )
+        let r_J = sum N ( fun i -> ( e i ) )
 
         let r = [| r_U; r_V; r_W; [|r_H|]; [|r_I|]; [|r_J|] |] |> Array.concat
 
@@ -260,7 +260,7 @@ module MatchProblem =
                     |]
                 |]
 
-            Array2D.init (arrays |> Array.length) (arrays.[0] |> Array.length) ( fun i j -> arrays.[j].[i] )
+            Array2D.init (arrays |> Array.length) (arrays.[0] |> Array.length) ( fun i j -> arrays.[i].[j] )
 
         let perm = M.LuFactorize()
         let w = M.LuSolve(perm, r)
