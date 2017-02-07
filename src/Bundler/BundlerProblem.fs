@@ -288,18 +288,18 @@ module MatchProblem =
         let E_dim = sum N ( fun j -> 0.5 * ( e j - q(ms.[j]) ) ** 2.0 ) + lambda * psi
         printfn "!! E=%A " E_dim
 
-        q
+        q, E_dim
     
     let affineDistance (lambda : float) (sigma : float) ( ms : Match2d[] ) =
         let ps = ms |> Array.map m2v
         let N = ps.Length
 
-        let qx = q_dim lambda sigma ps ( fun v -> v.X + v.Z )
-        let qy = q_dim lambda sigma ps ( fun v -> v.Y + v.W )
+        let (qx, ex) = q_dim lambda sigma ps ( fun v -> v.X + v.Z )
+        let (qy, ey) = q_dim lambda sigma ps ( fun v -> v.Y + v.W )
 
         let d (m : Match2d) = let p = m2v m in V2d((qx p - ( p.X + p.Z )), (qy p - ( p.Y + p.W )))
 
-        d
+        d,ex,ey
 
     let likelihood (lambda : float) (sigma : float) ( ms : Match2d[] ) =    
         let N = ms.Length

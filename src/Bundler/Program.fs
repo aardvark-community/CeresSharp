@@ -4,12 +4,17 @@ open Aardvark.Base.Rendering
 open Aardvark.Base.Incremental
 open Aardvark.Ceres
 open Aardvark.SceneGraph
+open Aardvark.Rendering.Text
 open Aardvark.Application
 open Aardvark.Application.WinForms
 open FShade
 
+let fst' (a,b,c) = a
+let snd' (a,b,c) = b
+let trd' (a,b,c) = c
+
 module BundlerTest =
-    
+
     let createProblem (cameras : int) (points : int) =
         let rand = RandomSystem()
 
@@ -359,6 +364,16 @@ let testKermit() =
 
 open System.IO
 
+type stuffStats = 
+    {
+        startCount : int
+        predCount : int
+        superCount : int
+        superWeightSum : V2d
+        superAvg    : V2d
+        superVar    : V2d
+    }
+
 [<EntryPoint>]
 let main argv =
     Ag.initialize()
@@ -375,7 +390,20 @@ let main argv =
 
     let cameraView = CameraView.lookAt (V3d(0.0, 0.0, 2.0)) V3d.Zero V3d.OIO
 
-    let cameraView = cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 0.2) win.Mouse win.Keyboard win.Time
+    let lastSpace = Mod.init DateTime.Now
+    lastSpace |> Mod.unsafeRegisterCallbackKeepDisposable ( fun _ -> printfn "Recentering camera." ) |> ignore
+    let cameraView = 
+        let im = Mod.custom ( fun a ->
+            lastSpace.GetValue a |> ignore
+            cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 0.5) win.Mouse win.Keyboard win.Time
+        )
+
+        adaptive {
+            let! im = im
+            let! cv = im
+            return cv
+        }
+
     let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
 
     let plane (isLeft : bool) (img : PixImage<byte>) = 
@@ -415,7 +443,6 @@ let main argv =
             minTrackLength = 2
             distanceThreshold = 0.008
         }
-
     let result = Mod.custom ( fun a ->
 
             let (lImg,rImg) = currentImgs.GetValue a
@@ -452,10 +479,10 @@ let main argv =
 
                 Log.line "found %d matches (%d candidates)" m2g.Length m2d.Length
         
-                let m2g =
+                let (m2g,stats) =
                     if useAffine then
                         if m2g.Length >= 20 then 
-                            let qn = MatchProblem.affineDistance affineLambda affineSigma m2g
+                            let (qn,ex,ey) = MatchProblem.affineDistance affineLambda affineSigma m2g
 
                             let (supermatches,ws) = 
                                 m2g |> Array.map ( fun m ->
@@ -473,12 +500,33 @@ let main argv =
 
                             Log.line "Weight stats: \n totalcount=%A \n thresh=%A \n belowThresh=%A \n average=%A \t (var=%A)\n" ws.Length thresh supermatches.Length avg vari
 
-                            supermatches
+                            supermatches,    {
+                                                startCount = m2d.Length
+                                                predCount = m2g.Length
+                                                superCount = supermatches.Length
+                                                superWeightSum = V2d(ex,ey)
+                                                superAvg    = avg
+                                                superVar    = vari
+                                             }
                         else
                             Log.warn "not enough points (only %A, need 20) for supermatch" m2g.Length
-                            m2g
+                            m2g,{
+                                    startCount = m2d.Length
+                                    predCount = m2g.Length
+                                    superCount = 0
+                                    superWeightSum = V2d.OO
+                                    superAvg    = V2d.OO
+                                    superVar    = V2d.OO
+                                    }
                     else
-                        m2g
+                        m2g,{
+                            startCount = m2d.Length
+                            predCount = m2g.Length
+                            superCount = 0
+                            superWeightSum = V2d.OO
+                            superAvg    = V2d.OO
+                            superVar    = V2d.OO
+                            }
         
                 Log.stop()
 
@@ -496,7 +544,7 @@ let main argv =
 
                 let colors = Array.init good.Length (ignore >> rand.UniformC3f >> C4b) |> Array.collect (fun v -> [| v; v |])
 
-                lines, colors
+                lines, colors, stats
 
 
             let l = currentLampta.GetValue a
@@ -508,10 +556,66 @@ let main argv =
             matches l s al as' ua
          )
 
+    let configText =
+        let cfg l s la sa =
+            sprintf "\n
+              MotionPred:\tAffine:\t\n
+              λ = %A\t     λa = %A\t\n
+              σ = %A\t     σa = %A\t\n
+            \n" l la s sa
+
+        adaptive {
+            let! l = currentLampta
+            let! s = currentSickma
+            let! la = aLambda
+            let! sa = aSigma
+            return cfg l s la sa
+        }
+
+    let xt = Mod.init 0.0
+    let yt = Mod.init 0.0
+
+    xt |> Mod.unsafeRegisterCallbackKeepDisposable ( printfn "X=%A" ) |> ignore
+    yt |> Mod.unsafeRegisterCallbackKeepDisposable ( printfn "Y=%A" ) |> ignore
+
+    win.Keyboard.Down.Values.Add( fun k ->
+        match k with
+        | Keys.Left     -> transact ( fun _ -> xt.Value <- xt.Value - 1.0)
+        | Keys.Right    -> transact ( fun _ -> xt.Value <- xt.Value + 1.0)
+        | Keys.Down     -> transact ( fun _ -> yt.Value <- yt.Value - 1.0)
+        | Keys.Up       -> transact ( fun _ -> yt.Value <- yt.Value + 1.0)
+        | Keys.Space    -> transact ( fun _ -> lastSpace.Value <- DateTime.Now)
+        | _ -> ()
+    )
+
+    let statsSg = Mod.map trd' result 
+                    |> Mod.map ( fun x -> 
+                                    sprintf "\n
+                                        matchCount = %A\n
+                                        afterPrediction = %A\n
+                                        afterAffinity = %A\n
+                                        \n
+                                        Ex,Ey = %A    \n
+                                        average = %A  \n
+                                        variance = %A \n\n
+                                    " x.startCount x.predCount x.superCount x.superWeightSum x.superAvg x.superWeightSum )
+                    |> Sg.text (Font.create "Consolas" FontStyle.Regular) C4b.White 
+                    //|> Sg.trafo (Mod.map2 ( fun x y -> Trafo3d.Translation(x,y,0.0)) xt yt)
+                    |> Sg.translate -42.0 32.0 0.0
+                    |> Sg.scale 0.05
+
+    let configSg =
+        Sg.text (Font.create "Consolas" FontStyle.Regular) C4b.White configText
+            //|> Sg.trafo (Mod.map2 ( fun x y -> Trafo3d.Translation(x,y,0.0)) xt yt)
+            |> Sg.translate -42.0 32.0 0.0
+            |> Sg.scale 0.05
+    
+    let textSg = [configSg; statsSg] |> Sg.ofList
+
     let lineSg = 
         Sg.draw IndexedGeometryMode.LineList
-            |> Sg.vertexAttribute DefaultSemantic.Positions (Mod.map fst result)
-            |> Sg.vertexAttribute DefaultSemantic.Colors (Mod.map snd result)
+            |> Sg.vertexAttribute DefaultSemantic.Positions (Mod.map fst' result)
+            |> Sg.vertexAttribute DefaultSemantic.Colors (Mod.map snd' result)
             |> Sg.shader {
                 do! DefaultSurfaces.trafo
                 do! DefaultSurfaces.vertexColor
@@ -519,6 +623,7 @@ let main argv =
     let sg = 
         aset {
             yield lineSg 
+            yield textSg
             let! imgs = currentImgs
             let (lImg, rImg) = imgs
             yield plane true  lImg
