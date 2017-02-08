@@ -439,8 +439,10 @@ let main argv =
 
     let currentLampta = Mod.init 35.0
     let currentSickma = Mod.init 0.5
+    let probability = Mod.init 0.5
     let aLambda = Mod.init 20.0
     let aSigma = Mod.init 0.5
+    let aThreshold = Mod.init 0.01
     let useA = Mod.init true
 
     let config =
@@ -479,6 +481,8 @@ let main argv =
             let averageByV2 (f : 'a -> V2d) (vs : 'a[]) =
                 (vs |> Array.fold ( fun vs v -> vs + f v ) V2d.OO) / (float vs.Length)
         
+            let probability = probability.GetValue a
+            let thresh = aThreshold.GetValue a
 
             let matches (lampta : float) (sickma : float) (affineLambda : float) (affineSigma : float) (useAffine : bool) =
                 Log.startTimed "matching { lampta: %A; sickma: %A }" lampta sickma
@@ -486,7 +490,7 @@ let main argv =
 
                 let m2g =
                     m2d |> Array.filter (fun m -> 
-                        fn m >= 0.5
+                        fn m >= probability
                     )
 
                 Log.line "found %d matches (%d candidates)" m2g.Length m2d.Length
@@ -502,7 +506,6 @@ let main argv =
                                     m,w
                                 )   |> Array.unzip
 
-                            let thresh = 0.01
                             let supermatches = supermatches |> Array.filteri ( fun i _ -> ws.[i].LengthSquared < thresh)
 
                             Log.line "(la=%A sa=%A) affine matches remaining: %A" affineLambda affineSigma supermatches.Length
@@ -608,26 +611,37 @@ let main argv =
         | _ -> ()
     )
 
+    let stats (c : IMod<stuffStats>) =  
+        adaptive {
+            let! x = c
+            let! p = probability
+            let! ta = aThreshold
+            return 
+                sprintf "\n
+                    pProbability = %A\n
+                    aThreshold = %A\n
+                    \n
+                    bfMatches = %A\n
+                    afterPrediction = %A\n
+                    afterAffinity = %A\n
+                    \n
+                    Ex,Ey = %A    \n
+                    average = %A  \n
+                    variance = %A \n\n
+                "p ta x.startCount x.predCount x.superCount x.superWeightSum x.superAvg x.superWeightSum
+        }
+
     let statsSg = Mod.map (fst'>>trd') result 
-                    |> Mod.map ( fun x -> 
-                                    sprintf "\n
-                                        bfMatches = %A\n
-                                        afterPrediction = %A\n
-                                        afterAffinity = %A\n
-                                        \n
-                                        Ex,Ey = %A    \n
-                                        average = %A  \n
-                                        variance = %A \n\n
-                                    " x.startCount x.predCount x.superCount x.superWeightSum x.superAvg x.superWeightSum )
+                    |> stats       
                     |> Sg.text (Font.create "Consolas" FontStyle.Regular) C4b.White 
                     //|> Sg.trafo (Mod.map2 ( fun x y -> Trafo3d.Translation(x,y,0.0)) xt yt)
-                    |> Sg.translate -42.0 32.0 0.0
+                    |> Sg.translate -19.0 -15.0 0.0
                     |> Sg.scale 0.05
 
     let configSg =
         Sg.text (Font.create "Consolas" FontStyle.Regular) C4b.White configText
             //|> Sg.trafo (Mod.map2 ( fun x y -> Trafo3d.Translation(x,y,0.0)) xt yt)
-            |> Sg.translate -42.0 32.0 0.0
+            |> Sg.translate -39.0 -15.0 0.0
             |> Sg.scale 0.05
     
     let textSg = [configSg; statsSg] |> Sg.ofList
@@ -665,6 +679,22 @@ let main argv =
             e = ".jpg" || e = ".png" || e = ".jpeg" || e = ".gif" || e = ".tiff"
         )
 
+    let help =
+        "
+            \n
+            Commands: \n
+            l 30.0   - prediction lambda
+            s 0.5    - prediction sigma
+            p 0.5    - prediction > this probability
+            la 25.0  - affine lambda
+            sa 0.5   - affine sigma
+            ta 0.01  - (affine transform - observation) < this threshold
+            u [0|1]  - use affine no/yes
+            i [path] - folder with exactly 2 images
+            f [orb brisk akaze] - which features to use
+            \n
+        "
+
     let runner =
         async {
             do! Async.SwitchToNewThread()
@@ -685,6 +715,8 @@ let main argv =
                         | "s" -> transact(fun () -> currentSickma.Value <- value)
                         | "la" -> transact(fun () -> aLambda.Value <- value)
                         | "sa" -> transact(fun () -> aSigma.Value <- value)
+                        | "p" -> transact(fun () -> probability.Value <- value)
+                        | "ta" -> transact(fun () -> aThreshold.Value <- value)
                         | "u" -> transact(fun () -> useA.Value <- (value > 0.5))
                         | _ -> Log.warn "Invalid numeric input: %A" line
 
@@ -709,9 +741,18 @@ let main argv =
                                 | "brisk" -> transact( fun _ -> featureType.Value <- Brisk )
                                 | "akaze" -> transact( fun _ -> featureType.Value <- Akaze )
                                 | _ -> Log.warn "%A is not a valid feature type. Use one of these: brisk, orb, akaze" value
+                            | "h" | "help" -> printfn "%A" help
                             | _ -> Log.warn "Invalid string input: %A" line
                         else
-                            Log.warn "Regex didn't parse: %A" line
+                            let rxCommand = System.Text.RegularExpressions.Regex @"^[ \t]*(?<par>[a-zA-Z]+)$" 
+                            let m = rxText.Match line
+                            if m.Success then
+                                let name = m.Groups.["par"].Value
+                                match name with
+                                | "h" | "help" -> printfn "%A" help
+                                | _ -> Log.warn "Get help with \"help\". Invalid command: %A" line
+                            else
+                                Log.warn "Regex didn't parse: %A" line
         }
 
     Async.Start runner
