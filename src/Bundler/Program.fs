@@ -13,6 +13,12 @@ let fst' (a,b,c) = a
 let snd' (a,b,c) = b
 let trd' (a,b,c) = c
 
+//accidentally writing an application here oops
+type FeatureSelection =
+| Akaze
+| Brisk
+| Orb
+
 module BundlerTest =
 
     let createProblem (cameras : int) (points : int) =
@@ -429,7 +435,8 @@ let main argv =
 //    let rFtr = features.[1]
     
     let currentImgs = Mod.init (images.[0], images.[1])
-    
+    let featureType = Mod.init Akaze
+
     let currentLampta = Mod.init 35.0
     let currentSickma = Mod.init 0.5
     let aLambda = Mod.init 20.0
@@ -446,8 +453,13 @@ let main argv =
     let result = Mod.custom ( fun a ->
 
             let (lImg,rImg) = currentImgs.GetValue a
+            let useFeature = featureType.GetValue a
 
-            let (lFtr,rFtr) = lImg |> Akaze.ofImage, rImg |> Akaze.ofImage
+            let (lFtr,rFtr) = 
+                match useFeature with
+                | Akaze -> lImg |> Akaze.ofImage, rImg |> Akaze.ofImage
+                | Orb -> lImg |> Orb.ofImage, rImg |> Orb.ofImage
+                | Brisk -> lImg |> Brisk.ofImage, rImg |> Brisk.ofImage
 
             let mc = 
                 Feature.matchCandidates config lFtr rFtr
@@ -553,23 +565,31 @@ let main argv =
             let as' = aSigma.GetValue a
             let ua = useA.GetValue a
 
-            matches l s al as' ua
+            matches l s al as' ua, lFtr.Length, rFtr.Length
          )
 
+    let cnts = result |> Mod.map ( fun (_,c1,c2) -> V2i(c1,c2) )
+
     let configText =
-        let cfg l s la sa =
+        let cfg l s la sa t c =
+            let t = match t with Brisk -> "Brisk" | Orb -> "Orb" | Akaze -> "Akaze"
             sprintf "\n
               MotionPred:\tAffine:\t\n
               λ = %A\t     λa = %A\t\n
               σ = %A\t     σa = %A\t\n
-            \n" l la s sa
+              \n
+              FeatureType: %A\n
+              Count: %A\n
+            \n" l la s sa t c
 
         adaptive {
             let! l = currentLampta
             let! s = currentSickma
             let! la = aLambda
             let! sa = aSigma
-            return cfg l s la sa
+            let! t = featureType
+            let! c = cnts
+            return cfg l s la sa t c
         }
 
     let xt = Mod.init 0.0
@@ -588,10 +608,10 @@ let main argv =
         | _ -> ()
     )
 
-    let statsSg = Mod.map trd' result 
+    let statsSg = Mod.map (fst'>>trd') result 
                     |> Mod.map ( fun x -> 
                                     sprintf "\n
-                                        matchCount = %A\n
+                                        bfMatches = %A\n
                                         afterPrediction = %A\n
                                         afterAffinity = %A\n
                                         \n
@@ -614,8 +634,8 @@ let main argv =
 
     let lineSg = 
         Sg.draw IndexedGeometryMode.LineList
-            |> Sg.vertexAttribute DefaultSemantic.Positions (Mod.map fst' result)
-            |> Sg.vertexAttribute DefaultSemantic.Colors (Mod.map snd' result)
+            |> Sg.vertexAttribute DefaultSemantic.Positions (Mod.map (fst'>>fst') result)
+            |> Sg.vertexAttribute DefaultSemantic.Colors (Mod.map (fst'>>snd') result)
             |> Sg.shader {
                 do! DefaultSurfaces.trafo
                 do! DefaultSurfaces.vertexColor
@@ -683,6 +703,12 @@ let main argv =
                                     match imgs.Length >= 2 with
                                     | false -> Log.warn "Only found %A images (need exactly 2) in directory %A" imgs.Length value
                                     | true -> transact( fun _ -> currentImgs.Value <- (imgs.[0] |> PixImage<byte>, imgs.[1] |> PixImage<byte>) )
+                            | "f" ->
+                                match value.ToLower() with
+                                | "orb" -> transact( fun _ -> featureType.Value <- Orb )
+                                | "brisk" -> transact( fun _ -> featureType.Value <- Brisk )
+                                | "akaze" -> transact( fun _ -> featureType.Value <- Akaze )
+                                | _ -> Log.warn "%A is not a valid feature type. Use one of these: brisk, orb, akaze" value
                             | _ -> Log.warn "Invalid string input: %A" line
                         else
                             Log.warn "Regex didn't parse: %A" line
