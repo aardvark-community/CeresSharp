@@ -4,3 +4,4 @@ Aardvark.Application.WinForms.GL
 Aardvark.SceneGraph
 Aardvark.Rendering.Text
 Aardvark.OpenCvSharp
+FsPickler

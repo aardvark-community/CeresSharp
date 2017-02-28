@@ -244,40 +244,6 @@ module BundlerTest =
         else
             { cost = 0.0; problem = problem; points = Map.empty; cameras = Map.empty }
 
-module BundlerSolution =
-    open Aardvark.SceneGraph
-
-    let sg (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) =
-        let frustum = Box3d(-V3d(1.0, 1.0, 10000.0), V3d(1.0, 1.0, -2.0))
-        let cameras = 
-            s.cameras |> Map.toSeq |> Seq.map (fun (_,c) -> 
-                Sg.wireBox' C4b.Green frustum
-                    |> Sg.transform (c.ViewProjTrafo(100.0).Inverse)
-            )
-            |> Sg.ofSeq
-            |> Sg.shader { 
-                do! DefaultSurfaces.trafo
-                do! DefaultSurfaces.constantColor (C4f cameraColor)
-            }
-
-        let points =
-            IndexedGeometry(
-                Mode = IndexedGeometryMode.PointList,
-                IndexedAttributes =
-                    SymDict.ofList [
-                        DefaultSemantic.Positions, s.points |> Map.toSeq |> Seq.map snd |> Seq.map V3f |> Seq.toArray :> Array
-                    ]
-            )
-            |> Sg.ofIndexedGeometry
-            |> Sg.uniform "PointSize" (Mod.constant (float pointSize))
-            |> Sg.shader { 
-                do! DefaultSurfaces.trafo
-                do! DefaultSurfaces.constantColor (C4f pointColor)
-                do! DefaultSurfaces.pointSprite
-                do! DefaultSurfaces.pointSpriteFragment
-            }
-
-        Sg.ofList [ points; cameras ]
 
 module FundamentalMatrix =
     open OpenCvSharp
@@ -342,20 +308,20 @@ let testGlobal() =
     let trafo = PointCloud.trafo2 sol.points input.points
     let input =
         input 
-            |> BundlerSolution.sg (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow
+            |> SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow
             |> Sg.pass (RenderPass.after "asdasd" RenderPassOrder.Arbitrary RenderPass.main)
             |> Sg.depthTest (Mod.constant DepthTestMode.None)
             |> Sg.blendMode (Mod.constant BlendMode.Blend)
     let sol =
         sol
             |> BundlerSolution.transformed trafo
-            |> BundlerSolution.sg C4b.Green 20 C4b.Red
+            |> SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red
         
     Sg.ofList [ input; sol ]
 
 let testKermit() =
     let sol = BundlerTest.kermit()
-    sol |> BundlerSolution.sg C4b.Green 20 C4b.Red
+    sol |> SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red
         
     
 
@@ -368,13 +334,13 @@ let main argv =
 
     
     
-    //let path = @"C:\bla\yolo\k-sub"
-
-    //PairViewer.app path
-
-
     let path = @"C:\blub\yolo"
 
-    Bundle.asd path
+    PairViewer.app path
+
+
+//    let path = @"C:\blub\yolo"
+//
+//    BundlerViewer.folder path
 
     0 // return an integer exit code

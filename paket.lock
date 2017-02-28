@@ -88,6 +88,7 @@ NUGET
     CommonMark.NET (0.12)
     DevILSharp (0.0.13)
     FSharp.Quotations.Evaluator (1.0.7)
+    FsPickler (3.1)
     Microsoft.NETCore.Platforms (1.1) - framework: >= netstandard10
     Microsoft.NETCore.Targets (1.1) - framework: >= netstandard10
     System.Collections (4.3) - framework: >= netstandard10, netcore10

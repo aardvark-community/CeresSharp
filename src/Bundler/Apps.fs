@@ -400,3 +400,74 @@ module PairViewer =
         cancel.Cancel()
 
 
+module SceneGraph =
+    open Aardvark.SceneGraph
+
+    let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) =
+        let frustum = Box3d(-V3d(1.0, 1.0, 10000.0), V3d(1.0, 1.0, -2.0))
+        let cameras = 
+            s.cameras |> Map.toSeq |> Seq.map (fun (_,c) -> 
+                Sg.wireBox' C4b.Green frustum
+                    |> Sg.transform (c.ViewProjTrafo(100.0).Inverse)
+            )
+            |> Sg.ofSeq
+            |> Sg.shader { 
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.constantColor (C4f cameraColor)
+            }
+
+        let points =
+            IndexedGeometry(
+                Mode = IndexedGeometryMode.PointList,
+                IndexedAttributes =
+                    SymDict.ofList [
+                        DefaultSemantic.Positions, s.points |> Map.toSeq |> Seq.map snd |> Seq.map V3f |> Seq.toArray :> Array
+                    ]
+            )
+            |> Sg.ofIndexedGeometry
+            |> Sg.uniform "PointSize" (Mod.constant (float pointSize))
+            |> Sg.shader { 
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.constantColor (C4f pointColor)
+                do! DefaultSurfaces.pointSprite
+                do! DefaultSurfaces.pointSpriteFragment
+            }
+
+        Sg.ofList [ points; cameras ]
+
+module BundlerViewer =
+    
+    let folder path =
+        
+        use app = new OpenGlApplication()
+        use win = app.CreateSimpleRenderWindow(8)
+
+        let solution = Bundle.filesIn path
+
+        let sg : ISg = 
+            
+            let stuff = SceneGraph.ofBundlerSolution C4b.Red 5 C4b.Green solution
+            let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
+            let cameraView = CameraView.lookAt (V3d(0.0, 0.0, 2.0)) V3d.Zero V3d.OIO
+
+            let lastSpace = Mod.init DateTime.Now
+            lastSpace |> Mod.unsafeRegisterCallbackKeepDisposable ( fun _ -> printfn "Recentering camera." ) |> ignore
+            let cameraView = 
+                let im = Mod.custom ( fun a ->
+                    lastSpace.GetValue a |> ignore
+                    cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 0.5) win.Mouse win.Keyboard win.Time
+                )
+
+                adaptive {
+                    let! im = im
+                    let! cv = im
+                    return cv
+                }
+
+            stuff |> Sg.viewTrafo (cameraView |> Mod.map CameraView.viewTrafo)
+                  |> Sg.projTrafo (frustum |> Mod.map Frustum.projTrafo)
+
+        let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
+        win.RenderTask <- task
+
+        win.Run()

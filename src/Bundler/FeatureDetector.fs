@@ -896,7 +896,7 @@ module Feature =
                     file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
                     
 
-                let path = sprintf @"C:\bla\yolo\k-sub\mtl%A" minTrackLength
+                let path = sprintf @"C:\blub\yolo\out\mtl%A" minTrackLength
 
                 if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
 
