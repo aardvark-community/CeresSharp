@@ -40,6 +40,17 @@ type Feature =
         descriptor  : FeatureDescriptor
     }
 
+
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Match2d =
+    
+    let ofFeatures (l : Feature[]) (r : Feature[]) (ms : (int*int)[]) = 
+        ms |> Array.map ( fun (li,ri) -> 
+            Match2d(l.[li].ndc, r.[ri].ndc - l.[li].ndc, MatchProblem.o (r.[ri].angle - l.[li].angle), li, ri) 
+        )
+        
+
 [<AutoOpen>]
 module private CVHelpers =
     open OpenCvSharp
@@ -402,7 +413,7 @@ module Feature =
 
         h1, h2
 
-    let matchCandidates (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+    let matchCandidates (t : float) (l : Feature[]) (r : Feature[]) =
         use matcher = new BFMatcher(normType = NormTypes.Hamming)
 
         use lMat = new Mat(l.Length, l.[0].descriptor.Dimension, MatType.CV_8UC1)
@@ -423,7 +434,7 @@ module Feature =
                 let m0 = m.[0]
                 let m1 = m.[1]
 
-                if float m0.Distance < config.threshold * float m1.Distance then
+                if float m0.Distance < t * float m1.Distance then
                     Some (m0.TrainIdx, m0.QueryIdx)
                 else
                     None
@@ -433,7 +444,7 @@ module Feature =
         reallyGoodMatches
 
     let matchesOld (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
-        let reallyGoodMatches = matchCandidates config l r
+        let reallyGoodMatches = matchCandidates config.threshold l r
 
         if reallyGoodMatches.Length >= 10 then
             Log.warn "found %d anchor matches" reallyGoodMatches.Length
@@ -487,7 +498,7 @@ module Feature =
     open Aardvark.Ceres
 
     let matchesNotSoOld (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
-        let reallyGoodMatches = matchCandidates config l r
+        let reallyGoodMatches = matchCandidates config.threshold l r
 
         let distThreshold = config.distanceThreshold
         if reallyGoodMatches.Length >= 12 then
@@ -579,7 +590,7 @@ module Feature =
             [||]
 
     let matches (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
-        let reallyGoodMatches = matchCandidates config l r
+        let reallyGoodMatches = matchCandidates config.threshold l r
 
         if reallyGoodMatches.Length >= 10 then
 
@@ -648,7 +659,7 @@ module Feature =
 
 
     let estimateHomography (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
-        let reallyGoodMatches = matchCandidates config l r
+        let reallyGoodMatches = matchCandidates config.threshold l r
 
         if reallyGoodMatches.Length >= 10 then
             let lPoints = reallyGoodMatches |> Array.map (fun (li,_) -> l.[li].ndc)
@@ -700,7 +711,6 @@ module Feature =
     type FeatureGraph =
         {
             images : PixImage<byte>[]
-            config : MatchingConfig
             data : Feature[][]
             features : Dict<int, HashSet<FeatureNode>>
             edges : Edge<(int*int)[]>[]
@@ -728,7 +738,8 @@ module Feature =
 
     [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
     module FeatureGraph =
-        let build (config : MatchingConfig) (images : PixImage<byte>[]) (data : Feature[][]) =
+        
+        let build (matcher : Feature[] -> Feature[] -> (int*int)[]) (images : PixImage<byte>[]) (data : Feature[][]) =
             let nodes = Dict<int * int, FeatureNode>()
             let features = Dict()
 
@@ -758,11 +769,12 @@ module Feature =
                 |]
 
             let edges = 
-                allPairs |> Array.chooseParallel (fun (lImg, rImg) ->
+                allPairs |> Array.choose (fun (lImg, rImg) ->
                     let lFeatures = data.[lImg]
                     let rFeatures = data.[rImg]
 
-                    let matches,_ = matches config lFeatures rFeatures
+                    Log.line "Now matching %d/%d" lImg rImg
+                    let matches = matcher lFeatures rFeatures
                     if matches.Length > 0 then
                         Log.line "matched %d/%d: %d" lImg rImg matches.Length
                         Some { i0 = lImg; i1 = rImg; weight = matches }
@@ -788,10 +800,11 @@ module Feature =
                     rNode.Add(lImg, lNode)
             Log.stop()
 
-            { data = data; config = config; images = images; features = features; edges = spanningTree }
+            { data = data; images = images; features = features; edges = spanningTree }
 
 
-        let toBundlerInput (g : FeatureGraph) =
+        let toBundlerInput (g : FeatureGraph) (minTrackLength : int) =
+
             let features = g.features
             
             let takeNode() =
@@ -838,7 +851,7 @@ module Feature =
                 let usedImages, path = traverse (Set.singleton start.image) [start] start
                 let path = List.toArray path
 
-                if path.Length >= g.config.minTrackLength then
+                if path.Length >= minTrackLength then
                     paths.Add(usedImages, path)
                     let str = path |> Array.map (fun f -> sprintf "(%d, %d)" f.image f.featureIndex) |> String.concat " -> "
                     Log.warn "found path: %s" str
@@ -883,7 +896,7 @@ module Feature =
                     file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
                     
 
-                let path = sprintf @"C:\bla\yolo\k-sub\gd%A_t%A_mtl%A_dt%A" g.config.guidedThreshold g.config.threshold g.config.minTrackLength g.config.distanceThreshold
+                let path = sprintf @"C:\bla\yolo\k-sub\mtl%A" minTrackLength
 
                 if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
 
@@ -894,12 +907,10 @@ module Feature =
 
 
 
-    let toBundlerInput (config : MatchingConfig) (images : PixImage<byte>[]) (data : Feature[][]) =
-        let graph = FeatureGraph.build config images data
-        FeatureGraph.toBundlerInput graph
+//    let toBundlerInput (config : MatchingConfig) (images : PixImage<byte>[]) (data : Feature[][]) =
+//        let graph = FeatureGraph.build config images data
+//        FeatureGraph.toBundlerInput graph
 
-    
-    
 
     let iterate (g : FeatureGraph) (debugPath : Option<string>) =
         let debugOutput (measureMap : Map<int,Map<int,V2d>>) cam (run : Option<int>) =
@@ -924,7 +935,7 @@ module Feature =
                         file.GetMatrix<C4b>().SetCircle(pp, size, colors.[fNumber])
                         fNumber <- fNumber+1
                         
-                    let path = sprintf @"%s\t%A_mtl%A_dt%A" path g.config.threshold g.config.minTrackLength g.config.distanceThreshold
+                    let path = sprintf @"%s\t" path
                     //let path = sprintf @"%s\%A" path g.config.distanceThreshold
 
                     if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
@@ -1045,11 +1056,11 @@ module Feature =
 
                 Some (solution |> fst)
             | false -> 
-                Log.warn "Match graph is empty. Run (threshold=%A;\tdistanceThresh=%A) has no solutions." g.config.threshold g.config.distanceThreshold
+                Log.warn "Match graph is empty. no solutions."
                 None
 
-    let solveIteratively (config : MatchingConfig) (outputPath : Option<String>) (images : PixImage<byte>[]) (data : Feature[][]) =
-        let graph = FeatureGraph.build config images data
-        iterate graph outputPath
+//    let solveIteratively (config : MatchingConfig) (outputPath : Option<String>) (images : PixImage<byte>[]) (data : Feature[][]) =
+//        let graph = FeatureGraph.build config images data
+//        iterate graph outputPath
 
 

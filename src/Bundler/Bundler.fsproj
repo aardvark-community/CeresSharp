@@ -61,6 +61,8 @@
     <Compile Include="BundlerProblem.fs" />
     <Compile Include="Bundler.fs" />
     <Compile Include="FeatureDetector.fs" />
+    <Compile Include="Match.fs" />
+    <Compile Include="Apps.fs" />
     <Compile Include="Program.fs" />
     <Content Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

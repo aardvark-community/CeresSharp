@@ -127,6 +127,7 @@ type Match2d(pos : V2d, vel : V2d, o : V4d, li : int, ri : int) =
         Vec.dot l.Pos r.Pos + Vec.dot l.Vel r.Vel + Vec.dot l.O r.O
         
 
+
 module MatchProblem =       
     open CeresSharp
 
