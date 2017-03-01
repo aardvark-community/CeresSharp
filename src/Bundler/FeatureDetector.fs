@@ -803,7 +803,7 @@ module Feature =
             { data = data; images = images; features = features; edges = spanningTree }
 
 
-        let toBundlerInput (g : FeatureGraph) (minTrackLength : int) =
+        let toBundlerInput (g : FeatureGraph) (minTrackLength : int) (maxFeaturesPerCam : int) =
 
             let features = g.features
             
@@ -815,6 +815,7 @@ module Feature =
                 f
 
 
+            let mutable pathCounter = 0
             let paths = List<Set<int> * array<FeatureNode>>()
             while features.Count > 0 do
                 let list = List<FeatureNode>()
@@ -852,15 +853,16 @@ module Feature =
                 let path = List.toArray path
 
                 if path.Length >= minTrackLength then
+                    pathCounter <- pathCounter + 1
                     paths.Add(usedImages, path)
                     let str = path |> Array.map (fun f -> sprintf "(%d, %d)" f.image f.featureIndex) |> String.concat " -> "
-                    Log.warn "found path: %s" str
+                    Log.warn "%A: found path: %s" pathCounter str
 
 
             let measurements = Array.create g.data.Length Map.empty
             let ff = Array.create g.data.Length Map.empty
 
-            let targetCounts = Array.create g.data.Length 40
+            let targetCounts = Array.create g.data.Length maxFeaturesPerCam
 
             paths.QuickSortDescending(fun (_,p) -> p.Length)
 

@@ -751,7 +751,9 @@ module BundlerInput =
                 m |> Map.filter (fun pi _ -> valid.Contains pi)
             )
 
-        Log.line "reduced %A -> %A (visible from 2 cams)" counts.Count (measurements |> Map.toArray |> Array.map snd).[0].Count
+        Log.line "Reduction: (visible from 2 cams)"
+        for i in 0 .. measurements.Count - 1 do
+            Log.line "%A:  %A -> %A" i input.measurements.[i].Count measurements.[i].Count
 
         // prune them from the input
         { input with measurements = measurements }

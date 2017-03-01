@@ -334,13 +334,13 @@ let main argv =
 
     
     
-    let path = @"C:\blub\yolo"
-
-    PairViewer.app path
-
-
 //    let path = @"C:\blub\yolo"
 //
-//    BundlerViewer.folder path
+//    PairViewer.app path
+
+
+    let path = @"C:\blub\yolo"
+
+    BundlerViewer.folder path
 
     0 // return an integer exit code

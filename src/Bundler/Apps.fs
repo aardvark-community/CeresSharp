@@ -455,7 +455,7 @@ module BundlerViewer =
             let cameraView = 
                 let im = Mod.custom ( fun a ->
                     lastSpace.GetValue a |> ignore
-                    cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 0.5) win.Mouse win.Keyboard win.Time
+                    cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
                 )
 
                 adaptive {

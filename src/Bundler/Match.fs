@@ -61,18 +61,20 @@ module Bundle =
 
         let bruteforceThreshold = 0.9
 
-        let probabilityLambda = 35.0
+        let probabilityLambda = 14.0
         let probabilitySigma = 0.5
-        let probabilityLowerThresh = 0.5
+        let probabilityLowerThresh = 0.4
 
-        let affineLambda = 20.0
-        let affineSigma = 0.5
-        let affineUpperThresh = 0.01
+        let affineLambda = 1.0
+        let affineSigma = 0.6
+        let affineUpperThresh = 0.001
 
         let bruteforceMinCount = 20
         let probableMinCount =   20
         let affineMinCount =     20
 
+        let cacheBundlerResult = false
+        let cacheFeatureMatching = true
 
 
         Log.line "Reading images ... "
@@ -128,13 +130,16 @@ module Bundle =
             |]
 
         let cachedMatch l r =
-            all
-                |> Array.choose ( fun ((limg, lf),(rimg, rf)) ->
-                    if lf = l && rf = r then
-                        cached (limg,rimg) ( fun _ -> pairMatch l r) |> Some
-                    else
-                        None
-                ) |> Array.exactlyOne
+            if cacheFeatureMatching then
+                all
+                    |> Array.choose ( fun ((limg, lf),(rimg, rf)) ->
+                        if lf = l && rf = r then
+                            cached (limg,rimg) ( fun _ -> pairMatch l r) |> Some
+                        else
+                            None
+                    ) |> Array.exactlyOne
+            else
+                pairMatch l r
 
 
 
@@ -142,10 +147,10 @@ module Bundle =
         let mst = Feature.FeatureGraph.build cachedMatch images data
         Log.stop()
 
-        save()
+        if cacheFeatureMatching then printfn "Saving match cache."; save()
 
         Log.startTimed "BundlerInput generation"
-        let input = Feature.FeatureGraph.toBundlerInput mst 2
+        let input = Feature.FeatureGraph.toBundlerInput mst 3 120
 
         let problem = input |> BundlerInput.preprocess
                             |> BundlerInput.toProblem
@@ -164,9 +169,14 @@ module Bundle =
             if Directory.Exists patha |> not then Directory.CreateDirectory patha |> ignore
             Path.combine [patha;filea]
 
-        if File.Exists fn then
-            ser.UnPickle (File.ReadAllBytes fn)
+        if cacheBundlerResult then
+            if File.Exists fn then
+                printfn "Taking cached bundle result."
+                ser.UnPickle (File.ReadAllBytes fn)
+            else
+                let solution = Bundler.solve problem
+                printfn "Saving bundle result cache."
+                ser.Pickle solution |> File.writeAllBytes fn
+                solution
         else
-            let solution = Bundler.solve problem
-            ser.Pickle solution |> File.writeAllBytes fn
-            solution
+            Bundler.solve problem
