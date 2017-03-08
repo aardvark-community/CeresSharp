@@ -112,3 +112,64 @@ module DerivativeSolverExtensions =
 
             x.AddCostFunction([|c0; c1|], residualCount, evaluate, id, [p0.Pointer; p1.Pointer])
 
+        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, p1 : IParameterBlock<'c>, p2 : IParameterBlock<'d>, f : 'b[] -> 'c[] -> 'd[] -> scalar[]) =
+            let c0 = p0.DoubleCount
+            let c1 = p1.DoubleCount
+            let c2 = p2.DoubleCount
+            let evaluate (parameters : nativeptr<nativeptr<float>>, residuals : nativeptr<float>, jacobians : nativeptr<nativeptr<float>>) =
+                if NativePtr.isNull jacobians then
+                    let a0 = p0.Read(0, NativePtr.get parameters 0)
+                    let a1 = p1.Read(c0, NativePtr.get parameters 1)
+                    let a2 = p2.Read(c1, NativePtr.get parameters 2)
+                    let res = f a0 a1 a2
+                    for i in 0 .. residualCount - 1 do
+                        NativePtr.set residuals i res.[i].Value
+                else
+                    let a0 = p0.Read(0, NativePtr.get parameters 0)
+                    let a1 = p1.Read(c0, NativePtr.get parameters 1)
+                    let a2 = p2.Read(c1, NativePtr.get parameters 2)
+
+                    let res = f a0 a1 a2
+                    for i in 0 .. residualCount - 1 do
+                        NativePtr.set residuals i res.[i].Value
+
+                        let d0, rest = Map.partition (fun k v -> k < c0) res.[i].Jacobian
+                        let d1, d2 = Map.partition (fun k v -> k < c1) rest
+
+                        let j = NativePtr.get jacobians 0
+                        if not (NativePtr.isNull j) then
+                            for pi in 0 .. c0 - 1 do
+                                let value = 
+                                    match Map.tryFind pi d0 with
+                                        | Some v -> v
+                                        | None -> 0.0
+
+                                let index = i * c0 + pi
+                                NativePtr.set j index value
+                                
+                        let j = NativePtr.get jacobians 1
+                        if not (NativePtr.isNull j) then
+                            for pi in 0 .. c1 - 1 do
+                                let value = 
+                                    match Map.tryFind (pi + c0) d1 with
+                                        | Some v -> v
+                                        | None -> 0.0
+
+                                let index = i * c1 + pi
+                                NativePtr.set j index value
+
+                        let j = NativePtr.get jacobians 2
+                        if not (NativePtr.isNull j) then
+                            for pi in 0 .. c2 - 1 do
+                                let value = 
+                                    match Map.tryFind (pi + c0 + c1) d2 with
+                                        | Some v -> v
+                                        | None -> 0.0
+
+                                let index = i * c2 + pi
+                                NativePtr.set j index value
+
+                1
+
+            x.AddCostFunction([|c0; c1; c2|], residualCount, evaluate, id, [p0.Pointer; p1.Pointer; p2.Pointer])
+

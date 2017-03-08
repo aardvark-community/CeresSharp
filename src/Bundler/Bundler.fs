@@ -11,10 +11,10 @@ module Bundler =
 
     let private rand = RandomSystem()
 
-    let private improveInternal (useDistortion : bool) (options : CeresOptions) (points : V3d[]) (cameras : Camera3d[]) (measurements : Map<int,Map<int, V2d>>) =
+    let private improveInternal (useDistortion : bool) (options : CeresOptions) (points : V3d[]) (k0 : float) (k1 : float) (cameras : Camera3d[]) (measurements : Map<int,Map<int, V2d>>) =
         use p = new Problem()
         let guessedPoints   : V3d[] = points |> Array.copy
-        let guessedCameras  : Map<int,Camera3d[]> = //cameras |> Array.map (fun c -> [| c |])
+        let guessedCameras  : Map<int,Camera3d[]> =
             [|
                 let mutable cc = 0
                 for kvp in measurements do
@@ -26,36 +26,65 @@ module Bundler =
 
         let worldPoints     = p.AddParameterBlock guessedPoints
         let camBlocks       = guessedCameras |> Map.map (fun _ c -> p.AddParameterBlock<Camera3d, Camera3s>(c))
-
-        for kvp in measurements do
-            let ci = kvp.Key
-            let measurements = measurements.[ci] |> Seq.toArray
-            let residuals = 2 * measurements.Length
-            let res = Array.zeroCreate residuals
-
-            p.AddCostFunction(residuals, worldPoints, camBlocks.[ci], fun world cam ->
-                let cam = cam.[0]
-                let mutable oi = 0
-                for kvp in measurements do
-                    let obs =
-                        if useDistortion then cam.Project world.[kvp.Key]
-                        else cam.ProjectNoDistortion world.[kvp.Key]
-
-                    let r = obs - kvp.Value
-                    res.[oi + 0] <- r.X 
-                    res.[oi + 1] <- r.Y 
-                    oi <- oi + 2
-
-                res
-            )
         
+        if useDistortion then
 
-        let cost = p.Solve(options)
+            for kvp in measurements do
+                let ci = kvp.Key
+                let measurements = measurements.[ci] |> Seq.toArray
+                let residuals = 2 * measurements.Length
+                let res = Array.zeroCreate residuals
 
-        let points = worldPoints.Result
-        let cameras = camBlocks |> Map.map (fun k b -> b.Result.[0])
+                p.AddCostFunction(residuals, worldPoints, camBlocks.[ci], fun world cam ->
+                    let cam = cam.[0]
+                    let mutable oi = 0
+                    for kvp in measurements do
+                        let obs = cam.Project world.[kvp.Key]
 
-        cost, points, cameras
+                        let r = obs - kvp.Value
+                        res.[oi + 0] <- r.X 
+                        res.[oi + 1] <- r.Y 
+                        oi <- oi + 2
+
+                    res
+                )
+            let cost = p.Solve(options)
+
+            let points = worldPoints.Result
+            let cameras = camBlocks |> Map.map (fun k b -> b.Result.[0])
+
+            cost, points, cameras
+        else
+            let k0k1 = p.AddParameterBlock [| k0; k1 |]
+            
+            for kvp in measurements do
+                let ci = kvp.Key
+                let measurements = measurements.[ci] |> Seq.toArray
+                let residuals = 2 * measurements.Length
+                let res = Array.zeroCreate residuals
+
+                p.AddCostFunction(residuals, worldPoints, k0k1, camBlocks.[ci], fun world ks cam ->
+                    let cam = cam.[0]
+                    let mutable oi = 0
+                    for kvp in measurements do
+                        let obs = cam.ProjectUniformDistortion(world.[kvp.Key], ks.[0], ks.[1])
+
+                        let r = obs - kvp.Value
+                        res.[oi + 0] <- r.X 
+                        res.[oi + 1] <- r.Y 
+                        oi <- oi + 2
+
+                    res
+                )
+            let cost = p.Solve(options)
+
+            let points = worldPoints.Result
+            let cameras = 
+                camBlocks |> Map.map (fun k b -> let c = b.Result.[0] in Camera3d(c.Position, c.AngleAxis, c.SqrtFocalLength, V2d(k0k1.Result.[0], k0k1.Result.[1]))
+                )
+
+            cost, points, cameras
+
 
     let private improvePointCloudAffine (useDistortion : bool) (options : CeresOptions) (knownPoints : Map<int,V3d>) (newCamera : Camera3d) (measurements : Map<int, V2d>) =
         use p = new Problem()
@@ -93,10 +122,6 @@ module Bundler =
     let private improveSol (useDistortion : bool) (options : CeresOptions) (sol : BundlerSolution) =
         let parent = sol.problem
         let input = parent.input
-        let cForward = sol.cameras |> Map.toSeq |> Seq.map fst |> Seq.toArray
-
-        let mutable cameraCount = 0
-        //let cameraIndices = Set.toArray sol.problem.cameras
 
         let subMeasurements =
             input.measurements
@@ -126,7 +151,9 @@ module Bundler =
         let cost, points, cameras = 
             let points = sol.points |> Map.toSeq |> Seq.map snd |> Seq.toArray
             let cameras = sol.cameras |> Map.toSeq |> Seq.map snd |> Seq.toArray
-            improveInternal useDistortion options points cameras subMeasurements
+            let k1 =  0.0
+            let k2 =  0.0
+            improveInternal useDistortion options points k1 k2 cameras subMeasurements
 
         {
             cost = cost
@@ -169,19 +196,19 @@ module Bundler =
 
         best
 
-    let solve (p : BundlerProblem) =
+    let solve (useDistortion : bool) (p : BundlerProblem) =
         Log.startTimed "solve %d cameras" p.cameras.Count
         printfn " "
         let options = CeresOptions(700, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-4, 1.0E-6)
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
 
-        let tinyCost = 1.0E-2 * float measurementCount
+        let tinyCost = 1.0E-4 * float measurementCount
 
         let mutable bestCost = Double.PositiveInfinity
         let mutable best : Option<BundlerSolution> = None
         let mutable iter = 0
         while iter < 4 && bestCost > tinyCost do
-            let n = improveSol true options (BundlerSolution.random p)
+            let n = improveSol useDistortion options (BundlerSolution.random p)
             if n.cost < bestCost then
                 bestCost <- n.cost
                 best <- Some n

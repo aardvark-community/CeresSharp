@@ -471,3 +471,5 @@ module BundlerViewer =
         win.RenderTask <- task
 
         win.Run()
+
+        printfn "Done."

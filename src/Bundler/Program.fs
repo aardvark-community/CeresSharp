@@ -58,7 +58,7 @@ module BundlerTest =
                 let res = BundlerSolution.merge l r
                 Bundler.improve res
             else
-                Bundler.solve p
+                Bundler.solve true p
         finally
             Log.stop()
 
@@ -69,7 +69,7 @@ module BundlerTest =
 
 
         Log.startTimed "solver"
-        let sol = Bundler.solve problem //solve 0 4 problem
+        let sol = Bundler.solve true problem //solve 0 4 problem
 
         let err = sol |> BundlerSolution.errorMetrics
         Log.start "error metrics"
@@ -229,7 +229,7 @@ module BundlerTest =
         if problem.cameras.Count >  0 then
 
             Log.startTimed "solver"
-            let sol = Bundler.solve problem //solve 0 4 problem
+            let sol = Bundler.solve true problem //solve 0 4 problem
 
             let err = sol |> BundlerSolution.errorMetrics
             Log.start "error metrics"
@@ -334,12 +334,9 @@ let main argv =
 
     
     
-//    let path = @"C:\blub\yolo"
-//
-//    PairViewer.app path
-
-
     let path = @"C:\blub\yolo"
+
+//    PairViewer.app path
 
     BundlerViewer.folder path
 

@@ -61,20 +61,25 @@ module Bundle =
 
         let bruteforceThreshold = 0.9
 
-        let probabilityLambda = 14.0
-        let probabilitySigma = 0.5
-        let probabilityLowerThresh = 0.4
+        let probabilityLambda = 10.0
+        let probabilitySigma = 0.3
+        let probabilityLowerThresh = 0.5
 
-        let affineLambda = 1.0
-        let affineSigma = 0.6
-        let affineUpperThresh = 0.001
+        let affineLambda = 10.0
+        let affineSigma = 0.5
+        let affineUpperThresh = 0.01
 
         let bruteforceMinCount = 20
         let probableMinCount =   20
         let affineMinCount =     20
 
-        let cacheBundlerResult = false
+        let bundlerMinTrackLength = 2
+        let bundlerMaxFtrsPerCam = 60
+
+        let allCamerasSameDistortion = true
+
         let cacheFeatureMatching = true
+        let cacheBundlerResult = false
 
 
         Log.line "Reading images ... "
@@ -143,14 +148,23 @@ module Bundle =
 
 
 
+        if cacheFeatureMatching then printfn "Saving match cache."; save()
+
+
+
         Log.startTimed "Building feature graph"
         let mst = Feature.FeatureGraph.build cachedMatch images data
         Log.stop()
 
-        if cacheFeatureMatching then printfn "Saving match cache."; save()
+
+
+
+
+
+
 
         Log.startTimed "BundlerInput generation"
-        let input = Feature.FeatureGraph.toBundlerInput mst 3 120
+        let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
 
         let problem = input |> BundlerInput.preprocess
                             |> BundlerInput.toProblem
@@ -174,9 +188,9 @@ module Bundle =
                 printfn "Taking cached bundle result."
                 ser.UnPickle (File.ReadAllBytes fn)
             else
-                let solution = Bundler.solve problem
+                let solution = Bundler.solve (not allCamerasSameDistortion) problem
                 printfn "Saving bundle result cache."
                 ser.Pickle solution |> File.writeAllBytes fn
                 solution
         else
-            Bundler.solve problem
+            Bundler.solve (not allCamerasSameDistortion) problem

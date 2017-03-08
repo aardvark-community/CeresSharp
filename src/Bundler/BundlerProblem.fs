@@ -68,9 +68,6 @@ type Camera3d =
             let dst = dst.ViewProjTrafo 100.0
             src * dst.Inverse
 
-
-
-
         new(pos, angleAxis, f, d) = { Position = pos; AngleAxis = angleAxis; SqrtFocalLength = sqrt (f - 0.01); Distortion = d }
     end
 
@@ -85,7 +82,17 @@ type Camera3s(pos : V3s, aa : V3s, sf : scalar, d : V2s) =
     member x.ProjectNoDistortion(p : V3s) =
         let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
         let ndc = view.XY / view.Z
-        x.FocalLength * ndc           
+        x.FocalLength * ndc     
+        
+    member x.ProjectUniformDistortion(p : V3s, k1 : scalar, k2 : scalar) =
+        let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
+        let ndc = view.XY / view.Z
+
+        let distortion = 
+            let r2 = ndc.LengthSquared
+            scalar 1.0 + r2 * (k1 + k2 * r2)
+
+        x.FocalLength * distortion * ndc      
          
     member x.Project(p : V3s) =
         let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
@@ -101,7 +108,7 @@ type Camera3s(pos : V3s, aa : V3s, sf : scalar, d : V2s) =
         let p   = V3s(scalar.Variable(offset + 0, v.Position.X), scalar.Variable(offset + 1, v.Position.Y), scalar.Variable(offset + 2, v.Position.Z))
         let aa  = V3s(scalar.Variable(offset + 3, v.AngleAxis.X), scalar.Variable(offset + 4, v.AngleAxis.Y), scalar.Variable(offset + 5, v.AngleAxis.Z))
         let sf  = scalar.Variable(offset + 6, v.SqrtFocalLength)
-        let d  = V2s(scalar.Variable(offset + 7, v.SqrtFocalLength), scalar.Variable(offset + 8, v.SqrtFocalLength))
+        let d  = V2s(scalar.Variable(offset + 7, v.Distortion.X), scalar.Variable(offset + 8, v.Distortion.Y))
         Camera3s(p, aa, sf, d)
 
 [<Struct>]

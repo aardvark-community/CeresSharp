@@ -904,7 +904,6 @@ module Feature =
 
                 file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
 
-
             { measurements = measurements |> Array.mapi ( fun i x -> i,x) |> Map.ofArray }
 
 
@@ -913,8 +912,32 @@ module Feature =
 //        let graph = FeatureGraph.build config images data
 //        FeatureGraph.toBundlerInput graph
 
+    type MatchPoint<'a> =
+        | Free of 'a
+        | Done of 'a * V3d
 
-    let iterate (g : FeatureGraph) (debugPath : Option<string>) =
+    let bla (g : FeatureGraph) =    
+
+        let edges = g.edges |> Array.sortByDescending ( fun e -> e.weight.Length )
+                            |> Array.map ( fun e -> { i0 = e.i0; i1 = e.i1; weight = e.weight |> Array.map ( fun (p1,p2) -> Free p1, Free p2) } )
+
+        let nodes = 
+            [|
+                for i in 0..g.data.Length-1 do
+                    yield ref []
+            |]
+
+        for e in edges do
+            nodes.[e.i0] := e :: nodes.[e.i0].Value 
+
+
+
+
+        ()
+
+
+
+    let iterate (g : FeatureGraph) (debugPath : Option<string>) (useDistortion : bool) =
         let debugOutput (measureMap : Map<int,Map<int,V2d>>) cam (run : Option<int>) =
             match debugPath with
             | None -> ()
@@ -982,7 +1005,7 @@ module Feature =
             let solution = 
                 preprocessed
                 |> BundlerInput.toProblem
-                |> Bundler.solve
+                |> Bundler.solve useDistortion
 
             let involvedCameras = [|cam0; cam1|]
 
