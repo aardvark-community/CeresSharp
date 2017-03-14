@@ -16,56 +16,72 @@ module BundlerTest =
         let rand = RandomSystem()
 
         let realPoints = Array.init points (fun _ -> rand.UniformV3dDirection())
-        let realCameras = Array.init cameras (fun _ -> Camera3d.LookAt(rand.UniformV3dDirection() * 5.0, V3d.Zero, 2.0, V3d.OOI))
+        let realCameras = Array.init cameras (fun _ -> Camera3d.LookAt(rand.UniformV3dDirection() * 5.0, V3d.Zero, 1.0, V3d.OOI))
+
+        let colors = [1.0..2000.0] |> Seq.mapi (fun i _ -> Feature.rgbaFromHsva(6.0 * float i / float [1.0..2000.0].Length, 0.5, 1.0).ToC4b()) |> Seq.toArray
 
         let measurements =
             Array.init realCameras.Length (fun ci ->
+                let pxSize = 500
+                let pimg = PixImage<byte>(Col.Format.RGBA, V2i(pxSize,pxSize))
+                let matrix = pimg.GetMatrix<C4b>()
+                matrix.SetByCoord ( fun _ -> C4b.White ) |> ignore
                 let corr =
-                    seq {
+                    [
                         for i in 0 .. realPoints.Length - 1 do
                             if rand.UniformDouble() < 2.0 then
-                                let jitter = rand.UniformV2dDirection() * rand.UniformDouble()* 0.005 * 3.0  // 3%
+                                let jitter = rand.UniformV2dDirection() * rand.UniformDouble()* 0.005 * 5.0  // 5%
                                 let p = jitter + realCameras.[ci].Project realPoints.[i] 
-                                yield i, p
-                    }
+                                
+                                let cp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d(float pxSize,float pxSize))
 
-                ci,Map.ofSeq corr
-            ) |> Map.ofArray
+                                matrix.SetCross(cp, 5, (colors.[i]))
+
+                                yield i, p
+                    ] |> List.toSeq
+
+                ci,Map.ofSeq corr,pimg
+            ) 
+
+        let imgs = measurements |> Array.map ( fun (_,_,x) -> x )
+
+        let measurements = 
+            measurements |> Array.map ( fun (a,b,_) -> a,b) |> Map.ofArray
 
         let input = 
             BundlerInput.preprocess {
                 measurements = measurements
             }
 
-        realPoints, realCameras, BundlerInput.toProblem input
+        realPoints, realCameras, imgs, BundlerInput.toProblem input
 
     let private rand = RandomSystem()
-    let rec solve (level : int) (k : int) (p : BundlerProblem) =
-        try
-            Log.startTimed "solve level %d" level
-            if p.cameras.Count >= 2 * k then
-            
-                let l = p.cameras.RandomOrder() |> Seq.toArray
-                let l, r = Array.splitAt (l.Length / 2) l
-
-
-                let half = Set.ofArray l
-                let rest = Set.ofArray r
-
-                let l = solve (level + 1) k { p with cameras = half }
-                let r = solve (level + 1) k { p with cameras = rest }
-
-                let res = BundlerSolution.merge l r
-                Bundler.improve res
-            else
-                Bundler.solve true p
-        finally
-            Log.stop()
+//    let rec solve (level : int) (k : int) (p : BundlerProblem) =
+//        try
+//            Log.startTimed "solve level %d" level
+//            if p.cameras.Count >= 2 * k then
+//            
+//                let l = p.cameras.RandomOrder() |> Seq.toArray
+//                let l, r = Array.splitAt (l.Length / 2) l
+//
+//
+//                let half = Set.ofArray l
+//                let rest = Set.ofArray r
+//
+//                let l = solve (level + 1) k { p with cameras = half }
+//                let r = solve (level + 1) k { p with cameras = rest }
+//
+//                let res = BundlerSolution.merge l r
+//                Bundler.improve res
+//            else
+//                Bundler.solve true p
+//        finally
+//            Log.stop()
 
 
 
     let syntheticCameras (cameras : int) (points : int) =
-        let realPoints, realCameras, problem = createProblem cameras points
+        let realPoints, realCameras, realPimgs, problem = createProblem cameras points
 
 
         Log.startTimed "solver"
@@ -83,7 +99,7 @@ module BundlerTest =
 
         let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.indexed |> Map.ofSeq }
 
-        input, sol
+        input, sol, realPimgs
 
         
     let haus() =
@@ -303,28 +319,76 @@ module FundamentalMatrix =
 
 
 let testGlobal() =
-    let input, sol = BundlerTest.syntheticCameras 10 50
+    let input, sol, pimgs = BundlerTest.syntheticCameras 2 50
+
+    use app = new OpenGlApplication()
+    use win = app.CreateSimpleRenderWindow(8)
 
     let trafo = PointCloud.trafo2 sol.points input.points
     let input =
-        input 
-            |> SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow
+        SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow input pimgs
             |> Sg.pass (RenderPass.after "asdasd" RenderPassOrder.Arbitrary RenderPass.main)
             |> Sg.depthTest (Mod.constant DepthTestMode.None)
             |> Sg.blendMode (Mod.constant BlendMode.Blend)
+
+    let s = sol |> BundlerSolution.transformed trafo
     let sol =
-        sol
-            |> BundlerSolution.transformed trafo
-            |> SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red
+        SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red s pimgs
         
-    Sg.ofList [ input; sol ]
+    let stuff = Sg.ofList [ (* input; *) sol ]
+
+    let b = Bam.Oida |> Mod.init
+
+    let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
+    let cameraView = CameraView.lookAt (V3d(0.0, 2.0, 0.0)) V3d.Zero -V3d.OOI
+
+    let lastSpace = Mod.init DateTime.Now
+    lastSpace |> Mod.unsafeRegisterCallbackKeepDisposable ( fun _ -> printfn "Recentering camera." ) |> ignore
+
+    let cameraView = 
+        let im = Mod.custom ( fun a ->
+                    
+            lastSpace.GetValue a |> ignore
+            cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
+        )
+
+        let far = 1000.0
+        let getCam i =
+            try 
+                s.cameras.[i].ViewProjTrafo far
+            with _ -> Trafo3d.Identity
+
+        adaptive {
+            let! b = b
+            match b with
+            | Oida ->
+                let! im = im
+                let! cv = im
+                let! f = frustum
+                let f = f |> Frustum.projTrafo
+                return cv |> CameraView.viewTrafo, f
+            | Fix i ->
+                return Trafo3d.Identity, (getCam i)
+        }
+
+    let sg = stuff  |> Sg.viewTrafo (cameraView |> Mod.map fst )
+                    |> Sg.projTrafo (cameraView |> Mod.map snd )
+
+    let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
+    win.RenderTask <- task
+    
+    win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 0))
+    win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 1))
+    win.Keyboard.KeyDown(Keys.D3).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 2))
+    win.Keyboard.KeyDown(Keys.D4).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 3))
+    win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Oida))
+
+    win.Run()
 
 let testKermit() =
     let sol = BundlerTest.kermit()
     sol |> SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red
         
-    
-
 open System.IO
 
 [<EntryPoint>]
@@ -332,12 +396,12 @@ let main argv =
     Ag.initialize()
     Aardvark.Init()
 
-    
+    //testGlobal()
+    //System.Environment.Exit 0
     
     let path = @"C:\blub\yolo"
 
-//    PairViewer.app path
-
+    //PairViewer.app path
     BundlerViewer.folder path
 
     0 // return an integer exit code

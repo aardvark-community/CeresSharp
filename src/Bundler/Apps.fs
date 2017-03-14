@@ -402,19 +402,44 @@ module PairViewer =
 
 module SceneGraph =
     open Aardvark.SceneGraph
+    open FShade
 
-    let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) =
+    let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) (pix : PixImage<byte>[]) =
         let frustum = Box3d(-V3d(1.0, 1.0, 10000.0), V3d(1.0, 1.0, -2.0))
         let cameras = 
-            s.cameras |> Map.toSeq |> Seq.map (fun (_,c) -> 
-                Sg.wireBox' C4b.Green frustum
-                    |> Sg.transform (c.ViewProjTrafo(100.0).Inverse)
+            s.cameras |> Map.toSeq |> Seq.mapi (fun i (_,c) -> 
+                let quad () = 
+                    Sg.fullScreenQuad 
+                        |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|pix.[i] :> PixImage|], true))
+                        |> Sg.shader { 
+                            do! fun (v : Effects.Vertex) ->
+                                vertex {
+                                    return { v with pos = V4d(-v.pos.X, -v.pos.Y, v.pos.Z, v.pos.W ) }
+                                }
+                            do! DefaultSurfaces.trafo
+                            do! DefaultSurfaces.diffuseTexture
+                            do! fun (v : Effects.Vertex) ->
+                                fragment {
+                                    return V4d(v.c.XYZ, 0.5)
+                                }
+                        }
+                        |> Sg.blendMode (Mod.constant BlendMode.Blend)
+                        |> Sg.pass (RenderPass.after "asd" RenderPassOrder.Arbitrary RenderPass.main)
+
+                let wb =
+                    Sg.wireBox' C4b.Green frustum
+                        |> Sg.shader { 
+                            do! DefaultSurfaces.trafo
+                            do! DefaultSurfaces.constantColor (C4f cameraColor)
+                        }
+                        
+                
+                [wb; (if pix.Length > 0 then quad() else Sg.ofList [])]  
+                            |> Sg.ofList 
+                            |> Sg.transform (c.ViewProjTrafo(100.0).Inverse)
+
             )
             |> Sg.ofSeq
-            |> Sg.shader { 
-                do! DefaultSurfaces.trafo
-                do! DefaultSurfaces.constantColor (C4f cameraColor)
-            }
 
         let points =
             IndexedGeometry(
@@ -435,6 +460,10 @@ module SceneGraph =
 
         Sg.ofList [ points; cameras ]
 
+type Bam =
+    | Oida
+    | Fix of int
+
 module BundlerViewer =
     
     let folder path =
@@ -442,30 +471,51 @@ module BundlerViewer =
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
 
-        let solution = Bundle.filesIn path
-
+        let (solution,ssg, imgs) = Bundle.filesIn path
+        
+        let b = Bam.Oida |> Mod.init
         let sg : ISg = 
             
-            let stuff = SceneGraph.ofBundlerSolution C4b.Red 5 C4b.Green solution
+            let stuff = 
+                [
+                    SceneGraph.ofBundlerSolution C4b.Red 5 C4b.Green solution imgs
+                    ssg
+                ] |> Sg.ofList
+
             let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
-            let cameraView = CameraView.lookAt (V3d(0.0, 0.0, 2.0)) V3d.Zero V3d.OIO
+            let cameraView = CameraView.lookAt (V3d(0.0, 2.0, 0.0)) V3d.Zero -V3d.OOI
 
             let lastSpace = Mod.init DateTime.Now
             lastSpace |> Mod.unsafeRegisterCallbackKeepDisposable ( fun _ -> printfn "Recentering camera." ) |> ignore
+
             let cameraView = 
                 let im = Mod.custom ( fun a ->
+                    
                     lastSpace.GetValue a |> ignore
                     cameraView |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
                 )
 
+                let far = 1000.0
                 adaptive {
-                    let! im = im
-                    let! cv = im
-                    return cv
+                    let! b = b
+                    match b with
+                    | Oida ->
+                        let! im = im
+                        let! cv = im
+                        let! f = frustum
+                        let f = f |> Frustum.projTrafo
+                        return cv |> CameraView.viewTrafo, f
+                    | Fix i ->
+                        let fs = solution.cameras.[i].ViewProjTrafo far
+                        return Trafo3d.Identity, fs
                 }
 
-            stuff |> Sg.viewTrafo (cameraView |> Mod.map CameraView.viewTrafo)
-                  |> Sg.projTrafo (frustum |> Mod.map Frustum.projTrafo)
+            stuff |> Sg.viewTrafo (cameraView |> Mod.map fst )
+                  |> Sg.projTrafo (cameraView |> Mod.map snd )
+
+        win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 0))
+        win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 1))
+        win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Oida))
 
         let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
         win.RenderTask <- task

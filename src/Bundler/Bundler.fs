@@ -27,63 +27,33 @@ module Bundler =
         let worldPoints     = p.AddParameterBlock guessedPoints
         let camBlocks       = guessedCameras |> Map.map (fun _ c -> p.AddParameterBlock<Camera3d, Camera3s>(c))
         
-        if useDistortion then
+        for kvp in measurements do
+            let ci = kvp.Key
+            let measurements = measurements.[ci] |> Seq.toArray
+            let residuals = 2 * measurements.Length
+            let res = Array.zeroCreate residuals
 
-            for kvp in measurements do
-                let ci = kvp.Key
-                let measurements = measurements.[ci] |> Seq.toArray
-                let residuals = 2 * measurements.Length
-                let res = Array.zeroCreate residuals
+            p.AddCostFunction(residuals, worldPoints, camBlocks.[ci], fun world cam ->
+                let cam = cam.[0]
+                let mutable oi = 0
+                for kvp in measurements do
+                    let obs = cam.Project(world.[kvp.Key])
 
-                p.AddCostFunction(residuals, worldPoints, camBlocks.[ci], fun world cam ->
-                    let cam = cam.[0]
-                    let mutable oi = 0
-                    for kvp in measurements do
-                        let obs = cam.Project world.[kvp.Key]
+                    let r = obs - kvp.Value
+                    res.[oi + 0] <- r.X 
+                    res.[oi + 1] <- r.Y 
+                    oi <- oi + 2
 
-                        let r = obs - kvp.Value
-                        res.[oi + 0] <- r.X 
-                        res.[oi + 1] <- r.Y 
-                        oi <- oi + 2
+                res
+            )
+        let cost = p.Solve(options)
 
-                    res
-                )
-            let cost = p.Solve(options)
+        let points = worldPoints.Result
+        let cameras = 
+            camBlocks |> Map.map (fun k b -> let c = b.Result.[0] in Camera3d(c.Position, c.AngleAxis, c.SqrtFocalLength)
+            )
 
-            let points = worldPoints.Result
-            let cameras = camBlocks |> Map.map (fun k b -> b.Result.[0])
-
-            cost, points, cameras
-        else
-            let k0k1 = p.AddParameterBlock [| k0; k1 |]
-            
-            for kvp in measurements do
-                let ci = kvp.Key
-                let measurements = measurements.[ci] |> Seq.toArray
-                let residuals = 2 * measurements.Length
-                let res = Array.zeroCreate residuals
-
-                p.AddCostFunction(residuals, worldPoints, k0k1, camBlocks.[ci], fun world ks cam ->
-                    let cam = cam.[0]
-                    let mutable oi = 0
-                    for kvp in measurements do
-                        let obs = cam.ProjectUniformDistortion(world.[kvp.Key], ks.[0], ks.[1])
-
-                        let r = obs - kvp.Value
-                        res.[oi + 0] <- r.X 
-                        res.[oi + 1] <- r.Y 
-                        oi <- oi + 2
-
-                    res
-                )
-            let cost = p.Solve(options)
-
-            let points = worldPoints.Result
-            let cameras = 
-                camBlocks |> Map.map (fun k b -> let c = b.Result.[0] in Camera3d(c.Position, c.AngleAxis, c.SqrtFocalLength, V2d(k0k1.Result.[0], k0k1.Result.[1]))
-                )
-
-            cost, points, cameras
+        cost, points, cameras
 
 
     let private improvePointCloudAffine (useDistortion : bool) (options : CeresOptions) (knownPoints : Map<int,V3d>) (newCamera : Camera3d) (measurements : Map<int, V2d>) =
@@ -102,7 +72,7 @@ module Bundler =
                 let obs = 
                     let p = scale.[0] * kvp.Value
                     if useDistortion then cam.Project p
-                    else cam.ProjectNoDistortion p
+                    else cam.Project p
 
                 let r = obs - measurements.[kvp.Key]
                 res.[oi + 0] <- r.X 
@@ -162,21 +132,21 @@ module Bundler =
             cameras = cameras
         }
 
-    let improve (sol : BundlerSolution) =
-        let options = CeresOptions(400, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-3, 1.0E-5)
-        let p = sol.problem
-        let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
-        let tinyCost = 1.0E-5 * float measurementCount
-        if sol.cost <= tinyCost then
-            Log.startTimed "solution already optimal"
-            Log.stop()
-            sol
-        else
-            Log.startTimed "improve %d cameras" sol.cameras.Count
-            let res = improveSol true options sol
-            Log.line "%.4f ==> %.4f" sol.cost res.cost
-            Log.stop()
-            res
+//    let improve (sol : BundlerSolution) =
+//        let options = CeresOptions(400, CeresSolverType.SparseSchur, true, 1.0E-8, 1.0E-3, 1.0E-5)
+//        let p = sol.problem
+//        let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
+//        let tinyCost = 1.0E-5 * float measurementCount
+//        if sol.cost <= tinyCost then
+//            Log.startTimed "solution already optimal"
+//            Log.stop()
+//            sol
+//        else
+//            Log.startTimed "improve %d cameras" sol.cameras.Count
+//            let res = improveSol true options sol
+//            Log.line "%.4f ==> %.4f" sol.cost res.cost
+//            Log.stop()
+//            res
 
     let solveSimple (cnt : int) (p : BundlerProblem) =
         let options = CeresOptions(100, CeresSolverType.SparseSchur, false, 1.0E-10, 1.0E-2, 1.0E-3)
@@ -199,7 +169,7 @@ module Bundler =
     let solve (useDistortion : bool) (p : BundlerProblem) =
         Log.startTimed "solve %d cameras" p.cameras.Count
         printfn " "
-        let options = CeresOptions(700, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-4, 1.0E-6)
+        let options = CeresOptions(700, CeresSolverType.SparseSchur, true, 1.0E-8, 1.0E-3, 1.0E-5)
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
 
         let tinyCost = 1.0E-4 * float measurementCount
@@ -220,7 +190,7 @@ module Bundler =
 
     let solveTowardsKnown (known : BundlerSolution) (unknown : BundlerProblem) = 
         Log.startTimed "Adding a camera %A to solution" (unknown.cameras |> Set.toArray).[0]
-        let options = CeresOptions(700, CeresSolverType.SparseSchur, false, 1.0E-10, 1.0E-4, 1.0E-6)
+        let options = CeresOptions(700, CeresSolverType.SparseSchur, false, 1.0E-10, 1.0E-8, 1.0E-8)
         
         let cam = Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.0, V3d.OOI)
 

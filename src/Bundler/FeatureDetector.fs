@@ -716,7 +716,7 @@ module Feature =
             edges : Edge<(int*int)[]>[]
         }
 
-    let private rgbaFromHsva (h : float, s : float, v : float) =
+    let rgbaFromHsva (h : float, s : float, v : float) =
         let c = v * s
         let hh = (h * 6.0) % 6.0
         let x = c * (1.0 - abs(hh % 2.0 - 1.0))

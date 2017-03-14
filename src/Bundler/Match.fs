@@ -4,6 +4,12 @@ open System
 open Aardvark.Base
 open Aardvark.Base.Incremental
 
+open TriangleNet.Geometry
+
+open Aardvark.Base.Rendering
+open Aardvark.Rendering
+open Aardvark.SceneGraph
+
 module Match =
 
     let bruteforce t l r = Feature.matchCandidates t l r
@@ -33,7 +39,7 @@ module Bundle =
         open System.Collections.Concurrent
 
         let patha = @"C:\blub\cached2"
-        let filea = "hallo"
+        let filea = "matches"
         
         let fn = 
             if Directory.Exists patha |> not then Directory.CreateDirectory patha |> ignore
@@ -62,10 +68,10 @@ module Bundle =
         let bruteforceThreshold = 0.9
 
         let probabilityLambda = 10.0
-        let probabilitySigma = 0.3
+        let probabilitySigma = 0.25
         let probabilityLowerThresh = 0.5
 
-        let affineLambda = 10.0
+        let affineLambda = 20.0
         let affineSigma = 0.5
         let affineUpperThresh = 0.01
 
@@ -78,8 +84,8 @@ module Bundle =
 
         let allCamerasSameDistortion = true
 
-        let cacheFeatureMatching = true
-        let cacheBundlerResult = false
+        let cacheFeatureMatching    = true
+        let cacheBundlerResult      = false
 
 
         Log.line "Reading images ... "
@@ -160,14 +166,10 @@ module Bundle =
 
 
 
-
-
-
         Log.startTimed "BundlerInput generation"
         let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
 
-        let problem = input |> BundlerInput.preprocess
-                            |> BundlerInput.toProblem
+        let problem = input |> BundlerInput.toProblem
 
         
 
@@ -177,20 +179,112 @@ module Bundle =
         let ser = FsPickler.CreateBinarySerializer()
 
         let patha = @"C:\blub\cached2"
-        let filea = "asfasdf"
+        let filea = "bundler"
         
         let fn = 
             if Directory.Exists patha |> not then Directory.CreateDirectory patha |> ignore
             Path.combine [patha;filea]
 
-        if cacheBundlerResult then
-            if File.Exists fn then
-                printfn "Taking cached bundle result."
-                ser.UnPickle (File.ReadAllBytes fn)
+        let sol = 
+            if cacheBundlerResult then
+                if File.Exists fn then
+                    printfn "Taking cached bundle result."
+                    ser.UnPickle (File.ReadAllBytes fn)
+                else
+                    let solution = Bundler.solve (not allCamerasSameDistortion) problem
+                    printfn "Saving bundle result cache."
+                    ser.Pickle solution |> File.writeAllBytes fn
+                    solution
             else
-                let solution = Bundler.solve (not allCamerasSameDistortion) problem
-                printfn "Saving bundle result cache."
-                ser.Pickle solution |> File.writeAllBytes fn
-                solution
-        else
-            Bundler.solve (not allCamerasSameDistortion) problem
+                Bundler.solve (not allCamerasSameDistortion) problem
+        
+        
+        match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun c -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
+
+        Log.startTimed "Tessellating for %A cam and %A points" sol.cameras.Count sol.points.Count
+        
+        let ps = 
+            [
+                for kvp in sol.cameras do
+                    let ci = kvp.Key
+                    let c = kvp.Value
+
+                    let poly = TriangleNet.Geometry.Polygon(sol.points.Count)
+                    for pw in sol.points do
+                        let (p,d) = c.ProjectWithDepth pw.Value
+                        let vertex = TriangleNet.Geometry.Vertex(-p.X, -p.Y, 0, 1)
+                        vertex.Attributes.[0] <- d
+                        poly.Add vertex
+
+                    Log.startTimed "Triangulation cam %A" ci
+                    let constraintoptions = TriangleNet.Meshing.ConstraintOptions()
+                    //constraintoptions.ConformingDelaunay <- true
+                    //constraintoptions.Convex <- true
+
+                    let qualityoptions = TriangleNet.Meshing.QualityOptions()
+                    //qualityoptions.MinimumAngle <- 20.0
+                    //qualityoptions.MaximumAngle <- 120.0
+
+                    let mesh = (poly :> TriangleNet.Geometry.IPolygon).Triangulate( constraintoptions, qualityoptions )
+                    
+                    yield ci, mesh
+                    Log.stop()
+            ] |> Map.ofList
+
+        Log.stop()
+
+        let someSg =
+            [
+                for kvp in sol.cameras |> Map.filter (constF (constF false)) do
+                    let ci = kvp.Key
+                    let c = kvp.Value
+
+                    let mesh = ps.[ci]
+
+                    let tris = 
+                        [|
+                            for tri in mesh.Triangles do    
+                        
+                                let v i = 
+                                    let v = tri.GetVertex i
+                                    let x = v.X
+                                    let y = v.Y
+                                    let z = v.Attributes.[0]
+                                    
+                                    c.Unproject (V2d(x,y)) z
+
+                                let tc i =
+                                    let v = tri.GetVertex i
+                                    let x = v.X
+                                    let y = v.Y
+                                    V2d(0.5 * x, 0.5 * y) + 0.5
+
+                                let t = Triangle3d(v 0, v 1, v 2)
+                                let n = (t.P0 - t.P1).Normalized.Cross( (t.P2 - t.P1).Normalized )
+                                let tc = Triangle2d( tc 0, tc 1, tc 2 ) 
+
+                                yield t,n,tc
+                        |]
+
+                        
+                    yield 
+                        Sg.draw IndexedGeometryMode.TriangleList
+                            |> Sg.vertexAttribute' DefaultSemantic.Positions (tris |> Array.collect ( fun (t,_,_) -> [| t.P0 |> V3f; t.P1 |> V3f; t.P2 |> V3f |] ))
+                            |> Sg.vertexAttribute' DefaultSemantic.DiffuseColorCoordinates (tris |> Array.collect ( fun (_,_,t) -> [| t.P0 |> V2f; t.P1 |> V2f; t.P2 |> V2f |] ))
+                            |> Sg.vertexAttribute' DefaultSemantic.Normals (tris |> Array.collect ( fun (_,n,_) -> [| n |> V3f; n |> V3f; n |> V3f |] ))
+                            |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ((C4f.White).ToV4f()))
+                            |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true))
+                            
+            ] |> Sg.ofList
+              |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                //do! DefaultSurfaces.diffuseTexture
+                do! DefaultSurfaces.vertexColor
+                do! DefaultSurfaces.simpleLighting
+              }
+
+               
+
+        sol,someSg, images
+
+
