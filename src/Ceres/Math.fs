@@ -449,6 +449,26 @@ type AngleAxis private() =
             let wCrossP = Vec.cross aa p
             p + wCrossP
 
+    static member RotatePoint(aa : V3d, p : V3s) =
+        let theta2 = aa.LengthSquared
+        if not (Fun.IsTiny theta2) then
+            let theta = sqrt theta2
+            let costheta = cos theta
+            let sintheta = sin theta
+            let thetainverse = 1.0 / theta
+
+            let w = aa * thetainverse
+
+            let wCrossP = Vec.cross (V3s w) p
+            let tmp = (Vec.dot (V3s w) p) * (1.0 - costheta)
+
+
+            (p * costheta) + (wCrossP * sintheta) + ((V3s w) * tmp)
+
+        else
+            let wCrossP = Vec.cross (V3s aa) p
+            p + wCrossP
+
     static member RotatePoint(aa : V3s, p : V3s) =
         let theta2 = aa.LengthSquared
         if not (Fun.IsTiny theta2.Value) then

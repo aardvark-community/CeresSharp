@@ -199,7 +199,7 @@ module Bundle =
                 Bundler.solve (not allCamerasSameDistortion) problem
         
         
-        match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun c -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
+        match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun (c,_) -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
 
         Log.startTimed "Tessellating for %A cam and %A points" sol.cameras.Count sol.points.Count
         
@@ -211,7 +211,7 @@ module Bundle =
 
                     let poly = TriangleNet.Geometry.Polygon(sol.points.Count)
                     for pw in sol.points do
-                        let (p,d) = c.ProjectWithDepth pw.Value
+                        let (p,d) = (c |> fst).ProjectWithDepth pw.Value
                         let vertex = TriangleNet.Geometry.Vertex(-p.X, -p.Y, 0, 1)
                         vertex.Attributes.[0] <- d
                         poly.Add vertex
@@ -234,8 +234,9 @@ module Bundle =
         Log.stop()
 
         let someSg =
+            let mutable a = false
             [
-                for kvp in sol.cameras |> Map.filter (constF (constF false)) do
+                for kvp in sol.cameras (* |> Map.filter (constF (constF false)) *)do
                     let ci = kvp.Key
                     let c = kvp.Value
 
@@ -247,11 +248,11 @@ module Bundle =
                         
                                 let v i = 
                                     let v = tri.GetVertex i
-                                    let x = v.X
-                                    let y = v.Y
+                                    let x = -v.X
+                                    let y = -v.Y
                                     let z = v.Attributes.[0]
                                     
-                                    c.Unproject (V2d(x,y)) z
+                                    (c |> fst).Unproject (V2d(x,y)) z
 
                                 let tc i =
                                     let v = tri.GetVertex i
@@ -266,14 +267,15 @@ module Bundle =
                                 yield t,n,tc
                         |]
 
-                        
+                    
                     yield 
                         Sg.draw IndexedGeometryMode.TriangleList
                             |> Sg.vertexAttribute' DefaultSemantic.Positions (tris |> Array.collect ( fun (t,_,_) -> [| t.P0 |> V3f; t.P1 |> V3f; t.P2 |> V3f |] ))
                             |> Sg.vertexAttribute' DefaultSemantic.DiffuseColorCoordinates (tris |> Array.collect ( fun (_,_,t) -> [| t.P0 |> V2f; t.P1 |> V2f; t.P2 |> V2f |] ))
                             |> Sg.vertexAttribute' DefaultSemantic.Normals (tris |> Array.collect ( fun (_,n,_) -> [| n |> V3f; n |> V3f; n |> V3f |] ))
-                            |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ((C4f.White).ToV4f()))
+                            |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ( if a then (C4f.White).ToV4f() else (C4f.Red).ToV4f()))
                             |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true))
+                    a <- true
                             
             ] |> Sg.ofList
               |> Sg.shader {

@@ -101,6 +101,14 @@ type Camera3s(pos : V3s, aa : V3s, sf : scalar) =
         let sf  = scalar.Variable(offset + 6, v.SqrtFocalLength)
         Camera3s(p, aa, sf)
 
+module V3s =
+    
+    let getProjectedBy (cam : Camera3d) (p : V3s) =   
+        let view = AngleAxis.RotatePoint(cam.AngleAxis, p - cam.Position)
+        let ndc = view.XY / view.Z
+
+        cam.FocalLength * ndc
+
 [<Struct>]
 type Match2d(pos : V2d, vel : V2d, o : V4d, li : int, ri : int) =
     
@@ -604,7 +612,7 @@ type BundlerSolution =
         cost        : float
         problem     : BundlerProblem
         points      : Map<int, V3d>
-        cameras     : Map<int, Camera3d>
+        cameras     : Map<int, Camera3d*bool>
     }
 
 type BundlerError =
@@ -635,7 +643,7 @@ module BundlerSolution =
             s.problem.cameras
                 |> Seq.collect (fun ci ->
                     let measurements = s.problem.input.measurements.[ci]
-                    let cam = s.cameras.[ci]
+                    let (cam,_) = s.cameras.[ci]
 
                     measurements 
                         |> Map.toSeq 
@@ -682,7 +690,7 @@ module BundlerSolution =
         let fw = trafo.Forward
         { s with 
             points = s.points |> Map.map (fun _ p -> fw.TransformPosProj p)
-            cameras = s.cameras |> Map.map (fun _ c -> c.Transformed trafo)
+            cameras = s.cameras |> Map.map (fun _ (c,f) -> c.Transformed trafo,f)
         }
 
     let merge (l : BundlerSolution) (r : BundlerSolution) =
@@ -704,9 +712,35 @@ module BundlerSolution =
             cameras     = Map.union r.cameras l.cameras
         }
 
+    let crap : V3d[] = 
+        let p = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+        File.readAllBytes @"C:\blub\random" |> p.UnPickle
+
     let random (p : BundlerProblem) =
-        let cameras = p.cameras |> Seq.map (fun ci -> ci, Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.5, V3d.OOI)) |> Map.ofSeq
-        let points = p.cameras |> Seq.collect (fun ci -> p.input.measurements.[ci] |> Map.toSeq |> Seq.map fst) |> Set.ofSeq |> Seq.map (fun pi -> pi, rand.UniformV3dDirection()) |> Map.ofSeq
+        //let cameras = p.cameras |> Seq.map (fun ci -> ci, Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.5, V3d.OOI)) |> Map.ofSeq
+
+        let cameras =
+            let cams = p.cameras |> Seq.toArray
+            [
+                for i in 0..cams.Length-1 do
+                    let ci = cams.[i]
+                    match i with
+                    | 0 -> 
+                        yield ci, (Camera3d.LookAt(V3d.IOO * 10.0, V3d.Zero, 1.0, V3d.OOI),true)     //<- isFixedVariable
+                    | 1 -> 
+                        yield ci, (Camera3d.LookAt(V3d.OIO * 10.0, V3d.Zero, 1.5, V3d.OOI),false)    //<- isFreeVariable
+                    | _ -> 
+                        yield ci, (Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.5, V3d.OOI),false)    //<- isFreeVariable
+            ] |> Map.ofList
+
+        let points = 
+            p.cameras 
+                |> Seq.collect (fun ci -> 
+                    p.input.measurements.[ci] |> Map.toSeq |> Seq.map fst) 
+                |> Set.ofSeq 
+                |> Seq.map (fun pi -> pi, crap.[pi]) 
+                |> Map.ofSeq
+
         withCost {
             cost = 0.0
             problem = p

@@ -497,97 +497,97 @@ module Feature =
 
     open Aardvark.Ceres
 
-    let matchesNotSoOld (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
-        let reallyGoodMatches = matchCandidates config.threshold l r
-
-        let distThreshold = config.distanceThreshold
-        if reallyGoodMatches.Length >= 12 then
-            let randomSubsetSolution() = 
-                let randomMatches =
-                    reallyGoodMatches.RandomOrder()
-                        |> Seq.take 12
-                        |> Seq.toArray
-                
-
-                let m0 = randomMatches |> Seq.mapi (fun i (li, _) -> i, l.[li].ndc) |> Map.ofSeq
-                let m1 = randomMatches |> Seq.mapi (fun i (_, ri) -> i, r.[ri].ndc) |> Map.ofSeq
-
-                Bundler.solveSimple 3 {
-                    input = { measurements = [| 0, m0; 1, m1 |] |> Map.ofArray }
-                    cameras = Set.ofList [0; 1]
-                }
-
-            let countInliers (threshold : float) (sol : BundlerSolution) =
-                let c0 = sol.cameras.[0]
-                let c1 = sol.cameras.[1]
-
-                let mutable inliers = 0
-                for li, ri in reallyGoodMatches do
-                    let lPoint = l.[li].ndc
-                    let rPoint = r.[ri].ndc
-                    let lRay = c0.GetRay(lPoint)
-                    let rRay = c1.GetRay(rPoint)
-                    
-                    let pt = lRay.GetMiddlePoint(rRay)
-                    let lTest = c0.Project pt
-                    let rTest = c1.Project pt
-
-                    let lRes = lTest - lPoint |> Vec.length
-                    let rRes = rTest - rPoint |> Vec.length
-
-                    if lRes < threshold && rRes < threshold then
-                        inliers <- inliers + 1
-
-                    
-                    ()
-
-
-                inliers
-
-            let allInliners (threshold : float) (sol : BundlerSolution) =
-                let c0 = sol.cameras.[0]
-                let c1 = sol.cameras.[1]
-
-                let mutable inliers = 0
-                reallyGoodMatches |> Array.filter (fun (li, ri) ->
-                    let lPoint = l.[li].ndc
-                    let rPoint = r.[ri].ndc
-                    let lRay = c0.GetRay(lPoint)
-                    let rRay = c1.GetRay(rPoint)
-                    
-                    let pt = lRay.GetMiddlePoint(rRay)
-                    let lTest = c0.Project pt
-                    let rTest = c1.Project pt
-
-                    let lRes = lTest - lPoint |> Vec.length
-                    let rRes = rTest - rPoint |> Vec.length
-
-                    lRes < threshold && rRes < threshold
-                   )
-
-
-            let mutable maxScore = -1
-            let mutable bestSolution = Unchecked.defaultof<_>
-            for i in 1 .. 10 do
-                match randomSubsetSolution() with
-                    | Some sol -> 
-                        let score = countInliers distThreshold sol
-                        if score > maxScore then
-                            maxScore <- score
-                            bestSolution <- sol
-                    | _ ->
-                        ()
-
-
-
-
-
-            if maxScore >= 12 then
-                allInliners distThreshold bestSolution
-            else
-                [||]
-        else
-            [||]
+//    let matchesNotSoOld (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
+//        let reallyGoodMatches = matchCandidates config.threshold l r
+//
+//        let distThreshold = config.distanceThreshold
+//        if reallyGoodMatches.Length >= 12 then
+//            let randomSubsetSolution() = 
+//                let randomMatches =
+//                    reallyGoodMatches.RandomOrder()
+//                        |> Seq.take 12
+//                        |> Seq.toArray
+//                
+//
+//                let m0 = randomMatches |> Seq.mapi (fun i (li, _) -> i, l.[li].ndc) |> Map.ofSeq
+//                let m1 = randomMatches |> Seq.mapi (fun i (_, ri) -> i, r.[ri].ndc) |> Map.ofSeq
+//
+//                Bundler.solveSimple 3 {
+//                    input = { measurements = [| 0, m0; 1, m1 |] |> Map.ofArray }
+//                    cameras = Set.ofList [0; 1]
+//                }
+//
+//            let countInliers (threshold : float) (sol : BundlerSolution) =
+//                let (c0,_) = sol.cameras.[0]
+//                let (c1,_) = sol.cameras.[1]
+//
+//                let mutable inliers = 0
+//                for li, ri in reallyGoodMatches do
+//                    let lPoint = l.[li].ndc
+//                    let rPoint = r.[ri].ndc
+//                    let lRay = c0.GetRay(lPoint)
+//                    let rRay = c1.GetRay(rPoint)
+//                    
+//                    let pt = lRay.GetMiddlePoint(rRay)
+//                    let lTest = c0.Project pt
+//                    let rTest = c1.Project pt
+//
+//                    let lRes = lTest - lPoint |> Vec.length
+//                    let rRes = rTest - rPoint |> Vec.length
+//
+//                    if lRes < threshold && rRes < threshold then
+//                        inliers <- inliers + 1
+//
+//                    
+//                    ()
+//
+//
+//                inliers
+//
+//            let allInliners (threshold : float) (sol : BundlerSolution) =
+//                let (c0,_) = sol.cameras.[0]
+//                let (c1,_) = sol.cameras.[1]
+//
+//                let mutable inliers = 0
+//                reallyGoodMatches |> Array.filter (fun (li, ri) ->
+//                    let lPoint = l.[li].ndc
+//                    let rPoint = r.[ri].ndc
+//                    let lRay = c0.GetRay(lPoint)
+//                    let rRay = c1.GetRay(rPoint)
+//                    
+//                    let pt = lRay.GetMiddlePoint(rRay)
+//                    let lTest = c0.Project pt
+//                    let rTest = c1.Project pt
+//
+//                    let lRes = lTest - lPoint |> Vec.length
+//                    let rRes = rTest - rPoint |> Vec.length
+//
+//                    lRes < threshold && rRes < threshold
+//                   )
+//
+//
+//            let mutable maxScore = -1
+//            let mutable bestSolution = Unchecked.defaultof<_>
+//            for i in 1 .. 10 do
+//                match randomSubsetSolution() with
+//                    | Some sol -> 
+//                        let score = countInliers distThreshold sol
+//                        if score > maxScore then
+//                            maxScore <- score
+//                            bestSolution <- sol
+//                    | _ ->
+//                        ()
+//
+//
+//
+//
+//
+//            if maxScore >= 12 then
+//                allInliners distThreshold bestSolution
+//            else
+//                [||]
+//        else
+//            [||]
 
     let matches (config : MatchingConfig) (l : Feature[]) (r : Feature[]) =
         let reallyGoodMatches = matchCandidates config.threshold l r
@@ -935,154 +935,154 @@ module Feature =
 
         ()
 
-
-
-    let iterate (g : FeatureGraph) (debugPath : Option<string>) (useDistortion : bool) =
-        let debugOutput (measureMap : Map<int,Map<int,V2d>>) cam (run : Option<int>) =
-            match debugPath with
-            | None -> ()
-            | Some path ->
-                
-                let rand = RandomSystem()
-                let colors = [1.0..2000.0] |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float [1.0..2000.0].Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
-
-                let outputCam idx =
-                    let file = g.images.[idx]
-                    let map = measureMap.[idx]
-                    let mutable fNumber = 0
-                    for (fi,v2) in map |> Map.toArray do
-                        let f = g.data.[idx].[fi]
-                        let p = f.ndc
-                        let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
-                        let size = clamp 15 30 (ceil (f.size) |> int)
-
-                        file.GetMatrix<C4b>().SetCross(pp, size, colors.[fNumber])
-                        file.GetMatrix<C4b>().SetCircle(pp, size, colors.[fNumber])
-                        fNumber <- fNumber+1
-                        
-                    let path = sprintf @"%s\t" path
-                    //let path = sprintf @"%s\%A" path g.config.distanceThreshold
-
-                    if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
-
-                    let fn =    
-                        match run with
-                        | None ->     sprintf "image%d.jpg" idx
-                        | Some run -> sprintf "%A_image%d.jpg" run idx
-
-                    file.SaveAsImage (Path.combine [path; fn])
-
-                outputCam cam
-
-        let getMeasurement cam idx =
-            g.data.[cam].[idx].ndc
-
-        //assumes these edges are sorted most->least matches
-        let processNewEdge (b : Edge<(int * int)[]>) =
-            let cam0 = b.i0
-            let cam1 = b.i1
-
-            let bBundlerInput = 
-
-                let measurements =
-                    [|
-                        cam0,Map.ofArray [| for (p0,_) in b.weight do yield p0, getMeasurement cam0 p0 |]
-                        cam1,Map.ofArray [| for (_,p1) in b.weight do yield p1, getMeasurement cam1 p1 |]
-                    |] |> Map.ofArray
-
-                { measurements = measurements }
-
-            let preprocessed = 
-                bBundlerInput 
-                    |> BundlerInput.preprocess
-
-            let measureMap =
-                [| cam0,preprocessed.measurements.[cam0] ; cam1,preprocessed.measurements.[cam1] |] |> Map.ofArray
-
-            debugOutput measureMap cam0 (Some 0)
-            debugOutput measureMap cam1 (Some 0)
-
-            let solution = 
-                preprocessed
-                |> BundlerInput.toProblem
-                |> Bundler.solve useDistortion
-
-            let involvedCameras = [|cam0; cam1|]
-
-            solution,involvedCameras
-
-        let mutable runs = 1
-        let addEdgeToExisting (solution : BundlerSolution) (solvedCameras : int[]) (b : Edge<(int*int)[]>) =
-            let ((newCam,newWeights),(knownCam,knownWeights)) =
-                if solvedCameras |> Array.contains b.i0 then 
-                    (b.i1, b.weight |> Array.map snd),(b.i0, b.weight |> Array.map fst)
-                else 
-                    (b.i0, b.weight |> Array.map fst),(b.i1, b.weight |> Array.map snd)
-
-            let (bBundlerInput, measureMap) = 
-
-                let measurements =
-                    [|
-                        knownCam,Map.ofArray [| for p in knownWeights    do yield p, getMeasurement knownCam p |]
-                        newCam,Map.ofArray [| for p in newWeights      do yield p, getMeasurement newCam   p |]
-                    |] |> Map.ofArray
-
-                let measureMap =
-                    [| knownCam,measurements.[knownCam] ; newCam,measurements.[newCam] |] |> Map.ofArray
-
-                { measurements = measurements }, measureMap
-
-            //preprocess to make measurement set consistent for these two cameras
-            let preprocessed = 
-                bBundlerInput 
-                    |> BundlerInput.preprocess
-                    
-            debugOutput measureMap knownCam (Some runs)
-            debugOutput measureMap newCam   (Some runs)
-            runs <- runs+1
-
-            let solution = 
-                //after preprocessing, throw away the already known camera measurements and only keep the unknown one
-                { measurements = [| newCam, preprocessed.measurements.[newCam] |] |> Map.ofArray }
-                |> BundlerInput.toProblem
-                |> Bundler.solveTowardsKnown solution   //this combines the old and new solutions. all measurements are in there once
-
-
-
-            let involvedCameras =   [| 
-                                        yield! solvedCameras
-                                        yield newCam
-                                    |]
-
-            solution,involvedCameras
-
-        match g.edges.Length > 0 with
-            | true ->
-                Log.line "Processing first edge using cams (%A,%A)" g.edges.[0].i0 g.edges.[0].i1
-                let (baseSolution,involvedCams) = processNewEdge g.edges.[0]
-                
-                let mutable solution = (baseSolution,involvedCams)
-                for i in 1..g.edges.Length-1 do
-                    let candidate = g.edges.[i]
-                    Log.line "Adding new edge KNOWN=%A to NEW=%A" candidate.i0 candidate.i1
-
-                    let (sol, cams) = addEdgeToExisting (solution |> fst) (solution |> snd) candidate
-
-                    solution <- (sol,cams)
-
-                    let err = sol |> BundlerSolution.errorMetrics
-                    Log.start "error metrics"
-                    Log.line "cost:    %A" err.cost
-                    Log.line "average: %.4f%%" (100.0 * err.average)
-                    Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
-                    Log.line "min:     %.4f%%" (100.0 * err.min)
-                    Log.line "max:     %.4f%%" (100.0 * err.max)
-                    Log.stop()
-
-                Some (solution |> fst)
-            | false -> 
-                Log.warn "Match graph is empty. no solutions."
-                None
+//
+//
+//    let iterate (g : FeatureGraph) (debugPath : Option<string>) (useDistortion : bool) =
+//        let debugOutput (measureMap : Map<int,Map<int,V2d>>) cam (run : Option<int>) =
+//            match debugPath with
+//            | None -> ()
+//            | Some path ->
+//                
+//                let rand = RandomSystem()
+//                let colors = [1.0..2000.0] |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float [1.0..2000.0].Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
+//
+//                let outputCam idx =
+//                    let file = g.images.[idx]
+//                    let map = measureMap.[idx]
+//                    let mutable fNumber = 0
+//                    for (fi,v2) in map |> Map.toArray do
+//                        let f = g.data.[idx].[fi]
+//                        let p = f.ndc
+//                        let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
+//                        let size = clamp 15 30 (ceil (f.size) |> int)
+//
+//                        file.GetMatrix<C4b>().SetCross(pp, size, colors.[fNumber])
+//                        file.GetMatrix<C4b>().SetCircle(pp, size, colors.[fNumber])
+//                        fNumber <- fNumber+1
+//                        
+//                    let path = sprintf @"%s\t" path
+//                    //let path = sprintf @"%s\%A" path g.config.distanceThreshold
+//
+//                    if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+//
+//                    let fn =    
+//                        match run with
+//                        | None ->     sprintf "image%d.jpg" idx
+//                        | Some run -> sprintf "%A_image%d.jpg" run idx
+//
+//                    file.SaveAsImage (Path.combine [path; fn])
+//
+//                outputCam cam
+//
+//        let getMeasurement cam idx =
+//            g.data.[cam].[idx].ndc
+//
+//        //assumes these edges are sorted most->least matches
+//        let processNewEdge (b : Edge<(int * int)[]>) =
+//            let cam0 = b.i0
+//            let cam1 = b.i1
+//
+//            let bBundlerInput = 
+//
+//                let measurements =
+//                    [|
+//                        cam0,Map.ofArray [| for (p0,_) in b.weight do yield p0, getMeasurement cam0 p0 |]
+//                        cam1,Map.ofArray [| for (_,p1) in b.weight do yield p1, getMeasurement cam1 p1 |]
+//                    |] |> Map.ofArray
+//
+//                { measurements = measurements }
+//
+//            let preprocessed = 
+//                bBundlerInput 
+//                    |> BundlerInput.preprocess
+//
+//            let measureMap =
+//                [| cam0,preprocessed.measurements.[cam0] ; cam1,preprocessed.measurements.[cam1] |] |> Map.ofArray
+//
+//            debugOutput measureMap cam0 (Some 0)
+//            debugOutput measureMap cam1 (Some 0)
+//
+//            let solution = 
+//                preprocessed
+//                |> BundlerInput.toProblem
+//                |> Bundler.solve useDistortion
+//
+//            let involvedCameras = [|cam0; cam1|]
+//
+//            solution,involvedCameras
+//
+//        let mutable runs = 1
+//        let addEdgeToExisting (solution : BundlerSolution) (solvedCameras : int[]) (b : Edge<(int*int)[]>) =
+//            let ((newCam,newWeights),(knownCam,knownWeights)) =
+//                if solvedCameras |> Array.contains b.i0 then 
+//                    (b.i1, b.weight |> Array.map snd),(b.i0, b.weight |> Array.map fst)
+//                else 
+//                    (b.i0, b.weight |> Array.map fst),(b.i1, b.weight |> Array.map snd)
+//
+//            let (bBundlerInput, measureMap) = 
+//
+//                let measurements =
+//                    [|
+//                        knownCam,Map.ofArray [| for p in knownWeights    do yield p, getMeasurement knownCam p |]
+//                        newCam,Map.ofArray [| for p in newWeights      do yield p, getMeasurement newCam   p |]
+//                    |] |> Map.ofArray
+//
+//                let measureMap =
+//                    [| knownCam,measurements.[knownCam] ; newCam,measurements.[newCam] |] |> Map.ofArray
+//
+//                { measurements = measurements }, measureMap
+//
+//            //preprocess to make measurement set consistent for these two cameras
+//            let preprocessed = 
+//                bBundlerInput 
+//                    |> BundlerInput.preprocess
+//                    
+//            debugOutput measureMap knownCam (Some runs)
+//            debugOutput measureMap newCam   (Some runs)
+//            runs <- runs+1
+//
+//            let solution = 
+//                //after preprocessing, throw away the already known camera measurements and only keep the unknown one
+//                { measurements = [| newCam, preprocessed.measurements.[newCam] |] |> Map.ofArray }
+//                |> BundlerInput.toProblem
+//                |> Bundler.solveTowardsKnown solution   //this combines the old and new solutions. all measurements are in there once
+//
+//
+//
+//            let involvedCameras =   [| 
+//                                        yield! solvedCameras
+//                                        yield newCam
+//                                    |]
+//
+//            solution,involvedCameras
+//
+//        match g.edges.Length > 0 with
+//            | true ->
+//                Log.line "Processing first edge using cams (%A,%A)" g.edges.[0].i0 g.edges.[0].i1
+//                let (baseSolution,involvedCams) = processNewEdge g.edges.[0]
+//                
+//                let mutable solution = (baseSolution,involvedCams)
+//                for i in 1..g.edges.Length-1 do
+//                    let candidate = g.edges.[i]
+//                    Log.line "Adding new edge KNOWN=%A to NEW=%A" candidate.i0 candidate.i1
+//
+//                    let (sol, cams) = addEdgeToExisting (solution |> fst) (solution |> snd) candidate
+//
+//                    solution <- (sol,cams)
+//
+//                    let err = sol |> BundlerSolution.errorMetrics
+//                    Log.start "error metrics"
+//                    Log.line "cost:    %A" err.cost
+//                    Log.line "average: %.4f%%" (100.0 * err.average)
+//                    Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
+//                    Log.line "min:     %.4f%%" (100.0 * err.min)
+//                    Log.line "max:     %.4f%%" (100.0 * err.max)
+//                    Log.stop()
+//
+//                Some (solution |> fst)
+//            | false -> 
+//                Log.warn "Match graph is empty. no solutions."
+//                None
 
 //    let solveIteratively (config : MatchingConfig) (outputPath : Option<String>) (images : PixImage<byte>[]) (data : Feature[][]) =
 //        let graph = FeatureGraph.build config images data

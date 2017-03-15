@@ -97,7 +97,7 @@ module BundlerTest =
         Log.stop()
         Log.stop()
 
-        let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.indexed |> Map.ofSeq }
+        let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.map ( fun c -> c,false ) |> Seq.indexed |> Map.ofSeq }
 
         input, sol, realPimgs
 
@@ -326,14 +326,14 @@ let testGlobal() =
 
     let trafo = PointCloud.trafo2 sol.points input.points
     let input =
-        SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow input pimgs
+        SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow input pimgs (Mod.constant Bam.Oida)
             |> Sg.pass (RenderPass.after "asdasd" RenderPassOrder.Arbitrary RenderPass.main)
             |> Sg.depthTest (Mod.constant DepthTestMode.None)
             |> Sg.blendMode (Mod.constant BlendMode.Blend)
 
     let s = sol |> BundlerSolution.transformed trafo
     let sol =
-        SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red s pimgs
+        SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red s pimgs (Mod.constant Bam.Oida)
         
     let stuff = Sg.ofList [ (* input; *) sol ]
 
@@ -355,7 +355,7 @@ let testGlobal() =
         let far = 1000.0
         let getCam i =
             try 
-                s.cameras.[i].ViewProjTrafo far
+                (s.cameras.[i] |> fst).ViewProjTrafo far
             with _ -> Trafo3d.Identity
 
         adaptive {
@@ -390,6 +390,20 @@ let testKermit() =
     sol |> SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red
         
 open System.IO
+open MBrace.FsPickler
+
+let gen (places : int) =
+    
+    let rand = RandomSystem()
+
+    let ser = FsPickler.CreateBinarySerializer()
+    [|
+        for i in 0..1000000 do
+            yield rand.UniformV3d(Box3d.Unit.Transformed(Trafo3d.Scale 2.0).Translated(-V3d.III))
+    |] |> Array.map ( fun v -> V3d(Math.Round(v.X,places),Math.Round(v.Y,places),Math.Round(v.Z,places) ) )
+       |> Array.distinct
+       |> ser.Pickle
+       |> File.writeAllBytes @"C:\blub\random"
 
 [<EntryPoint>]
 let main argv =

@@ -398,17 +398,20 @@ module PairViewer =
         win.Run()
 
         cancel.Cancel()
-
+        
+type Bam =
+    | Oida
+    | Fix of int
 
 module SceneGraph =
     open Aardvark.SceneGraph
     open FShade
 
-    let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) (pix : PixImage<byte>[]) =
+    let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) (pix : PixImage<byte>[]) (b : IMod<Bam>) =
         let frustum = Box3d(-V3d(1.0, 1.0, 10000.0), V3d(1.0, 1.0, -2.0))
         let cameras = 
             s.cameras |> Map.toSeq |> Seq.mapi (fun i (_,c) -> 
-                let quad () = 
+                let quad i = 
                     Sg.fullScreenQuad 
                         |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|pix.[i] :> PixImage|], true))
                         |> Sg.shader { 
@@ -434,9 +437,16 @@ module SceneGraph =
                         }
                         
                 
-                [wb; (if pix.Length > 0 then quad() else Sg.ofList [])]  
+                [wb; (if pix.Length > 0 then
+                        b |> Mod.map ( fun b -> 
+                            match b with
+                            | Bam.Oida -> quad i
+                            | Fix t -> if i = t then quad i else Sg.ofList []
+                        ) |> Sg.dynamic
+                        
+                      else Sg.ofList [])]  
                             |> Sg.ofList 
-                            |> Sg.transform (c.ViewProjTrafo(100.0).Inverse)
+                            |> Sg.transform ((c |> fst).ViewProjTrafo(100.0).Inverse)
 
             )
             |> Sg.ofSeq
@@ -460,9 +470,6 @@ module SceneGraph =
 
         Sg.ofList [ points; cameras ]
 
-type Bam =
-    | Oida
-    | Fix of int
 
 module BundlerViewer =
     
@@ -478,11 +485,11 @@ module BundlerViewer =
             
             let stuff = 
                 [
-                    SceneGraph.ofBundlerSolution C4b.Red 5 C4b.Green solution imgs
+                    SceneGraph.ofBundlerSolution C4b.Red 5 C4b.Green solution imgs b
                     ssg
                 ] |> Sg.ofList
 
-            let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
+            let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
             let cameraView = CameraView.lookAt (V3d(0.0, 2.0, 0.0)) V3d.Zero -V3d.OOI
 
             let lastSpace = Mod.init DateTime.Now
@@ -506,7 +513,7 @@ module BundlerViewer =
                         let f = f |> Frustum.projTrafo
                         return cv |> CameraView.viewTrafo, f
                     | Fix i ->
-                        let fs = solution.cameras.[i].ViewProjTrafo far
+                        let fs = (solution.cameras.[i] |> fst).ViewProjTrafo far
                         return Trafo3d.Identity, fs
                 }
 
