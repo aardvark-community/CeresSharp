@@ -437,16 +437,15 @@ module SceneGraph =
                             do! DefaultSurfaces.trafo
                             do! DefaultSurfaces.constantColor (C4f cameraColor)
                         }
-                        
+                
+                let quadVisible i = 
+                    b |> Mod.map (function Bam.Oida -> true | Fix ci -> i = ci)
                 
                 [wb; (if pix.Length > 0 then
-                        b |> Mod.map ( fun b -> 
-                            match b with
-                            | Bam.Oida -> quad i
-                            | Fix t -> if i = t then quad i else Sg.ofList []
-                        ) |> Sg.dynamic
-                        
-                      else Sg.ofList [])]  
+                        quad i |> Sg.onOff (quadVisible i)
+                      else Sg.ofList []
+                      ) 
+                ]  
                             |> Sg.ofList 
                             |> Sg.transform ((c |> fst).ViewProjTrafo(100.0).Inverse)
 
@@ -548,7 +547,7 @@ module BundlerViewer =
                         |]
 
                     IndexedGeometryPrimitives.points ps [|C4b.DarkYellow; C4b.Yellow|]
-                        |> Sg.ofIndexedGeometry
+                    |> Sg.ofIndexedGeometry
                 )   |> Sg.set
                     |> Sg.uniform "PointSize" (Mod.constant (float 10))
                     |> Sg.shader { 
