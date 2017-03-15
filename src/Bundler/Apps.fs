@@ -477,20 +477,107 @@ module SceneGraph =
 
 module BundlerViewer =
     
+    let intersect (p : Ray3d) (f : Triangle3d[]) : Option<V3d> =
+        [
+            for t in f do
+                let mutable intert = 0.0
+                if t.Intersects(p,&intert) then
+                    yield p.GetPointOnRay intert
+        ] |> Seq.tryHead
+
+    let transferPoint (fromCam : Camera3d * Triangle3d[]) (toCam : Camera3d * Triangle3d[]) (point : V2d) : Option<V2d> =
+        let (fcam, ftris) = fromCam
+        let (tcam, _) = toCam
+        let pos = fcam.Unproject point 1.0
+
+        let ray = Ray3d(fcam.Position,(pos - fcam.Position).Normalized)
+        let intersection = intersect ray ftris
+
+        let p = intersection |> Option.map tcam.Project 
+
+        match p with
+        | None -> Log.warn "This has no intersection."
+        | Some ii -> ()
+
+        p
+
     let folder path =
         
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
 
-        let (solution,ssg, imgs) = Bundle.filesIn path
+        let (solution, tris ,ssg, imgs) = Bundle.filesIn path
         
         let b = Bam.Oida |> Mod.init
+        let blurg = Bam.Oida |> Mod.init
+        let totalblurg = true |> Mod.init
+
+        let klickPoints : cset<int * V2d> = CSet.empty
+
+        let klickPointsSg = 
+            klickPoints 
+            |> ASet.map ( fun (ci, ndc) ->
+                    let cam = solution.cameras.[ci] |> fst
+                    let pos = cam.Unproject ndc 1.0
+                    Log.line "Unprojected to: %A" pos
+                    let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
+                    
+                    let f = tris.[ci]
+                    let intersection = intersect ray f
+
+                    let other = if ci = 1 then 0 else 1
+                    let oc = solution.cameras.[other] |> fst
+                    let othercam = transferPoint (cam,f) (oc,tris.[other]) ndc
+
+                    let ps = 
+                        [|
+                            yield pos
+                            match intersection with
+                            | None -> Log.warn "This has no intersection."
+                            | Some ii -> 
+                                Log.line "Intersection at: %A" ii
+                                yield ii
+
+                            match othercam with
+                            | None -> ()
+                            | Some ii -> 
+                                let oo = oc.Unproject ii 1.0
+                                Log.line "Unprojected in other cam: %A" oo 
+                                yield oo
+                                
+                        |]
+
+                    IndexedGeometryPrimitives.points ps [|C4b.DarkYellow; C4b.Yellow|]
+                        |> Sg.ofIndexedGeometry
+                )   |> Sg.set
+                    |> Sg.uniform "PointSize" (Mod.constant (float 10))
+                    |> Sg.shader { 
+                        do! DefaultSurfaces.trafo
+                        do! DefaultSurfaces.vertexColor
+                        do! DefaultSurfaces.pointSprite
+                        do! DefaultSurfaces.pointSpriteFragment
+                    }
+
         let sg : ISg = 
+
+            let blurgs =
+                ssg   |> List.map ( fun (s,ci) -> s |> Sg.onOff ( blurg |> Mod.map (function Bam.Oida -> true | Fix ind -> ind = ci) ) )
+                      |> Sg.ofList
+                      |> Sg.shader {
+                        do! DefaultSurfaces.trafo
+                        //do! DefaultSurfaces.diffuseTexture
+                        do! DefaultSurfaces.vertexColor
+                        do! DefaultSurfaces.simpleLighting
+                      }
+                      |> Sg.pass RenderPass.main
+                      |> Sg.blendMode (Mod.constant BlendMode.Blend)
+                      |> Sg.onOff totalblurg
             
             let stuff = 
                 [
-                    SceneGraph.ofBundlerSolution C4b.Red 15 C4b.Green solution imgs b
-                    ssg
+                    SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution imgs b
+                    blurgs
+                    klickPointsSg
                 ] |> Sg.ofList
 
             let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
@@ -524,9 +611,24 @@ module BundlerViewer =
             stuff |> Sg.viewTrafo (cameraView |> Mod.map fst )
                   |> Sg.projTrafo (cameraView |> Mod.map snd )
 
-        win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 0))
-        win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Fix 1))
+        win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> if not <| (win.Keyboard.IsDown Keys.LeftCtrl).GetValue() then transact ( fun _ -> b.Value <- Fix 0))
+        win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> if not <| (win.Keyboard.IsDown Keys.LeftCtrl).GetValue() then transact ( fun _ -> b.Value <- Fix 1))
         win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Oida))
+        win.Keyboard.KeyDown(Keys.F).Values.Add 
+            ( fun _ -> 
+                match b.Value with
+                | Bam.Oida -> ()
+                | Fix i ->
+                    //don't need to flip the y position since it's already wrong in the image
+                    //flip x instead yolo
+                    let ndc = (((win.Mouse.Position |> Mod.force).NormalizedPosition * V2d(2.0, 2.0)) - V2d.II) * V2d(-1.0, 1.0)
+                    transact ( fun _ -> klickPoints |> CSet.add (i,ndc) |> ignore)
+            )
+        win.Keyboard.KeyDown(Keys.C).Values.Add ( fun _ -> transact ( fun _ -> CSet.clear klickPoints ))
+        win.Keyboard.KeyDown(Keys.T).Values.Add ( fun _ -> transact ( fun _ -> totalblurg.Value <- not totalblurg.Value ))
+        win.Keyboard.KeyDown(Keys.NumPad1).Values.Add( fun _ -> transact ( fun _ -> blurg.Value <- Fix 0) )
+        win.Keyboard.KeyDown(Keys.NumPad2).Values.Add( fun _ -> transact ( fun _ -> blurg.Value <- Fix 1) )
+        win.Keyboard.KeyDown(Keys.NumPad0).Values.Add( fun _ -> transact ( fun _ -> blurg.Value <- Bam.Oida) )
 
         let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
         win.RenderTask <- task

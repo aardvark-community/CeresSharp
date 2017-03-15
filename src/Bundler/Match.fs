@@ -85,7 +85,7 @@ module Bundle =
         let allCamerasSameDistortion = true
 
         let cacheFeatureMatching    = true
-        let cacheBundlerResult      = false
+        let cacheBundlerResult      = true
 
 
         Log.line "Reading images ... "
@@ -233,10 +233,37 @@ module Bundle =
 
         Log.stop()
 
+        let tris =
+            [
+                for kvp in sol.cameras do
+                    let ci = kvp.Key
+                    let c = kvp.Value
+
+                    let mesh = ps.[ci]
+
+                    let tris = 
+                        [|
+                            for tri in mesh.Triangles do    
+                        
+                                let v i = 
+                                    let v = tri.GetVertex i
+                                    let x = -v.X
+                                    let y = -v.Y
+                                    let z = v.Attributes.[0]
+                                    
+                                    (c |> fst).Unproject (V2d(x,y)) z
+
+                                let t = Triangle3d(v 0, v 1, v 2)
+
+                                yield t
+                        |]
+                    yield ci, tris
+            ] |> Map.ofList
+
         let someSg =
             let mutable a = false
             [
-                for kvp in sol.cameras (* |> Map.filter (constF (constF false)) *)do
+                for kvp in sol.cameras (* |> Map.filter (constF (constF false)) *) do
                     let ci = kvp.Key
                     let c = kvp.Value
 
@@ -274,21 +301,13 @@ module Bundle =
                             |> Sg.vertexAttribute' DefaultSemantic.DiffuseColorCoordinates (tris |> Array.collect ( fun (_,_,t) -> [| t.P0 |> V2f; t.P1 |> V2f; t.P2 |> V2f |] ))
                             |> Sg.vertexAttribute' DefaultSemantic.Normals (tris |> Array.collect ( fun (_,n,_) -> [| n |> V3f; n |> V3f; n |> V3f |] ))
                             |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ( if a then (C4f(1.0,1.0,1.0,0.75)).ToV4f() else (C4f(1.0,0.0,0.0,0.75)).ToV4f()))
-                            |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true))
+                            |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true)), ci
                     a <- true
                             
-            ] |> Sg.ofList
-              |> Sg.shader {
-                do! DefaultSurfaces.trafo
-                //do! DefaultSurfaces.diffuseTexture
-                do! DefaultSurfaces.vertexColor
-                do! DefaultSurfaces.simpleLighting
-              }
-              |> Sg.pass RenderPass.main
-              |> Sg.blendMode (Mod.constant BlendMode.Blend)
+            ] 
 
                
 
-        sol,someSg, images
+        sol, tris,someSg, images
 
 

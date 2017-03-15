@@ -13,7 +13,7 @@ module Bundler =
 
     let private improveInternal (useDistortion : bool) (options : CeresOptions) 
                                 (points : V3d[]) (k0 : float) (k1 : float) 
-                                (cameras : (Camera3d*bool)[]) (measurements : Map<int,Map<int, V2d>>) : float * V3d[] * Map<int,(Camera3d*bool)> =
+                                (cameras : (Camera3d*bool)[]) (measurements : Map<int,Map<int, V2d>>) : float * V3d[] * Map<int,Camera3d*bool> =
         use p = new Problem()
         let guessedPoints   : V3d[] = points |> Array.copy
         let guessedCameras  : Map<int,(Camera3d*bool)[]> =

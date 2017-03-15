@@ -171,7 +171,6 @@ module Graph =
             if uf.Add(e.i0, e.i1) then
                 result.Add e
 
-
         CSharpList.toArray result
 
 
