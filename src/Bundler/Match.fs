@@ -273,7 +273,7 @@ module Bundle =
                             |> Sg.vertexAttribute' DefaultSemantic.Positions (tris |> Array.collect ( fun (t,_,_) -> [| t.P0 |> V3f; t.P1 |> V3f; t.P2 |> V3f |] ))
                             |> Sg.vertexAttribute' DefaultSemantic.DiffuseColorCoordinates (tris |> Array.collect ( fun (_,_,t) -> [| t.P0 |> V2f; t.P1 |> V2f; t.P2 |> V2f |] ))
                             |> Sg.vertexAttribute' DefaultSemantic.Normals (tris |> Array.collect ( fun (_,n,_) -> [| n |> V3f; n |> V3f; n |> V3f |] ))
-                            |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ( if a then (C4f.White).ToV4f() else (C4f.Red).ToV4f()))
+                            |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ( if a then (C4f(1.0,1.0,1.0,0.75)).ToV4f() else (C4f(1.0,0.0,0.0,0.75)).ToV4f()))
                             |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true))
                     a <- true
                             
@@ -284,6 +284,8 @@ module Bundle =
                 do! DefaultSurfaces.vertexColor
                 do! DefaultSurfaces.simpleLighting
               }
+              |> Sg.pass RenderPass.main
+              |> Sg.blendMode (Mod.constant BlendMode.Blend)
 
                
 

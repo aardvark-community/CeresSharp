@@ -713,8 +713,17 @@ module BundlerSolution =
         }
 
     let crap : V3d[] = 
-        let p = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
-        File.readAllBytes @"C:\blub\random" |> p.UnPickle
+        if System.IO.File.Exists @"C:\blub\random" then
+            let p = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+            File.readAllBytes @"C:\blub\random" |> p.UnPickle
+        else
+            let rand = RandomSystem()
+            let places = 2
+            [|
+                for i in 0..100000 do
+                    yield rand.UniformV3d(Box3d.Unit.Transformed(Trafo3d.Scale 2.0).Translated(-V3d.III))
+            |] |> Array.map ( fun v -> V3d(Math.Round(v.X,places),Math.Round(v.Y,places),Math.Round(v.Z,places) ) )
+               |> Array.distinct
 
     let random (p : BundlerProblem) =
         //let cameras = p.cameras |> Seq.map (fun ci -> ci, Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.5, V3d.OOI)) |> Map.ofSeq

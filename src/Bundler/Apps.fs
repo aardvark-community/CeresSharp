@@ -407,6 +407,8 @@ module SceneGraph =
     open Aardvark.SceneGraph
     open FShade
 
+    let blurb = RenderPass.after "blurb" RenderPassOrder.Arbitrary RenderPass.main
+
     let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) (pix : PixImage<byte>[]) (b : IMod<Bam>) =
         let frustum = Box3d(-V3d(1.0, 1.0, 10000.0), V3d(1.0, 1.0, -2.0))
         let cameras = 
@@ -427,7 +429,7 @@ module SceneGraph =
                                 }
                         }
                         |> Sg.blendMode (Mod.constant BlendMode.Blend)
-                        |> Sg.pass (RenderPass.after "asd" RenderPassOrder.Arbitrary RenderPass.main)
+                        |> Sg.pass (RenderPass.after "asd" RenderPassOrder.Arbitrary blurb)
 
                 let wb =
                     Sg.wireBox' C4b.Green frustum
@@ -469,6 +471,8 @@ module SceneGraph =
             }
 
         Sg.ofList [ points; cameras ]
+            |> Sg.pass blurb
+            |> Sg.blendMode (Mod.constant BlendMode.Blend)
 
 
 module BundlerViewer =
@@ -485,7 +489,7 @@ module BundlerViewer =
             
             let stuff = 
                 [
-                    SceneGraph.ofBundlerSolution C4b.Red 5 C4b.Green solution imgs b
+                    SceneGraph.ofBundlerSolution C4b.Red 15 C4b.Green solution imgs b
                     ssg
                 ] |> Sg.ofList
 
