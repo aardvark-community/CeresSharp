@@ -508,7 +508,7 @@ module BundlerViewer =
     let transferPoint (fromCam : Camera3d * Triangle3d[]) (toCam : Camera3d * Triangle3d[]) (point : V2d) : Option<V2d> =
         let (fcam, ftris) = fromCam
         let (tcam, _) = toCam
-        let pos = fcam.Unproject point -1.0
+        let pos = fcam.Unproject point -fcam.FocalLength
 
         let ray = Ray3d(fcam.Position,(pos - fcam.Position).Normalized)
         let intersection = intersect ray ftris
@@ -538,7 +538,7 @@ module BundlerViewer =
             klickPoints 
             |> ASet.map ( fun (ci, ndc) ->
                     let cam = solution.cameras.[ci] |> fst
-                    let pos = cam.Unproject ndc -1.0
+                    let pos = cam.Unproject ndc -cam.FocalLength
                     Log.line "Unprojected to: %A" pos
                     let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
                     
@@ -551,19 +551,19 @@ module BundlerViewer =
 
                     let ps = 
                         [|
-//                            yield pos
+                            yield pos
                             match intersection with
                             | None -> Log.warn "This has no intersection."
                             | Some ii -> 
                                 Log.line "Intersection at: %A" ii
                                 yield ii
 
-//                            match othercam with
-//                            | None -> ()
-//                            | Some ii -> 
-//                                let oo = oc.Unproject ii -1.0
-//                                Log.line "Unprojected in other cam: %A" oo 
-//                                yield oo
+                            match othercam with
+                            | None -> ()
+                            | Some ii -> 
+                                let oo = oc.Unproject ii -oc.FocalLength
+                                Log.line "Unprojected in other cam: %A" oo 
+                                yield oo
                                 
                         |]
 

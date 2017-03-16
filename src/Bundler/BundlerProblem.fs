@@ -11,7 +11,7 @@ type Camera3d =
         val mutable public AngleAxis        : V3d
         val mutable public SqrtFocalLength  : float
             
-        member x.FocalLength = x.SqrtFocalLength * x.SqrtFocalLength
+        member x.FocalLength = 0.01 + x.SqrtFocalLength * x.SqrtFocalLength
 
         member x.ProjectWithDepth(p : V3d) =
             let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
@@ -77,13 +77,13 @@ type Camera3d =
             src * dst.Inverse
 
         new(pos, angleAxis, f) = 
-            let ff = sqrt f
+            let ff = sqrt (f - 0.01)
             if ff.IsNaN() then Log.warn "ALARM!!!!!!!! FOCAL LENGTH IS NAN!!!! !ALARMMMMMMMM"
             { Position = pos; AngleAxis = angleAxis; SqrtFocalLength = ff }
     end
 
 type Camera3s(pos : V3s, aa : V3s, sf : scalar) =
-    let f = sf * sf
+    let f = 0.01 + sf * sf
     member x.Position = pos
     member x.AngleAxis = aa
     member x.SqrtFocalLength = sf
