@@ -33,7 +33,8 @@ module PairViewer =
             superVar    : V2d
         }
 
-    
+    open Bundle
+
     let app path =
 
         use app = new OpenGlApplication()
@@ -77,13 +78,13 @@ module PairViewer =
         let currentImgs = Mod.init (images.[0], images.[1])
         let featureType = Mod.init Akaze
 
-        let currentLampta = Mod.init 35.0
-        let currentSickma = Mod.init 0.5
-        let probability = Mod.init 0.5
-        let aLambda = Mod.init 20.0
-        let aSigma = Mod.init 0.5
-        let aThreshold = Mod.init 0.01
-        let useA = Mod.init true
+        let currentLampta   = Mod.init 35.0
+        let currentSickma   = Mod.init 0.5
+        let probability     = Mod.init 0.5
+        let aLambda         = Mod.init 20.0
+        let aSigma          = Mod.init 0.5
+        let aThreshold      = Mod.init 0.01
+        let useA            = Mod.init true
 
         let config =
             {
@@ -316,6 +317,22 @@ module PairViewer =
                 e = ".jpg" || e = ".png" || e = ".jpeg" || e = ".gif" || e = ".tiff"
             )
 
+        let saveCurrent() =
+            
+            let gogo = 
+                {
+                    pLambda =  currentLampta.Value
+                    pSigma  =  currentSickma.Value
+                    pProb   =  probability.Value  
+                    aLambda =  aLambda.Value      
+                    aSigma  =  aSigma.Value       
+                    aThresh =  aThreshold.Value   
+                }
+
+            let ser = MBrace.FsPickler.FsPickler.CreateXmlSerializer(indent=true)
+
+            ser.PickleToString gogo |> File.writeAllText (configfile())
+
         let help =
             "
                 \n
@@ -387,6 +404,7 @@ module PairViewer =
                                     let name = m.Groups.["par"].Value
                                     match name with
                                     | "h" | "help" -> printfn "%A" help
+                                    | "save" -> printfn @"Saving current config in c:\blub"; saveCurrent()
                                     | _ -> Log.warn "Get help with \"help\". Invalid command: %A" line
                                 else
                                     Log.warn "Regex didn't parse: %A" line
@@ -410,7 +428,7 @@ module SceneGraph =
     let blurb = RenderPass.after "blurb" RenderPassOrder.Arbitrary RenderPass.main
 
     let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) (pix : PixImage<byte>[]) (b : IMod<Bam>) =
-        let frustum = Box3d(-V3d(1.0, 1.0, 10000.0), V3d(1.0, 1.0, -2.0))
+        let frustum = Box3d(-V3d(1.0, 1.0, 100.0), V3d(1.0, 1.0, -1.01))
         let cameras = 
             s.cameras |> Map.toSeq |> Seq.mapi (fun i (_,c) -> 
                 let quad i = 
@@ -419,7 +437,7 @@ module SceneGraph =
                         |> Sg.shader { 
                             do! fun (v : Effects.Vertex) ->
                                 vertex {
-                                    return { v with pos = V4d(-v.pos.X, -v.pos.Y, v.pos.Z, v.pos.W ) }
+                                    return { v with pos = V4d(-v.pos.X, -v.pos.Y, -0.99, v.pos.W ) }
                                 }
                             do! DefaultSurfaces.trafo
                             do! DefaultSurfaces.diffuseTexture
@@ -480,14 +498,17 @@ module BundlerViewer =
         [
             for t in f do
                 let mutable intert = 0.0
-                if t.Intersects(p,&intert) then
-                    yield p.GetPointOnRay intert
+                let mutable running = true
+                if running then
+                    if t.Intersects(p,&intert) then
+                        yield p.GetPointOnRay intert
+                        running <- false
         ] |> Seq.tryHead
 
     let transferPoint (fromCam : Camera3d * Triangle3d[]) (toCam : Camera3d * Triangle3d[]) (point : V2d) : Option<V2d> =
         let (fcam, ftris) = fromCam
         let (tcam, _) = toCam
-        let pos = fcam.Unproject point 1.0
+        let pos = fcam.Unproject point -1.0
 
         let ray = Ray3d(fcam.Position,(pos - fcam.Position).Normalized)
         let intersection = intersect ray ftris
@@ -517,7 +538,7 @@ module BundlerViewer =
             klickPoints 
             |> ASet.map ( fun (ci, ndc) ->
                     let cam = solution.cameras.[ci] |> fst
-                    let pos = cam.Unproject ndc 1.0
+                    let pos = cam.Unproject ndc -1.0
                     Log.line "Unprojected to: %A" pos
                     let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
                     
@@ -530,23 +551,23 @@ module BundlerViewer =
 
                     let ps = 
                         [|
-                            yield pos
+//                            yield pos
                             match intersection with
                             | None -> Log.warn "This has no intersection."
                             | Some ii -> 
                                 Log.line "Intersection at: %A" ii
                                 yield ii
 
-                            match othercam with
-                            | None -> ()
-                            | Some ii -> 
-                                let oo = oc.Unproject ii 1.0
-                                Log.line "Unprojected in other cam: %A" oo 
-                                yield oo
+//                            match othercam with
+//                            | None -> ()
+//                            | Some ii -> 
+//                                let oo = oc.Unproject ii -1.0
+//                                Log.line "Unprojected in other cam: %A" oo 
+//                                yield oo
                                 
                         |]
 
-                    IndexedGeometryPrimitives.points ps [|C4b.DarkYellow; C4b.Yellow|]
+                    IndexedGeometryPrimitives.points ps [|C4b.DarkYellow; C4b.Yellow; C4b(250,200,130,255)|]
                     |> Sg.ofIndexedGeometry
                 )   |> Sg.set
                     |> Sg.uniform "PointSize" (Mod.constant (float 10))
@@ -572,10 +593,13 @@ module BundlerViewer =
                       |> Sg.blendMode (Mod.constant BlendMode.Blend)
                       |> Sg.onOff totalblurg
             
+
+
             let stuff = 
                 [
                     SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution imgs b
                     blurgs
+                    
                     klickPointsSg
                 ] |> Sg.ofList
 

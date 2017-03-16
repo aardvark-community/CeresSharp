@@ -32,6 +32,22 @@ module Match =
 
 module Bundle =
 
+    
+    type stuffConfig =
+        {
+            pLambda : float
+            pSigma  : float
+            pProb   : float
+            aLambda : float
+            aSigma  : float
+            aThresh : float
+        }
+
+    let configfile () = 
+        let p = @"C:\blub"
+        if System.IO.Directory.Exists p |> not then System.IO.Directory.CreateDirectory p |> ignore
+        Path.combine [p; "config.config"]
+
     open MBrace.FsPickler
     open System.IO
 
@@ -65,27 +81,42 @@ module Bundle =
 
     let filesIn path =
 
+        let cfg : stuffConfig = 
+            if System.IO.File.Exists (configfile()) then
+                Log.line @"Loading config from C:\blub"
+                let pickler = MBrace.FsPickler.FsPickler.CreateXmlSerializer(indent=true)
+                File.readAllText (configfile()) |> pickler.UnPickleOfString
+            else
+                {
+                    pLambda = 20.0
+                    pSigma  = 0.6
+                    pProb   = 0.5
+                    aLambda = 20.0
+                    aSigma  = 0.5
+                    aThresh = 0.01
+                }
+
         let bruteforceThreshold = 0.9
 
-        let probabilityLambda = 10.0
-        let probabilitySigma = 0.25
-        let probabilityLowerThresh = 0.5
+        let probabilityLambda =         cfg.pLambda
+        let probabilitySigma =          cfg.pSigma
+        let probabilityLowerThresh =    cfg.pProb
 
-        let affineLambda = 20.0
-        let affineSigma = 0.5
-        let affineUpperThresh = 0.01
+        let affineLambda =      cfg.aLambda
+        let affineSigma =       cfg.aSigma
+        let affineUpperThresh = cfg.aThresh
 
-        let bruteforceMinCount = 20
-        let probableMinCount =   20
-        let affineMinCount =     20
+        let bruteforceMinCount = 10
+        let probableMinCount =   10
+        let affineMinCount =     10
 
         let bundlerMinTrackLength = 2
         let bundlerMaxFtrsPerCam = 60
 
         let allCamerasSameDistortion = true
 
-        let cacheFeatureMatching    = true
-        let cacheBundlerResult      = true
+        let cacheFeatureMatching    = false
+        let cacheBundlerResult      = false
 
 
         Log.line "Reading images ... "
