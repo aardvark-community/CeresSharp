@@ -516,10 +516,12 @@ module SceneGraph =
 
 
 module BundlerViewer =
+
+    open Aardvark.Ceres.Bundle
     
-    let intersect (p : Ray3d) (f : Triangle3d[]) : Option<V3d> =
+    let intersect (p : Ray3d) (f : DepthFun) : Option<V3d> =
         [
-            for t in f do
+            for t in f.Triangle3Ds do
                 let mutable intert = 0.0
                 let mutable running = true
                 if running then
@@ -528,7 +530,32 @@ module BundlerViewer =
                         running <- false
         ] |> Seq.tryHead
 
-    let transferPoint (fromCam : Camera3d * Triangle3d[]) (toCam : Camera3d * Triangle3d[]) (point : V2d) : Option<V2d> =
+    let approximate (p : V2d) (f : DepthFun) : Option<V2d*float> =
+        Log.line "No triangle intersection, trying to get closest"
+        let pD (e : Line2d) d0 d1 = 
+            let mutable t = 0.0
+            let p2d = e.GetClosestPointOn(p, &t)
+            let d = (p - p2d).Length
+            p2d, (d0 * t + d1 * (1.0-t)), d
+        
+        let lines = 
+            [
+                for (p0,p1,p2,d0,d1,d2) in f.Point2Ds do
+                    let e0 = Line2d(p0,p1)
+                    let e1 = Line2d(p1,p2)
+                    let e2 = Line2d(p2,p0)
+                    yield pD e0 d0 d1
+                    yield pD e1 d1 d2
+                    yield pD e2 d2 d0
+            ]   |> List.sortBy ( fun (_,_,d) -> d )
+                |> List.toArray
+
+        lines
+            |> Array.toList
+            |> List.map ( fun (p,d,_) -> p,d )
+            |> List.tryHead
+
+    let transferPoint (fromCam : Camera3d * DepthFun) (toCam : Camera3d * DepthFun) (point : V2d) : Option<V3d*(V2d*float)> =
         let (fcam, ftris) = fromCam
         let (tcam, _) = toCam
         let pos = fcam.Unproject point (-fcam.FocalLength - 0.0001)
@@ -536,13 +563,27 @@ module BundlerViewer =
         let ray = Ray3d(fcam.Position,(pos - fcam.Position).Normalized)
         let intersection = intersect ray ftris
 
-        let p = intersection |> Option.map tcam.Project 
+        let p = 
+            match intersection with
+            | None -> 
+                Log.line "No triangle intersection, trying for approximation"
+                let pos = approximate point ftris
+                match pos with
+                | None ->
+                    Log.warn "This has no intersection."
+                    None
+                | Some (pd,depth) ->
+                    let u = fcam.Unproject pd depth
+                    
+                    (u, u |> tcam.ProjectWithDepth) |> Some
 
-        match p with
-        | None -> Log.warn "This has no intersection."
-        | Some ii -> ()
+            | Some ii -> 
+                let p = ii |> tcam.ProjectWithDepth 
+                Some (ii, p)
 
         p
+
+    
 
     let folder path =
         
@@ -562,28 +603,26 @@ module BundlerViewer =
             |> ASet.map ( fun (ci, ndc) ->
                     let cam = solution.cameras.[ci] |> fst
                     let pos = cam.Unproject ndc (-cam.FocalLength - 0.0001)
-                    Log.line "Unprojected to: %A" pos
-                    let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
-                    
-                    let f = tris.[ci]
-                    let intersection = intersect ray f
+//                    Log.line "Unprojected to: %A" pos
+//                    let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
+//                    
+//                    let intersection = intersect ray f
 
+                    let f = tris.[ci]
                     let other = if ci = 1 then 0 else 1
                     let oc = solution.cameras.[other] |> fst
-                    let othercam = transferPoint (cam,f) (oc,tris.[other]) ndc
+                    let tro = tris.[other]
+                    let othercam = transferPoint (cam,f) (oc,tro) ndc
 
                     let ps = 
                         [|
                             yield pos
-                            match intersection with
-                            | None -> Log.warn "This has no intersection."
-                            | Some ii -> 
-                                Log.line "Intersection at: %A" ii
-                                yield ii
                                  
                             match othercam with
                             | None -> ()
-                            | Some ii -> 
+                            | Some (p3d, (ii,_)) -> 
+                                yield p3d
+
                                 let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
                                 Log.line "Unprojected in other cam: %A" oo 
                                 yield oo

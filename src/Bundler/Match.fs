@@ -79,6 +79,12 @@ module Bundle =
 
     open Cache
 
+    type DepthFun =
+        {
+            Triangle3Ds : Triangle3d[]
+            Point2Ds    : (V2d*V2d*V2d*float*float*float)[]
+        }
+
     let filesIn path =
 
         let cfg : stuffConfig = 
@@ -183,28 +189,17 @@ module Bundle =
             else
                 pairMatch l r
 
-
-
         if cacheFeatureMatching then printfn "Saving match cache."; save()
-
-
-
+        
         Log.startTimed "Building feature graph"
         let mst = Feature.FeatureGraph.build cachedMatch images data
         Log.stop()
-
-
-
-
-
+        
         Log.startTimed "BundlerInput generation"
         let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
 
         let problem = input |> BundlerInput.toProblem
-
         
-
-
         Log.stop()
 
         let ser = FsPickler.CreateBinarySerializer()
@@ -269,9 +264,7 @@ module Bundle =
                 for kvp in sol.cameras do
                     let ci = kvp.Key
                     let c = kvp.Value
-
                     let mesh = ps.[ci]
-
                     let tris = 
                         [|
                             for tri in mesh.Triangles do    
@@ -282,13 +275,30 @@ module Bundle =
                                     let y = -v.Y
                                     let z = v.Attributes.[0]
                                     
+                                    x,y,z
+
+                                let vp i =  
+                                    let (x,y,z) = v i 
                                     (c |> fst).Unproject (V2d(x,y)) z
 
-                                let t = Triangle3d(v 0, v 1, v 2)
+                                let t = Triangle3d(vp 0, vp 1, vp 2)
 
-                                yield t
+                                let(x0,y0,d0) = v 0
+                                let(x1,y1,d1) = v 1
+                                let(x2,y2,d2) = v 2
+
+                                let td = (V2d(x0,y0), V2d(x1,y1), V2d(x2,y2), d0, d1, d2)
+
+                                yield t, td
                         |]
-                    yield ci, tris
+                    let (t3d,p2d) = tris |> Array.unzip
+                    let f = 
+                        {
+                            Triangle3Ds = t3d
+                            Point2Ds = p2d
+                        }
+
+                    yield ci, f
             ] |> Map.ofList
 
         let someSg =
@@ -297,9 +307,7 @@ module Bundle =
                 for kvp in sol.cameras (* |> Map.filter (constF (constF false)) *) do
                     let ci = kvp.Key
                     let c = kvp.Value
-
                     let mesh = ps.[ci]
-
                     let tris = 
                         [|
                             for tri in mesh.Triangles do    
@@ -325,7 +333,6 @@ module Bundle =
                                 yield t,n,tc
                         |]
 
-                    
                     yield 
                         Sg.draw IndexedGeometryMode.TriangleList
                             |> Sg.vertexAttribute' DefaultSemantic.Positions (tris |> Array.collect ( fun (t,_,_) -> [| t.P0 |> V3f; t.P1 |> V3f; t.P2 |> V3f |] ))
@@ -334,11 +341,8 @@ module Bundle =
                             |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ( if a then (C4f(1.0,1.0,1.0,0.75)).ToV4f() else (C4f(1.0,0.0,0.0,0.75)).ToV4f()))
                             |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true)), ci
                     a <- true
-                            
             ] 
-
-               
-
-        sol, tris,someSg, images
+            
+        sol, tris, someSg, images
 
 
