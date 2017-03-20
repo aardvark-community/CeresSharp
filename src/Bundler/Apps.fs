@@ -78,12 +78,35 @@ module PairViewer =
         let currentImgs = Mod.init (images.[0], images.[1])
         let featureType = Mod.init Akaze
 
-        let currentLampta   = Mod.init 35.0
-        let currentSickma   = Mod.init 0.5
-        let probability     = Mod.init 0.5
-        let aLambda         = Mod.init 20.0
-        let aSigma          = Mod.init 0.5
-        let aThreshold      = Mod.init 0.01
+        let cfg : stuffConfig = 
+            if System.IO.File.Exists (configfile()) then
+                Log.line @"Loading config from C:\blub"
+                let pickler = MBrace.FsPickler.FsPickler.CreateXmlSerializer(indent=true)
+                File.readAllText (configfile()) |> pickler.UnPickleOfString
+            else
+                {
+                    pLambda = 35.0
+                    pSigma  = 0.5
+                    pProb   = 0.5
+                    aLambda = 20.0
+                    aSigma  = 0.5
+                    aThresh = 0.01
+                }
+
+//        let currentLampta   = Mod.init 35.0
+//        let currentSickma   = Mod.init 0.5
+//        let probability     = Mod.init 0.5
+//        let aLambda         = Mod.init 20.0
+//        let aSigma          = Mod.init 0.5
+//        let aThreshold      = Mod.init 0.01
+//        let useA            = Mod.init true
+
+        let currentLampta   = Mod.init cfg.pLambda
+        let currentSickma   = Mod.init cfg.pSigma
+        let probability     = Mod.init cfg.pProb
+        let aLambda         = Mod.init cfg.aLambda
+        let aSigma          = Mod.init cfg.aSigma
+        let aThreshold      = Mod.init cfg.aThresh
         let useA            = Mod.init true
 
         let config =
@@ -508,7 +531,7 @@ module BundlerViewer =
     let transferPoint (fromCam : Camera3d * Triangle3d[]) (toCam : Camera3d * Triangle3d[]) (point : V2d) : Option<V2d> =
         let (fcam, ftris) = fromCam
         let (tcam, _) = toCam
-        let pos = fcam.Unproject point -fcam.FocalLength
+        let pos = fcam.Unproject point (-fcam.FocalLength - 0.0001)
 
         let ray = Ray3d(fcam.Position,(pos - fcam.Position).Normalized)
         let intersection = intersect ray ftris
@@ -538,7 +561,7 @@ module BundlerViewer =
             klickPoints 
             |> ASet.map ( fun (ci, ndc) ->
                     let cam = solution.cameras.[ci] |> fst
-                    let pos = cam.Unproject ndc -cam.FocalLength
+                    let pos = cam.Unproject ndc (-cam.FocalLength - 0.0001)
                     Log.line "Unprojected to: %A" pos
                     let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
                     
@@ -557,11 +580,11 @@ module BundlerViewer =
                             | Some ii -> 
                                 Log.line "Intersection at: %A" ii
                                 yield ii
-
+                                 
                             match othercam with
                             | None -> ()
                             | Some ii -> 
-                                let oo = oc.Unproject ii -oc.FocalLength
+                                let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
                                 Log.line "Unprojected in other cam: %A" oo 
                                 yield oo
                                 
