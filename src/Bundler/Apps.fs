@@ -552,7 +552,7 @@ module BundlerViewer =
 
         lines
             |> Array.toList
-            |> List.map ( fun (p,d,_) -> p,d )
+            |> List.map ( fun (_,d,_) -> p,d )
             |> List.tryHead
 
     let transferPoint (fromCam : Camera3d * DepthFun) (toCam : Camera3d * DepthFun) (point : V2d) : Option<V3d*(V2d*float)> =
