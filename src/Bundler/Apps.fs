@@ -159,7 +159,7 @@ module PairViewer =
                     let (m2g,stats) =
                         if useAffine then
                             if m2g.Length >= 20 then 
-                                let (qn,ex,ey) = MatchProblem.affineDistance affineLambda affineSigma m2g
+                                let (qn,ex,ey,dx,dy) = MatchProblem.affineDistance affineLambda affineSigma m2g
 
                                 let (supermatches,ws) = 
                                     m2g |> Array.map ( fun m ->
@@ -590,13 +590,20 @@ module BundlerViewer =
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
 
-        let (solution, tris ,ssg, imgs) = Bundle.filesIn path
+        let (solution, tris, ssg, imgs, features) = Bundle.filesIn path
         
         let b = Bam.Oida |> Mod.init
         let blurg = Bam.Oida |> Mod.init
         let totalblurg = true |> Mod.init
 
         let klickPoints : cset<int * V2d> = CSet.empty
+
+        let tttt (ndc : V2d) = 
+            let q = Match.qq
+            let mm = Match2d(ndc, V2d.OO, V4d.OOOO, 0, 1)
+            let (qe,_,_) = q |> Option.get
+            let pred = qe mm
+            ndc + pred
 
         let klickPointsSg = 
             klickPoints 
@@ -612,20 +619,24 @@ module BundlerViewer =
                     let other = if ci = 1 then 0 else 1
                     let oc = solution.cameras.[other] |> fst
                     let tro = tris.[other]
-                    let othercam = transferPoint (cam,f) (oc,tro) ndc
+                    //let othercam = transferPoint (cam,f) (oc,tro) ndc
+
+                    let tttt = tttt ndc
 
                     let ps = 
                         [|
                             yield pos
                                  
-                            match othercam with
-                            | None -> ()
-                            | Some (p3d, (ii,_)) -> 
-                                yield p3d
+                            yield oc.Unproject tttt (-oc.FocalLength - 0.0001)
 
-                                let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
-                                Log.line "Unprojected in other cam: %A" oo 
-                                yield oo
+                            //match othercam with
+                            //| None -> ()
+                            //| Some (p3d, (ii,_)) -> 
+                            //    yield p3d
+
+                            //    let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
+                            //    Log.line "Unprojected in other cam: %A" oo 
+                            //    yield oo
                                 
                         |]
 
@@ -639,6 +650,42 @@ module BundlerViewer =
                         do! DefaultSurfaces.pointSprite
                         do! DefaultSurfaces.pointSpriteFragment
                     }
+
+        let allPointsSg =
+            let rand = RandomSystem()
+            let (pos,col) = 
+                [|
+                    let s = 24.0
+                    for x in -s .. s do
+                        for y in -s .. s do
+                        let x = x / s
+                        let y = y / s
+                        let ndc = V2d(x,y)
+                        let ondc = tttt ndc
+
+                        let cam = solution.cameras.[0] |> fst
+                        let oc =  solution.cameras.[1] |> fst
+                        let t =  tris.[0]
+                        let ot = tris.[1]
+
+                        //let (_, ( ondc, _ )) = transferPoint (cam,t) (oc,ot) ndc |> Option.get
+
+                        let col = rand.UniformC3f().ToC4b()
+                        
+                        yield cam.Unproject ndc (-cam.FocalLength - 0.0001), col
+                        yield oc.Unproject ondc (-oc.FocalLength - 0.0001), col
+
+                |] |> Array.unzip
+            
+            IndexedGeometryPrimitives.points pos col
+                |> Sg.ofIndexedGeometry
+                |> Sg.uniform "PointSize" (Mod.constant (float 6))
+                |> Sg.shader { 
+                    do! DefaultSurfaces.trafo
+                    do! DefaultSurfaces.vertexColor
+                    do! DefaultSurfaces.pointSprite
+                    do! DefaultSurfaces.pointSpriteFragment
+                }
 
         let sg : ISg = 
 
@@ -661,7 +708,7 @@ module BundlerViewer =
                 [
                     SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution imgs b
                     blurgs
-                    
+                    allPointsSg
                     klickPointsSg
                 ] |> Sg.ofList
 

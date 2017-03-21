@@ -801,8 +801,7 @@ module Feature =
             Log.stop()
 
             { data = data; images = images; features = features; edges = spanningTree }
-
-
+            
         let toBundlerInput (g : FeatureGraph) (minTrackLength : int) (maxFeaturesPerCam : int) =
 
             let features = g.features
@@ -836,8 +835,7 @@ module Feature =
                            if other.Count >= 1 then Some (ii, Seq.head other)
                            else None
                         )
-
-
+                        
                     match next with
                         | Some(dstImg, dstNode) ->
                             // kill the connection
@@ -855,7 +853,7 @@ module Feature =
                 if path.Length >= minTrackLength then
                     pathCounter <- pathCounter + 1
                     paths.Add(usedImages, path)
-                    let str = path |> Array.map (fun f -> sprintf "(%d, %d)" f.image f.featureIndex) |> String.concat " -> "
+                    let str = path |> Array.map (fun f -> sprintf "(%d,  %d)" f.image f.featureIndex) |> String.concat " -> "
                     Log.warn "%A: found path: %s" pathCounter str
 
 
