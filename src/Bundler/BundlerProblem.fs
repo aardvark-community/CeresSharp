@@ -146,6 +146,50 @@ module MatchProblem =
 
     let m2v (m : Match2d) = V4d(m.Pos.X, m.Pos.Y, m.Vel.X, m.Vel.Y)
 
+    let pred_d ( d : int -> float ) (sigma : float)(ps : V2d[]) =
+        
+        let N = ps.Length
+
+        let px i = ps.[i].X
+        let py i = ps.[i].Y
+
+        let e' i (p : V2d) = exp ( -(1.0/sigma) * ((p.X - px i) ** 2.0 + (p.Y - py i) ** 2.0))
+
+        let e i j = e' i ps.[j]
+
+        let r = 
+            Array.init N ( fun j ->
+                d j * d j * e j j
+            )
+
+        let M =
+            let arrays = 
+                [|
+                    for j in 0..N-1 do  //dwj
+                        yield [|
+                            for i in 0..N-1 do      //wi
+                                yield d i * d j * e i j * e j j
+                        |]
+                |]
+            
+            Array2D.init (arrays |> Array.length) (arrays.[0] |> Array.length) ( fun i j -> arrays.[i].[j] )
+       
+        let perm =  M.LuFactorize()
+        let w =     M.LuSolve(perm, r)
+
+        let d (p : V2d) = sum N ( fun i -> d i * w.[i] * e' i p )
+
+        d
+
+    let prediction (ds : V2d[]) (ps : V2d[]) (sigma : float) =
+        
+        let dx = pred_d ( fun i -> ds.[i].X ) sigma ps
+        let dy = pred_d ( fun i -> ds.[i].Y ) sigma ps
+
+        let d p = V2d(dx p, dy p)
+
+        d
+
     let q_dim (lambda : float) (sigma : float) (ms : V4d[]) (qdach : V4d -> float) =
         let N = ms.Length
 
@@ -270,8 +314,8 @@ module MatchProblem =
 
             Array2D.init (arrays |> Array.length) (arrays.[0] |> Array.length) ( fun i j -> arrays.[i].[j] )
 
-        let perm = M.LuFactorize()
-        let w = M.LuSolve(perm, r)
+        let perm =  M.LuFactorize()
+        let w =     M.LuSolve(perm, r)
         
         let U = [| for i in   0 ..   N-1 do yield w.[i] |]
         let V = [| for i in   N .. 2*N-1 do yield w.[i] |]

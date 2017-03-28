@@ -590,7 +590,7 @@ module BundlerViewer =
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
 
-        let (solution, tris, ssg, imgs, features) = Bundle.filesIn path
+        let (solution, tris, ssg, imgs, features, edg) = Bundle.filesIn path
         
         let b = Bam.Oida |> Mod.init
         let blurg = Bam.Oida |> Mod.init
@@ -604,6 +604,33 @@ module BundlerViewer =
             let (qe,_,_) = q |> Option.get
             let pred = qe mm
             ndc + pred
+            
+        let yolo = 
+            let (ps,ds) =
+                let filtered = 
+                    edg.weight 
+                        //|> Array.filteri ( fun i _ -> i < 10 )
+
+                let mapped = 
+                    filtered
+                        |> Array.map ( fun (i0,i1) -> 
+                            features.[edg.i0].[i0].ndc, 
+                            features.[edg.i1].[i1].ndc) 
+
+                let dec = 2
+                let distincted =
+                    mapped
+                        |> Array.distinctBy ( fun (p,d) ->
+                            V2d(Math.Round(p.X,dec),Math.Round(p.Y,dec)))
+                        |> Array.distinctBy ( fun (p,d) ->
+                            Math.Round(d.X,dec))
+                        |> Array.distinctBy ( fun (p,d) ->
+                            Math.Round(d.Y,dec))
+
+                distincted
+                    |> Array.unzip
+                    
+            MatchProblem.prediction ds ps 0.5
 
         let klickPointsSg = 
             klickPoints 
@@ -619,7 +646,7 @@ module BundlerViewer =
                     let other = if ci = 1 then 0 else 1
                     let oc = solution.cameras.[other] |> fst
                     let tro = tris.[other]
-                    //let othercam = transferPoint (cam,f) (oc,tro) ndc
+                    let othercam = transferPoint (cam,f) (oc,tro) ndc
 
                     let tttt = tttt ndc
 
@@ -627,16 +654,16 @@ module BundlerViewer =
                         [|
                             yield pos
                                  
-                            yield oc.Unproject tttt (-oc.FocalLength - 0.0001)
+                            //yield oc.Unproject tttt (-oc.FocalLength - 0.0001)
 
-                            //match othercam with
-                            //| None -> ()
-                            //| Some (p3d, (ii,_)) -> 
-                            //    yield p3d
+                            match othercam with
+                            | None -> ()
+                            | Some (p3d, (ii,_)) -> 
+                                yield p3d
 
-                            //    let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
-                            //    Log.line "Unprojected in other cam: %A" oo 
-                            //    yield oo
+                                let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
+                                Log.line "Unprojected in other cam: %A" oo 
+                                yield oo
                                 
                         |]
 
@@ -651,29 +678,35 @@ module BundlerViewer =
                         do! DefaultSurfaces.pointSpriteFragment
                     }
 
+
         let allPointsSg =
             let rand = RandomSystem()
             let (pos,col) = 
                 [|
-                    let s = 24.0
-                    for x in -s .. s do
-                        for y in -s .. s do
-                        let x = x / s
-                        let y = y / s
-                        let ndc = V2d(x,y)
-                        let ondc = tttt ndc
-
-                        let cam = solution.cameras.[0] |> fst
-                        let oc =  solution.cameras.[1] |> fst
-                        let t =  tris.[0]
-                        let ot = tris.[1]
-
-                        //let (_, ( ondc, _ )) = transferPoint (cam,t) (oc,ot) ndc |> Option.get
-
-                        let col = rand.UniformC3f().ToC4b()
+                    let cam = solution.cameras.[0] |> fst
+                    let oc =  solution.cameras.[1] |> fst
+                    let t =  tris.[0]
+                    let ot = tris.[1]
+                   
+                    //for (f,_) in edg.weight |> Array.map ( fun (i0,i1) -> features.[edg.i0].[i0], features.[edg.i1].[i1]) do
                         
-                        yield cam.Unproject ndc (-cam.FocalLength - 0.0001), col
-                        yield oc.Unproject ondc (-oc.FocalLength - 0.0001), col
+                        //let ndc = f.ndc
+                        //let ondc = tttt ndc
+                        //let (_, ( ondc, _ )) = transferPoint (cam,t) (oc,ot) ndc |> Option.get
+                    
+                    //let s = 40.0
+                    //for i in -s .. s do
+                    //    for j in -s .. s do
+                    //        let ndc = V2d(i / s, j / s)
+
+                    for f in features.[0] do
+                                let ndc = f.ndc
+                                let ondc = yolo ndc
+
+                                let col = rand.UniformC3f().ToC4b()
+                        
+                                yield cam.Unproject ndc (-cam.FocalLength - 0.0001), col
+                                yield oc.Unproject ondc (-oc.FocalLength - 0.0001), col
 
                 |] |> Array.unzip
             

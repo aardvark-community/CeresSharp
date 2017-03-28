@@ -125,8 +125,8 @@ module Bundle =
 
         let allCamerasSameDistortion = true
 
-        let cacheFeatureMatching    = false
-        let cacheBundlerResult      = false
+        let cacheFeatureMatching    = true
+        let cacheBundlerResult      = true
 
 
         Log.line "Reading images ... "
@@ -207,11 +207,7 @@ module Bundle =
 
             Log.startTimed "BundlerInput generation"
             let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
-
-            //let input = 
-                
-                
-            //    failwith ""
+            
 
             let problem = input |> BundlerInput.toProblem
         
@@ -361,7 +357,7 @@ module Bundle =
                         a <- true
                 ] 
             
-            sols <- (sol, tris, someSg, images, data)::sols
+            sols <- (sol, tris, someSg, images, data, e)::sols
         
         sols |> List.head
 
