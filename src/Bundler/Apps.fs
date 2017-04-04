@@ -811,7 +811,7 @@ module BundlerViewer =
 
         printfn "Done."
 
-    
+    open System.IO
     let sponza sponzaPath =
         
         use app = new OpenGlApplication()
@@ -830,7 +830,22 @@ module BundlerViewer =
 
         let problem = input |> BundlerInput.toProblem
 
-        let solution = Bundler.solve true problem
+        let cacheSolution = true
+        let solution = 
+            if not cacheSolution then 
+                Log.line "No caching involved."
+                Bundler.solve true problem
+            else
+                let fn = @"D:\file\sponza_bun\cachedSol"
+                let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+                if File.Exists fn then
+                    Log.warn "Reading cached solution"
+                    fn |> File.readAllBytes |> ser.UnPickle
+                else
+                    let sol = Bundler.solve true problem
+                    Log.warn "Writing solution to cache"
+                    sol |> ser.Pickle |> File.writeAllBytes fn
+                    sol
         
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
                                 |> Mod.map Frustum.projTrafo
@@ -861,36 +876,96 @@ module Example =
 
         //euclid/inout/backend-paper/sponza_obj_copy
         Loader.Assimp.initialize()
-        let scene = Loader.Assimp.load @"D:\file\sponza\sponza_NoMaterials_cm.obj"
+        let scene = Loader.Assimp.loadFrom @"D:\file\sponza\sponza_NoMaterials_cm.obj" Assimp.PostProcessSteps.None
         
-        let scale = Trafo3d.Scale (V3d.III * (1.0/100.0))
-        
+        //let scale = Trafo3d.Scale (V3d.III * (1.0/100.0))
 
-        let sponzaVertices = 
-            let a = scene.meshes |> Array.head
+        
+        let rand = RandomSystem()
+        let (sponzaNormals, sponzaVertices) = 
+
+            let center = 
+                let middle = scene.bounds.Center
+                Trafo3d.Translation -middle
+
             let pos = 
-                a.geometry.IndexedAttributes.[Sym.ofString "Positions"] :?> V3f[]
+                [|
+                    for a in scene.meshes do
+                        yield a.geometry.IndexedAttributes.[DefaultSemantic.Positions] :?> V3f[]
+                |]  |> Array.concat
                     |> Array.map V3d.op_Explicit
-                    |> Array.map scale.Forward.TransformPos
+                    |> Array.map center.Forward.TransformPos
 
-            let bs = pos.GetBoundingBox3d()
-            let center = Trafo3d.Translation (-bs.Center)
-            
-            let dec = 2
 
-            pos |> Array.map center.Forward.TransformPos
-                |> Array.distinctBy ( fun p ->
-                    V3d(Math.Round(p.X, dec), Math.Round(p.Y, dec), Math.Round(p.Z, dec)))
-                |> Array.filter ( fun v -> v.X < 1.0 && v.X > -1.0 && v.Y < 1.0 && v.Y > -1.0 )
-                |> Array.take 200
+            let norm = 
+                [|
+                    for a in scene.meshes do
+                        yield a.geometry.IndexedAttributes.[DefaultSemantic.Normals] :?> V3f[]
+                |]  |> Array.concat
+                    |> Array.map V3d.op_Explicit
 
-        let cams = 10
+            pos
+                |> Array.zip norm
+                |> Array.filter (fun _ -> rand.UniformDouble() < 0.0001)
+                |> Array.unzip
+           
+        let cams = 4
 
         let center = V3d.OOO
-        let r = 1.0
+        let r = 3000.0
 
         let mutable i = 0.0
         let step = (2.0 * Math.PI) / float cams
+
+
+
+
+
+
+        use app = new OpenGlApplication()
+        use win = app.CreateSimpleRenderWindow(8)
+
+        let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
+                                |> Mod.map Frustum.projTrafo
+
+        let view = CameraView.lookAt (V3d(0.0, r*1.0, 0.0)) V3d.Zero V3d.OOI
+                                |> DefaultCameraController.controlWithSpeed (Mod.init 1000.0) win.Mouse win.Keyboard win.Time
+                                |> Mod.map CameraView.viewTrafo
+
+        let sg = 
+            IndexedGeometry(
+                Mode = IndexedGeometryMode.PointList,
+                IndexedAttributes = 
+                    SymDict.ofList [
+                        DefaultSemantic.Positions, sponzaVertices :> Array
+                        DefaultSemantic.Normals, sponzaNormals :> Array
+                    ]
+                )       
+                    |> Sg.ofIndexedGeometry
+                    |> Sg.shader {
+                        do! DefaultSurfaces.trafo
+                        do! DefaultSurfaces.pointSprite
+                        do! DefaultSurfaces.pointSpriteFragment
+                        do! DefaultSurfaces.constantColor C4f.White
+                        do! DefaultSurfaces.simpleLighting
+                    }
+                    |> Sg.uniform "PointSize" (Mod.constant 5.0)
+                    |> Sg.viewTrafo view
+                    |> Sg.projTrafo proj
+
+        let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
+        win.RenderTask <- task
+
+        win.Run()
+
+        //System.Environment.Exit 0
+
+
+
+
+
+
+
 
         Log.startTimed "Big Array"
         let ms =
@@ -909,7 +984,6 @@ module Example =
                     yield List<int*Feature>()
             |]
         
-        let rand = RandomSystem()
 
         Log.startTimed "Fill small array"
         for c in 0 .. cams-1 do
@@ -921,8 +995,9 @@ module Example =
 
                 let v = sponzaVertices.[pi]
 
-                if rand.UniformDouble() < 1.0 then
-                
+                if rand.UniformDouble() < 1.5 then
+                    
+                    
                     let f = {   
                                 ndc         = cam.Project v
                                 angle       = 0.0
@@ -930,8 +1005,9 @@ module Example =
                                 response    = 1.0
                                 descriptor  = FeatureDescriptor([||])
                             }
-                                
-                    fs.[c].Add (pi,f)
+                    
+                    if f.ndc.X < 1.0 && f.ndc.X > -1.0 && f.ndc.Y < 1.0 && f.ndc.Y > -1.0 then
+                        fs.[c].Add (pi,f)
 
             i <- i + step
 
@@ -958,6 +1034,16 @@ module Example =
         let s = { ms = ms; fs = fs }
 
         let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+
+
+
+
+
+
+
+
+
+
 
         s |> ser.Pickle |> File.writeAllBytes outPath
         

@@ -894,7 +894,7 @@ module Feature =
             for KeyValue(len,ct) in resultByCount do
                 Log.line "length: %A  count: %A" len ct
             
-            let colors = result |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
+            let colors = result |> Seq.concat |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
 
             let measurements = Dictionary<_,_>()
 

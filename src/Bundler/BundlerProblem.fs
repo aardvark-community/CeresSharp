@@ -785,9 +785,9 @@ module BundlerSolution =
                     | 0 -> 
                         yield ci, (Camera3d.LookAt(V3d.IOO * 10.0, V3d.Zero, 1.0, V3d.OOI),true)     //<- isFixedVariable
                     | 1 -> 
-                        yield ci, (Camera3d.LookAt(V3d.OIO * 10.0, V3d.Zero, 1.5, V3d.OOI),false)    //<- isFreeVariable
+                        yield ci, (Camera3d.LookAt(V3d.OIO * 10.0, V3d.Zero, 1.0, V3d.OOI),false)    //<- isFreeVariable
                     | _ -> 
-                        yield ci, (Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.5, V3d.OOI),false)    //<- isFreeVariable
+                        yield ci, (Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.0, V3d.OOI),false)    //<- isFreeVariable
             ] |> Map.ofList
 
         let points = 
