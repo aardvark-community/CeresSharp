@@ -583,14 +583,14 @@ module BundlerViewer =
 
         p
 
-    
-
     let folder path =
+
+        let scaleTrafo = Trafo3d.Scale (V3d.III * 5.0)
         
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
 
-        let (solution, tris, ssg, imgs, features, edg) = Bundle.filesIn path
+        let (solution, tris, ssg, imgs, features) = Bundle.filesIn path
         
         let b = Bam.Oida |> Mod.init
         let blurg = Bam.Oida |> Mod.init
@@ -605,32 +605,32 @@ module BundlerViewer =
             let pred = qe mm
             ndc + pred
             
-        let yolo = 
-            let (ps,ds) =
-                let filtered = 
-                    edg.weight 
-                        //|> Array.filteri ( fun i _ -> i < 10 )
+        //let yolo = 
+        //    let (ps,ds) =
+        //        let filtered = 
+        //            edg.weight 
+        //                //|> Array.filteri ( fun i _ -> i < 10 )
 
-                let mapped = 
-                    filtered
-                        |> Array.map ( fun (i0,i1) -> 
-                            features.[edg.i0].[i0].ndc, 
-                            features.[edg.i1].[i1].ndc) 
+        //        let mapped = 
+        //            filtered
+        //                |> Array.map ( fun (i0,i1) -> 
+        //                    features.[edg.i0].[i0].ndc, 
+        //                    features.[edg.i1].[i1].ndc) 
 
-                let dec = 2
-                let distincted =
-                    mapped
-                        |> Array.distinctBy ( fun (p,d) ->
-                            V2d(Math.Round(p.X,dec),Math.Round(p.Y,dec)))
-                        |> Array.distinctBy ( fun (p,d) ->
-                            Math.Round(d.X,dec))
-                        |> Array.distinctBy ( fun (p,d) ->
-                            Math.Round(d.Y,dec))
+        //        let dec = 2
+        //        let distincted =
+        //            mapped
+        //                |> Array.distinctBy ( fun (p,d) ->
+        //                    V2d(Math.Round(p.X,dec),Math.Round(p.Y,dec)))
+        //                |> Array.distinctBy ( fun (p,d) ->
+        //                    Math.Round(d.X,dec))
+        //                |> Array.distinctBy ( fun (p,d) ->
+        //                    Math.Round(d.Y,dec))
 
-                distincted
-                    |> Array.unzip
+        //        distincted
+        //            |> Array.unzip
                     
-            MatchProblem.prediction ds ps 0.5
+        //    MatchProblem.prediction ds ps 0.5
 
         let klickPointsSg = 
             klickPoints 
@@ -643,12 +643,15 @@ module BundlerViewer =
 //                    let intersection = intersect ray f
 
                     let f = tris.[ci]
-                    let other = if ci = 1 then 0 else 1
-                    let oc = solution.cameras.[other] |> fst
-                    let tro = tris.[other]
-                    let othercam = transferPoint (cam,f) (oc,tro) ndc
-
-                    let tttt = tttt ndc
+                    
+                    let otherpoints = 
+                        [| 
+                            let ocs = [ 0 .. solution.cameras.Count - 1 ] |> List.except [ci]
+                            for other in ocs do
+                                let oc = solution.cameras.[other] |> fst
+                                let tro = tris.[other]
+                                yield other,transferPoint (cam,f) (oc,tro) ndc
+                        |]
 
                     let ps = 
                         [|
@@ -656,14 +659,17 @@ module BundlerViewer =
                                  
                             //yield oc.Unproject tttt (-oc.FocalLength - 0.0001)
 
-                            match othercam with
-                            | None -> ()
-                            | Some (p3d, (ii,_)) -> 
-                                yield p3d
+                            for (oci,othercam) in otherpoints do
+                                match othercam with
+                                | None -> ()
+                                | Some (p3d, (ii,_)) -> 
+                                    yield p3d
 
-                                let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
-                                Log.line "Unprojected in other cam: %A" oo 
-                                yield oo
+                                    let (oc,_) = solution.cameras.[oci]
+
+                                    let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
+                                    Log.line "Unprojected in other cam: %A" oo 
+                                    yield oo
                                 
                         |]
 
@@ -700,13 +706,14 @@ module BundlerViewer =
                     //        let ndc = V2d(i / s, j / s)
 
                     for f in features.[0] do
-                                let ndc = f.ndc
-                                let ondc = yolo ndc
+                        ()
+                                //let ndc = f.ndc
+                                //let ondc = yolo ndc
 
-                                let col = rand.UniformC3f().ToC4b()
+                                //let col = rand.UniformC3f().ToC4b()
                         
-                                yield cam.Unproject ndc (-cam.FocalLength - 0.0001), col
-                                yield oc.Unproject ondc (-oc.FocalLength - 0.0001), col
+                                //yield cam.Unproject ndc (-cam.FocalLength - 0.0001), col
+                                //yield oc.Unproject ondc (-oc.FocalLength - 0.0001), col
 
                 |] |> Array.unzip
             
@@ -778,6 +785,7 @@ module BundlerViewer =
 
         win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> if not <| (win.Keyboard.IsDown Keys.LeftCtrl).GetValue() then transact ( fun _ -> b.Value <- Fix 0))
         win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> if not <| (win.Keyboard.IsDown Keys.LeftCtrl).GetValue() then transact ( fun _ -> b.Value <- Fix 1))
+        win.Keyboard.KeyDown(Keys.D3).Values.Add ( fun _ -> if not <| (win.Keyboard.IsDown Keys.LeftCtrl).GetValue() then transact ( fun _ -> b.Value <- Fix 2))
         win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ -> b.Value <- Oida))
         win.Keyboard.KeyDown(Keys.F).Values.Add 
             ( fun _ -> 
@@ -793,6 +801,7 @@ module BundlerViewer =
         win.Keyboard.KeyDown(Keys.T).Values.Add ( fun _ -> transact ( fun _ -> totalblurg.Value <- not totalblurg.Value ))
         win.Keyboard.KeyDown(Keys.NumPad1).Values.Add( fun _ -> transact ( fun _ -> blurg.Value <- Fix 0) )
         win.Keyboard.KeyDown(Keys.NumPad2).Values.Add( fun _ -> transact ( fun _ -> blurg.Value <- Fix 1) )
+        win.Keyboard.KeyDown(Keys.NumPad3).Values.Add( fun _ -> transact ( fun _ -> blurg.Value <- Fix 2) )
         win.Keyboard.KeyDown(Keys.NumPad0).Values.Add( fun _ -> transact ( fun _ -> blurg.Value <- Bam.Oida) )
 
         let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
@@ -801,3 +810,154 @@ module BundlerViewer =
         win.Run()
 
         printfn "Done."
+
+    
+    let sponza sponzaPath =
+        
+        use app = new OpenGlApplication()
+        use win = app.CreateSimpleRenderWindow(8)
+
+        let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+
+        let graphInput = sponzaPath 
+                            |> File.readAllBytes 
+                            |> ser.UnPickle
+                            |> ModelSer.toGraphInput
+        
+        let graph = Feature.FeatureGraph.build graphInput
+
+        let input = Feature.FeatureGraph.toBundlerInputSiegfried graph 2
+
+        let problem = input |> BundlerInput.toProblem
+
+        let solution = Bundler.solve true problem
+        
+        let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
+                                |> Mod.map Frustum.projTrafo
+
+        let view = CameraView.lookAt (V3d(0.0, 2.0, 0.0)) V3d.Zero -V3d.OOI
+                                |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
+                                |> Mod.map CameraView.viewTrafo
+
+        let sg = SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution graphInput.images (Mod.constant Bam.Oida)
+                    |> Sg.viewTrafo view
+                    |> Sg.projTrafo proj
+
+        let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
+        win.RenderTask <- task
+
+        win.Run()
+           
+        printfn "Done."
+
+
+module Example =
+
+    open Aardvark.SceneGraph.IO
+    open System.Collections.Generic
+
+
+    let renderSponza outPath =
+
+        //euclid/inout/backend-paper/sponza_obj_copy
+        Loader.Assimp.initialize()
+        let scene = Loader.Assimp.load @"D:\file\sponza\sponza_NoMaterials_cm.obj"
+        
+        let scale = Trafo3d.Scale (V3d.III * (1.0/100.0))
+        
+
+        let sponzaVertices = 
+            let a = scene.meshes |> Array.head
+            let pos = 
+                a.geometry.IndexedAttributes.[Sym.ofString "Positions"] :?> V3f[]
+                    |> Array.map V3d.op_Explicit
+                    |> Array.map scale.Forward.TransformPos
+
+            let bs = pos.GetBoundingBox3d()
+            let center = Trafo3d.Translation (-bs.Center)
+            
+            let dec = 2
+
+            pos |> Array.map center.Forward.TransformPos
+                |> Array.distinctBy ( fun p ->
+                    V3d(Math.Round(p.X, dec), Math.Round(p.Y, dec), Math.Round(p.Z, dec)))
+                |> Array.filter ( fun v -> v.X < 1.0 && v.X > -1.0 && v.Y < 1.0 && v.Y > -1.0 )
+                |> Array.take 200
+
+        let cams = 10
+
+        let center = V3d.OOO
+        let r = 1.0
+
+        let mutable i = 0.0
+        let step = (2.0 * Math.PI) / float cams
+
+        Log.startTimed "Big Array"
+        let ms =
+            [|
+            for _ in 0..cams-1 do
+                yield   [|
+                        for _ in 0..cams-1 do
+                            yield   HashSet.empty
+                        |]
+            |]
+        Log.stop()
+
+        let fs =
+            [|
+                for _ in 0..cams-1 do
+                    yield List<int*Feature>()
+            |]
+        
+        let rand = RandomSystem()
+
+        Log.startTimed "Fill small array"
+        for c in 0 .. cams-1 do
+            let x = r * sin i
+            let y = r * cos i
+            let cam = Camera3d.LookAt(center + V3d(x,y,0.0), center, 1.0, V3d.OOI)
+            
+            for pi in 0..sponzaVertices.Length-1 do
+
+                let v = sponzaVertices.[pi]
+
+                if rand.UniformDouble() < 1.0 then
+                
+                    let f = {   
+                                ndc         = cam.Project v
+                                angle       = 0.0
+                                size        = 1.0
+                                response    = 1.0
+                                descriptor  = FeatureDescriptor([||])
+                            }
+                                
+                    fs.[c].Add (pi,f)
+
+            i <- i + step
+
+        Log.stop ()
+
+        Log.startTimed "Fill big array"
+
+        for lc in 0 .. cams-1 do
+            Log.startTimed "Cam %A of %A" lc (cams-1)
+            for rc in 0 .. cams-1 do
+                let lfs = fs.[lc] |> Seq.toArray
+                let rfs = fs.[rc] |> Seq.toArray
+                for lp in 0 .. lfs.Length-1 do
+                    for rp in 0 .. rfs.Length-1 do
+                        let (lfli,_) = lfs.[lp]
+                        let (lfri,_) = rfs.[rp]
+                        if lfli = lfri then
+                            ms.[lc].[rc] |> HashSet.add (lp,rp) |> ignore
+            Log.stop()
+
+        Log.stop()
+
+        let fs = fs |> Array.map ( fun gl -> gl.ToArray() |> Array.map snd )
+        let s = { ms = ms; fs = fs }
+
+        let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+
+        s |> ser.Pickle |> File.writeAllBytes outPath
+        

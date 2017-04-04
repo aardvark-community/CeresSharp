@@ -294,7 +294,7 @@ type MatchingConfig =
         distanceThreshold : float
     }
 
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix);AutoOpen>]
 module Feature =
     open System.Collections.Generic
     open OpenCvSharp
@@ -704,7 +704,7 @@ module Feature =
                     if set.Remove f then
                         if set.Count = 0 then
                             x.corresponding.Remove image |> ignore
-                | _ -> ()
+                | _ -> Log.error "Removing something that isn't here."; ()
         member x.Clear(image : int) =
             x.corresponding.Remove image |> ignore
 
@@ -735,11 +735,34 @@ module Feature =
             C4f(c, 0.0, x, a)
         else 
             C4f(0.0, 0.0, 0.0, a)
+    
+    type FeatureGraphInput =
+        {
+            matcher : Feature[][] -> int -> int -> (int*int)[]
+            images  : PixImage<byte>[]
+            data    : Feature[][]
+        }
+    
+    type ModelSer =
+        {
+            ms : HashSet<int32*int32>[][]
+            fs : Feature[][]
+        }
+        
+    [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+    module ModelSer =
+        let toGraphInput (ms : ModelSer) =
+            {
+                images = Array.init (ms.fs |> Array.length) ( fun _ -> PixImage<byte>(Col.Format.RGBA, V2i(400,400)) )
+                data   = ms.fs
+                matcher = (fun _ (lcam : int) (rcam : int) -> ms.ms.[lcam].[rcam] |> HashSet.toArray)
+            }
+
 
     [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
     module FeatureGraph =
         
-        let build (matcher : Feature[] -> Feature[] -> (int*int)[]) (images : PixImage<byte>[]) (data : Feature[][]) =
+        let build (input : FeatureGraphInput) =
             let nodes = Dict<int * int, FeatureNode>()
             let features = Dict()
 
@@ -749,7 +772,7 @@ module Feature =
                         {
                             image           = image
                             featureIndex    = featureIndex
-                            feature         = data.[image].[featureIndex]
+                            feature         = input.data.[image].[featureIndex]
                             corresponding   = Dict()
                         }
 
@@ -763,18 +786,15 @@ module Feature =
 
             let allPairs = 
                 [|
-                    for lImg in 0 .. data.Length - 1  do
-                        for rImg in lImg + 1 .. data.Length - 1 do
+                    for lImg in 0 .. input.data.Length - 1  do
+                        for rImg in lImg + 1 .. input.data.Length - 1 do
                             yield lImg, rImg
                 |]
 
             let edges = 
                 allPairs |> Array.choose (fun (lImg, rImg) ->
-                    let lFeatures = data.[lImg]
-                    let rFeatures = data.[rImg]
-
                     Log.line "Now matching %d/%d" lImg rImg
-                    let matches = matcher lFeatures rFeatures
+                    let matches = input.matcher input.data lImg rImg
                     if matches.Length > 0 then
                         Log.line "matched %d/%d: %d" lImg rImg matches.Length
                         Some { i0 = lImg; i1 = rImg; weight = matches }
@@ -800,8 +820,112 @@ module Feature =
                     rNode.Add(lImg, lNode)
             Log.stop()
 
-            { data = data; images = images; features = features; edges = spanningTree }
+            { data = input.data; images = input.images; features = features; edges = spanningTree }
+
+        let toBundlerInputSiegfried (g : FeatureGraph) (minTrackLength : int) =
             
+            let used = Dict<int*FeatureNode, bool>()
+            let setUsed ci (f : FeatureNode) = used |> Dict.set (ci,f) true
+
+            let neighboursOf (f : FeatureNode) = (f.corresponding |> Dict.toList)
+
+            let rec traverseNeighboursAndFindPath (path : list<FeatureNode>) (neighbours : list<int*HashSet<FeatureNode>>) =
+                match neighbours with                                   //check corresponding neighbouring images
+                | [] -> path                                            //no more neighbours, we're finished
+                | (corImg, cor)::remainingNeighbours ->                 //has neighbours, take the first one
+
+                    let rec findUnusedMatch (cor : list<FeatureNode>) =
+                        match cor with
+                        | [] -> None
+                        | corFtr::remainingFtrs ->
+                            if used.[corImg,corFtr] then
+                                findUnusedMatch remainingFtrs
+                            else
+                                setUsed corImg corFtr
+                                Some corFtr
+
+                    match findUnusedMatch (cor |> HashSet.toList) with  //check if this neighbour has an unused feature match
+                    | None ->                                           //doesn't have unused feature, try the next neighbour
+                        traverseNeighboursAndFindPath (path) remainingNeighbours
+                    | Some m ->                                                     //has an unused feature. this is part of the result.
+                        let subPath = traverseNeighboursAndFindPath [] (neighboursOf m)                                 //first, collect all subresults from the neighbours
+                        traverseNeighboursAndFindPath ([[m]; subPath; path] |> List.concat) remainingNeighbours         //then, append them to the current and continue with next neighbour
+                        
+            let result = List<list<FeatureNode>>()
+
+            for KeyValue(ci,features) in g.features do for f in features do used |> Dict.add (ci,f) false
+            
+            let mutable tooShort = 0
+            Log.line "Paths (img:ftr): "
+            for KeyValue(ci,features) in g.features do
+                
+                for f in features do
+                                    
+                    if not used.[ci,f] then
+                        setUsed ci f
+                        let path = traverseNeighboursAndFindPath [f] (neighboursOf f)
+                        if path |> List.length >= minTrackLength then
+                            
+                            //status string print
+                            [ "Path: "; sprintf "start=%A " ci; [ for p in path do yield (sprintf " (%A:%A) " p.image p.featureIndex) ] |> String.concat "->"  ] |> String.concat " " |> Log.line "%s"
+
+                            result.Add path
+                        else
+                            tooShort <- tooShort+1
+                    else
+                        ()
+            
+            let result = result |> Seq.toList
+
+            Log.line "Found %A paths within %A FeatureNodes (%A imgs)."     result.Length    used.Count  g.images.Length
+            Log.line "MinTrackLength:\t\t%A"                                minTrackLength
+            Log.line "Too short tracks:\t\t%A"                              tooShort
+            Log.line "Used FeatureNodes:\t\t%A"                             (used |> Dict.toList |> List.sumBy ( fun (_,b) -> if b then 1 else 0))
+            Log.line "Unused FeatureNodes:\t%A"                             (used |> Dict.toList |> List.sumBy ( fun (_,b) -> if b then 0 else 1))
+            
+            let resultByCount =
+                result  |> List.fold (fun (counts:Dict<int,int>) (path) -> 
+                                        let key = path.Length
+                                        let ct = counts.GetOrCreate(key, fun _ -> 0)
+                                        counts |> Dict.set key (ct + 1) 
+                                        counts) (Dict<int,int>())
+            
+            Log.line "Number of valid tracks:"
+            for KeyValue(len,ct) in resultByCount do
+                Log.line "length: %A  count: %A" len ct
+            
+            let colors = result |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
+
+            let measurements = Dictionary<_,_>()
+
+            for i in 0 .. g.images.Length - 1 do
+                let file = g.images.[i].ToPixImage<byte>()
+                
+                measurements.Add(i,Dictionary<_,_>())
+
+                for fn in result |> List.map ( fun fs -> fs |> List.filter ( fun f -> f.image = i ) ) |> List.concat do
+                    let f = fn.feature
+                    let pi = fn.featureIndex
+                    let p = f.ndc
+                    
+                    measurements.[i].Add(pi,p)
+
+                    let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
+                    let size = clamp 5 10 (ceil (f.size / 3.0) |> int)
+                    
+                    file.GetMatrix<C4b>().SetCross(pp, size, colors.[pi])
+                    file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
+                    
+                let path = sprintf @"D:\file\pix\mtl%A" minTrackLength
+
+                if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+
+                file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
+                
+            { measurements = measurements |> Seq.map ( fun kvp -> int kvp.Key, kvp.Value |> Seq.map ( fun ikvp -> ikvp.Key, ikvp.Value ) |> Map.ofSeq ) |> Map.ofSeq }
+                        
+                    
+
         let toBundlerInput (g : FeatureGraph) (minTrackLength : int) (maxFeaturesPerCam : int) =
 
             let features = g.features
@@ -812,8 +936,7 @@ module Feature =
                 fs.Remove f |> ignore
                 if fs.Count = 0 then features.Remove image |> ignore
                 f
-
-
+                
             let mutable pathCounter = 0
             let paths = List<Set<int> * array<FeatureNode>>()
             while features.Count > 0 do
@@ -822,13 +945,6 @@ module Feature =
                 list.Add start
 
                 let rec traverse (visitedImages : Set<int>) (path : list<FeatureNode>) (start : FeatureNode) =
-//                    let mutable bad = false
-//                    for (dstImg, dstNode) in start.corresponding |> Dict.toArray do
-//                        // remove all connections that go to an image that was already
-//                        // visited and represent a non-chosen feature
-//                        if Set.contains dstImg visitedImages then
-//                            start.Clear dstImg
-//                            bad <- true
 
                     let next = 
                         start.corresponding |> Dict.toSeq |> Seq.tryPick (fun (ii,other) -> 
@@ -856,7 +972,6 @@ module Feature =
                     let str = path |> Array.map (fun f -> sprintf "(%d,  %d)" f.image f.featureIndex) |> String.concat " -> "
                     Log.warn "%A: found path: %s" pathCounter str
 
-
             let measurements = Array.create g.data.Length Map.empty
             let ff = Array.create g.data.Length Map.empty
 
@@ -877,9 +992,6 @@ module Feature =
                     for u in used do
                         targetCounts.[u] <- targetCounts.[u] - 1 
                         
-                        
-
-
             let rand = RandomSystem()
             let colors = paths |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float paths.Count, 1.0, 1.0).ToC4b()) |> Seq.toArray
 
@@ -895,7 +1007,6 @@ module Feature =
                     file.GetMatrix<C4b>().SetCross(pp, size, colors.[pi])
                     file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
                     
-
                 let path = sprintf @"C:\blub\yolo\out\mtl%A" minTrackLength
 
                 if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
@@ -904,8 +1015,7 @@ module Feature =
 
             { measurements = measurements |> Array.mapi ( fun i x -> i,x) |> Map.ofArray }
 
-
-
+            
 //    let toBundlerInput (config : MatchingConfig) (images : PixImage<byte>[]) (data : Feature[][]) =
 //        let graph = FeatureGraph.build config images data
 //        FeatureGraph.toBundlerInput graph

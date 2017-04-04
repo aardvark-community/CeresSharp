@@ -125,8 +125,8 @@ module Bundle =
 
         let allCamerasSameDistortion = true
 
-        let cacheFeatureMatching    = true
-        let cacheBundlerResult      = true
+        let cacheFeatureMatching    = false
+        let cacheBundlerResult      = false
 
 
         Log.line "Reading images ... "
@@ -181,184 +181,185 @@ module Bundle =
                         yield a,b
             |]
 
-        let cachedMatch l r =
+        let cachedMatch (d : Feature[][]) li ri =
             if cacheFeatureMatching then
                 all
                     |> Array.choose ( fun ((limg, lf),(rimg, rf)) ->
+                        let l = d.[li]
+                        let r = d.[ri]
                         if lf = l && rf = r then
                             cached (limg,rimg) ( fun _ -> pairMatch l r) |> Some
                         else
                             None
                     ) |> Array.exactlyOne
             else
-                pairMatch l r
+                pairMatch d.[li] d.[ri]
 
         if cacheFeatureMatching then printfn "Saving match cache."; save()
         
         Log.startTimed "Building feature graph"
-        let mst = Feature.FeatureGraph.build cachedMatch images data
+        let mst =
+            let input = 
+                {
+                    matcher = cachedMatch
+                    images = images
+                    data = data
+                }
+            Feature.FeatureGraph.build input
         Log.stop()
-        
-        let es = mst.edges |> Array.sortByDescending ( fun e -> e.weight.Length )
 
-        let mutable sols = []
-
-        for e in es do
-
-            Log.startTimed "BundlerInput generation"
-            let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
+        Log.startTimed "BundlerInput generation"
+        let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
             
 
-            let problem = input |> BundlerInput.toProblem
+        let problem = input |> BundlerInput.toProblem
         
-            Log.stop()
+        Log.stop()
 
-            let ser = FsPickler.CreateBinarySerializer()
+        let ser = FsPickler.CreateBinarySerializer()
 
-            let patha = @"C:\blub\cached2"
-            let filea = "bundler"
+        let patha = @"C:\blub\cached2"
+        let filea = "bundler"
         
-            let fn = 
-                if Directory.Exists patha |> not then Directory.CreateDirectory patha |> ignore
-                Path.combine [patha;filea]
+        let fn = 
+            if Directory.Exists patha |> not then Directory.CreateDirectory patha |> ignore
+            Path.combine [patha;filea]
         
 
 
-            let sol = 
-                if cacheBundlerResult then
-                    if File.Exists fn then
-                        printfn "Taking cached bundle result."
-                        ser.UnPickle (File.ReadAllBytes fn)
-                    else
-                        let solution = Bundler.solve (not allCamerasSameDistortion) problem
-                        printfn "Saving bundle result cache."
-                        ser.Pickle solution |> File.writeAllBytes fn
-                        solution
+        let sol = 
+            if cacheBundlerResult then
+                if File.Exists fn then
+                    printfn "Taking cached bundle result."
+                    ser.UnPickle (File.ReadAllBytes fn)
                 else
-                    Bundler.solve (not allCamerasSameDistortion) problem
+                    let solution = Bundler.solve (not allCamerasSameDistortion) problem
+                    printfn "Saving bundle result cache."
+                    ser.Pickle solution |> File.writeAllBytes fn
+                    solution
+            else
+                Bundler.solve (not allCamerasSameDistortion) problem
         
 
         
-            match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun (c,_) -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
+        match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun (c,_) -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
 
-            Log.startTimed "Tessellating for %A cam and %A points" sol.cameras.Count sol.points.Count
+        Log.startTimed "Tessellating for %A cam and %A points" sol.cameras.Count sol.points.Count
         
-            let ps = 
-                [
-                    for kvp in sol.cameras do
-                        let ci = kvp.Key
-                        let c = kvp.Value
+        let ps = 
+            [
+                for kvp in sol.cameras do
+                    let ci = kvp.Key
+                    let c = kvp.Value
 
-                        let poly = TriangleNet.Geometry.Polygon(sol.points.Count)
-                        for pw in sol.points do
-                            let (p,d) = (c |> fst).ProjectWithDepth pw.Value
-                            let vertex = TriangleNet.Geometry.Vertex(-p.X, -p.Y, 0, 1)
-                            vertex.Attributes.[0] <- d
-                            poly.Add vertex
+                    let poly = TriangleNet.Geometry.Polygon(sol.points.Count)
+                    for pw in sol.points do
+                        let (p,d) = (c |> fst).ProjectWithDepth pw.Value
+                        let vertex = TriangleNet.Geometry.Vertex(-p.X, -p.Y, 0, 1)
+                        vertex.Attributes.[0] <- d
+                        poly.Add vertex
 
-                        Log.startTimed "Triangulation cam %A" ci
-                        let constraintoptions = TriangleNet.Meshing.ConstraintOptions()
-                        //constraintoptions.ConformingDelaunay <- true
-                        //constraintoptions.Convex <- true
+                    Log.startTimed "Triangulation cam %A" ci
+                    let constraintoptions = TriangleNet.Meshing.ConstraintOptions()
+                    //constraintoptions.ConformingDelaunay <- true
+                    //constraintoptions.Convex <- true
 
-                        let qualityoptions = TriangleNet.Meshing.QualityOptions()
-                        //qualityoptions.MinimumAngle <- 20.0
-                        //qualityoptions.MaximumAngle <- 120.0
+                    let qualityoptions = TriangleNet.Meshing.QualityOptions()
+                    //qualityoptions.MinimumAngle <- 20.0
+                    //qualityoptions.MaximumAngle <- 120.0
 
-                        let mesh = (poly :> TriangleNet.Geometry.IPolygon).Triangulate( constraintoptions, qualityoptions )
+                    let mesh = (poly :> TriangleNet.Geometry.IPolygon).Triangulate( constraintoptions, qualityoptions )
                     
-                        yield ci, mesh
-                        Log.stop()
-                ] |> Map.ofList
+                    yield ci, mesh
+                    Log.stop()
+            ] |> Map.ofList
 
-            Log.stop()
+        Log.stop()
 
-            let tris =
-                [
-                    for kvp in sol.cameras do
-                        let ci = kvp.Key
-                        let c = kvp.Value
-                        let mesh = ps.[ci]
-                        let tris = 
-                            [|
-                                for tri in mesh.Triangles do    
+        let tris =
+            [
+                for kvp in sol.cameras do
+                    let ci = kvp.Key
+                    let c = kvp.Value
+                    let mesh = ps.[ci]
+                    let tris = 
+                        [|
+                            for tri in mesh.Triangles do    
                         
-                                    let v i = 
-                                        let v = tri.GetVertex i
-                                        let x = -v.X
-                                        let y = -v.Y
-                                        let z = v.Attributes.[0]
+                                let v i = 
+                                    let v = tri.GetVertex i
+                                    let x = -v.X
+                                    let y = -v.Y
+                                    let z = v.Attributes.[0]
                                     
-                                        x,y,z
+                                    x,y,z
 
-                                    let vp i =  
-                                        let (x,y,z) = v i 
-                                        (c |> fst).Unproject (V2d(x,y)) z
+                                let vp i =  
+                                    let (x,y,z) = v i 
+                                    (c |> fst).Unproject (V2d(x,y)) z
 
-                                    let t = Triangle3d(vp 0, vp 1, vp 2)
+                                let t = Triangle3d(vp 0, vp 1, vp 2)
 
-                                    let(x0,y0,d0) = v 0
-                                    let(x1,y1,d1) = v 1
-                                    let(x2,y2,d2) = v 2
+                                let(x0,y0,d0) = v 0
+                                let(x1,y1,d1) = v 1
+                                let(x2,y2,d2) = v 2
 
-                                    let td = (V2d(x0,y0), V2d(x1,y1), V2d(x2,y2), d0, d1, d2)
+                                let td = (V2d(x0,y0), V2d(x1,y1), V2d(x2,y2), d0, d1, d2)
 
-                                    yield t, td
-                            |]
-                        let (t3d,p2d) = tris |> Array.unzip
-                        let f = 
-                            {
-                                Triangle3Ds = t3d
-                                Point2Ds = p2d
-                            }
+                                yield t, td
+                        |]
+                    let (t3d,p2d) = tris |> Array.unzip
+                    let f = 
+                        {
+                            Triangle3Ds = t3d
+                            Point2Ds = p2d
+                        }
 
-                        yield ci, f
-                ] |> Map.ofList
+                    yield ci, f
+            ] |> Map.ofList
 
-            let someSg =
-                let mutable a = false
-                [
-                    for kvp in sol.cameras (* |> Map.filter (constF (constF false)) *) do
-                        let ci = kvp.Key
-                        let c = kvp.Value
-                        let mesh = ps.[ci]
-                        let tris = 
-                            [|
-                                for tri in mesh.Triangles do    
+        let someSg =
+            let mutable a = false
+            [
+                for kvp in sol.cameras (* |> Map.filter (constF (constF false)) *) do
+                    let ci = kvp.Key
+                    let c = kvp.Value
+                    let mesh = ps.[ci]
+                    let tris = 
+                        [|
+                            for tri in mesh.Triangles do    
                         
-                                    let v i = 
-                                        let v = tri.GetVertex i
-                                        let x = -v.X
-                                        let y = -v.Y
-                                        let z = v.Attributes.[0]
+                                let v i = 
+                                    let v = tri.GetVertex i
+                                    let x = -v.X
+                                    let y = -v.Y
+                                    let z = v.Attributes.[0]
                                     
-                                        (c |> fst).Unproject (V2d(x,y)) z
+                                    (c |> fst).Unproject (V2d(x,y)) z
 
-                                    let tc i =
-                                        let v = tri.GetVertex i
-                                        let x = v.X
-                                        let y = v.Y
-                                        V2d(0.5 * x, 0.5 * y) + 0.5
+                                let tc i =
+                                    let v = tri.GetVertex i
+                                    let x = v.X
+                                    let y = v.Y
+                                    V2d(0.5 * x, 0.5 * y) + 0.5
 
-                                    let t = Triangle3d(v 0, v 1, v 2)
-                                    let n = (t.P0 - t.P1).Normalized.Cross( (t.P2 - t.P1).Normalized )
-                                    let tc = Triangle2d( tc 0, tc 1, tc 2 ) 
+                                let t = Triangle3d(v 0, v 1, v 2)
+                                let n = (t.P0 - t.P1).Normalized.Cross( (t.P2 - t.P1).Normalized )
+                                let tc = Triangle2d( tc 0, tc 1, tc 2 ) 
 
-                                    yield t,n,tc
-                            |]
+                                yield t,n,tc
+                        |]
 
-                        yield 
-                            Sg.draw IndexedGeometryMode.TriangleList
-                                |> Sg.vertexAttribute' DefaultSemantic.Positions (tris |> Array.collect ( fun (t,_,_) -> [| t.P0 |> V3f; t.P1 |> V3f; t.P2 |> V3f |] ))
-                                |> Sg.vertexAttribute' DefaultSemantic.DiffuseColorCoordinates (tris |> Array.collect ( fun (_,_,t) -> [| t.P0 |> V2f; t.P1 |> V2f; t.P2 |> V2f |] ))
-                                |> Sg.vertexAttribute' DefaultSemantic.Normals (tris |> Array.collect ( fun (_,n,_) -> [| n |> V3f; n |> V3f; n |> V3f |] ))
-                                |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ( if a then (C4f(1.0,1.0,1.0,0.75)).ToV4f() else (C4f(1.0,0.0,0.0,0.75)).ToV4f()))
-                                |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true)), ci
-                        a <- true
-                ] 
+                    yield 
+                        Sg.draw IndexedGeometryMode.TriangleList
+                            |> Sg.vertexAttribute' DefaultSemantic.Positions (tris |> Array.collect ( fun (t,_,_) -> [| t.P0 |> V3f; t.P1 |> V3f; t.P2 |> V3f |] ))
+                            |> Sg.vertexAttribute' DefaultSemantic.DiffuseColorCoordinates (tris |> Array.collect ( fun (_,_,t) -> [| t.P0 |> V2f; t.P1 |> V2f; t.P2 |> V2f |] ))
+                            |> Sg.vertexAttribute' DefaultSemantic.Normals (tris |> Array.collect ( fun (_,n,_) -> [| n |> V3f; n |> V3f; n |> V3f |] ))
+                            |> Sg.vertexBufferValue DefaultSemantic.Colors (Mod.constant ( if a then (C4f(1.0,1.0,1.0,0.75)).ToV4f() else (C4f(1.0,0.0,0.0,0.75)).ToV4f()))
+                            |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|images.[ci] :> PixImage|], true)), ci
+                    a <- true
+            ] 
             
-            sols <- (sol, tris, someSg, images, data, e)::sols
-        
-        sols |> List.head
+        (sol, tris, someSg, images, data)
 
 

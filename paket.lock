@@ -60,6 +60,12 @@ NUGET
       Aardvark.Base.Incremental (>= 2.4.7 < 2.5)
       Aardvark.Base.Rendering (>= 3.0)
       FShade.Core (>= 3.0.5 < 3.1)
+    Aardvark.SceneGraph.IO (3.0.0)
+      Aardvark.Base.Incremental (>= 2.4.7 < 2.5)
+      Aardvark.Base.Rendering (>= 3.0)
+      Aardvark.SceneGraph (>= 3.0)
+      AssimpNet (>= 3.3.1 < 3.4)
+      FShade.Core (>= 3.0.5 < 3.1)
     FShade (3.0.5)
       FShade.Core (3.0.5)
       FShade.GLSL (3.0.5)
@@ -85,6 +91,7 @@ NUGET
   remote: https://vrvis.myget.org/F/aardvark
     Aardvark.OpenCvSharp (2.4.0)
   remote: http://api.nuget.org/v3/index.json
+    AssimpNet (3.3.2)
     CommonMark.NET (0.12)
     DevILSharp (0.0.13)
     FSharp.Quotations.Evaluator (1.0.7)
