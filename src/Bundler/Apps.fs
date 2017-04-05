@@ -11,6 +11,63 @@ open Aardvark.Application
 open Aardvark.Rendering.Text
 open Aardvark.Application.WinForms
 
+open FShade
+
+module Shader =
+    let compile (effects : seq<FShadeEffect>) =
+        let e = FShade.Effect.compose effects
+        FShadeSurface(e) :> ISurface 
+
+    let camEffects () =
+        [
+                toEffect (fun (v : Effects.Vertex) ->
+                    vertex {
+                        return { v with pos = V4d(-v.pos.X, -v.pos.Y, -0.99, v.pos.W ) }
+                    })
+                toEffect DefaultSurfaces.trafo
+                toEffect DefaultSurfaces.diffuseTexture
+                toEffect (fun (v : Effects.Vertex) ->
+                    fragment {
+                        return V4d(v.c.XYZ, 0.5)
+                    })
+        ]
+
+    let boxEffects (cameraColor : C4b) =
+        [ 
+            toEffect DefaultSurfaces.trafo
+            toEffect (DefaultSurfaces.constantColor (C4f cameraColor))
+        ]
+
+    let pointEffects (pointColor : C4b) =
+        [ 
+            toEffect DefaultSurfaces.trafo
+            toEffect (DefaultSurfaces.constantColor (C4f pointColor))
+            toEffect DefaultSurfaces.pointSprite
+            toEffect DefaultSurfaces.pointSpriteFragment
+        ]
+
+    let solutionSurface () =
+        camEffects() |> compile |> Mod.constant
+
+    let surfaceBox (cameraColor : C4b) =
+        boxEffects cameraColor |> compile |> Mod.constant
+        
+    let surfacePoint (pointColor : C4b) =
+        pointEffects pointColor |> compile |> Mod.constant
+
+    let compileApp (win : SimpleRenderWindow) (effects : seq<FShadeEffect>) =
+        let s = compile effects
+        win.Runtime.PrepareSurface(win.FramebufferSignature,s) :> ISurface |> Mod.constant
+
+    let surfaceApp (win : SimpleRenderWindow) =
+        camEffects() |> compileApp win
+
+    let surfaceBoxApp (cameraColor : C4b) (win : SimpleRenderWindow) =
+        boxEffects cameraColor |> compileApp win
+
+    let surfacePointApp (pointColor : C4b) (win : SimpleRenderWindow) =
+        pointEffects pointColor |> compileApp win
+
 module PairViewer =
 
     let fst' (a,b,c) = a
@@ -447,51 +504,37 @@ type Bam =
 module SceneGraph =
     open Aardvark.SceneGraph
     open FShade
-
+    
     let blurb = RenderPass.after "blurb" RenderPassOrder.Arbitrary RenderPass.main
+    let blerb = RenderPass.after "asd" RenderPassOrder.Arbitrary blurb
 
-    let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) (pix : PixImage<byte>[]) (b : IMod<Bam>) =
+    let ofBundlerSolution (cameraColor : C4b) (pointSize : int) (pointColor : C4b) (s : BundlerSolution) (surfaceCams : IMod<ISurface>) (surfacePoints : IMod<ISurface>) (surfaceBox : IMod<ISurface>) (pix : PixImage<byte>[]) (b : IMod<Bam>) =
         let frustum = Box3d(-V3d(1.0, 1.0, 100.0), V3d(1.0, 1.0, -1.01))
         let cameras = 
-            s.cameras |> Map.toSeq |> Seq.mapi (fun i (_,c) -> 
+            s.cameras |> Map.toList |> List.mapi (fun i (_,c) -> 
                 let quad i = 
                     Sg.fullScreenQuad 
                         |> Sg.diffuseTexture' (PixTexture2d(PixImageMipMap [|pix.[i] :> PixImage|], true))
-                        |> Sg.shader { 
-                            do! fun (v : Effects.Vertex) ->
-                                vertex {
-                                    return { v with pos = V4d(-v.pos.X, -v.pos.Y, -0.99, v.pos.W ) }
-                                }
-                            do! DefaultSurfaces.trafo
-                            do! DefaultSurfaces.diffuseTexture
-                            do! fun (v : Effects.Vertex) ->
-                                fragment {
-                                    return V4d(v.c.XYZ, 0.5)
-                                }
-                        }
+                        |> Sg.surface surfaceCams
                         |> Sg.blendMode (Mod.constant BlendMode.Blend)
-                        |> Sg.pass (RenderPass.after "asd" RenderPassOrder.Arbitrary blurb)
+                        |> Sg.pass blerb
 
                 let wb =
                     Sg.wireBox' C4b.Green frustum
-                        |> Sg.shader { 
-                            do! DefaultSurfaces.trafo
-                            do! DefaultSurfaces.constantColor (C4f cameraColor)
-                        }
+                        |> Sg.surface surfaceBox 
                 
                 let quadVisible i = 
                     b |> Mod.map (function Bam.Oida -> true | Fix ci -> i = ci)
                 
-                [wb; (if pix.Length > 0 then
-                        quad i |> Sg.onOff (quadVisible i)
-                      else Sg.ofList []
-                      ) 
-                ]  
-                            |> Sg.ofList 
-                            |> Sg.transform ((c |> fst).ViewProjTrafo(100.0).Inverse)
+                [wb;    (if pix.Length > 0 then
+                            quad i |> Sg.onOff (quadVisible i)
+                          else Sg.ofList []
+                        ) 
+                ]   |> Sg.ofList 
+                    |> Sg.transform ((c |> fst).ViewProjTrafo(100.0).Inverse)
 
             )
-            |> Sg.ofSeq
+            |> Sg.ofList
 
         let points =
             IndexedGeometry(
@@ -503,12 +546,7 @@ module SceneGraph =
             )
             |> Sg.ofIndexedGeometry
             |> Sg.uniform "PointSize" (Mod.constant (float pointSize))
-            |> Sg.shader { 
-                do! DefaultSurfaces.trafo
-                do! DefaultSurfaces.constantColor (C4f pointColor)
-                do! DefaultSurfaces.pointSprite
-                do! DefaultSurfaces.pointSpriteFragment
-            }
+            |> Sg.surface surfacePoints
 
         Sg.ofList [ points; cameras ]
             |> Sg.pass blurb
@@ -589,6 +627,9 @@ module BundlerViewer =
         
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
+        let surface = Shader.solutionSurface()
+        let surfaceBox = Shader.surfaceBox C4b.Red
+        let surfacePoints = Shader.surfacePoint C4b.Green
 
         let (solution, tris, ssg, imgs, features) = Bundle.filesIn path
         
@@ -635,46 +676,51 @@ module BundlerViewer =
         let klickPointsSg = 
             klickPoints 
             |> ASet.map ( fun (ci, ndc) ->
-                    let cam = solution.cameras.[ci] |> fst
-                    let pos = cam.Unproject ndc (-1.0 - 0.0001)
-//                    Log.line "Unprojected to: %A" pos
-//                    let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
-//                    
-//                    let intersection = intersect ray f
+                    match solution with
+                    | Some solution ->
+                        let cam = solution.cameras.[ci] |> fst
+                        let pos = cam.Unproject ndc (-1.0 - 0.0001)
+    //                    Log.line "Unprojected to: %A" pos
+    //                    let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
+    //                    
+    //                    let intersection = intersect ray f
 
-                    let f = tris.[ci]
+                        let f = tris.[ci]
                     
-                    let otherpoints = 
-                        [| 
-                            let ocs = [ 0 .. solution.cameras.Count - 1 ] |> List.except [ci]
-                            for other in ocs do
-                                let oc = solution.cameras.[other] |> fst
-                                let tro = tris.[other]
-                                yield other,transferPoint (cam,f) (oc,tro) ndc
-                        |]
+                        let otherpoints = 
+                            [| 
+                                let ocs = [ 0 .. solution.cameras.Count - 1 ] |> List.except [ci]
+                                for other in ocs do
+                                    let oc = solution.cameras.[other] |> fst
+                                    let tro = tris.[other]
+                                    yield other,transferPoint (cam,f) (oc,tro) ndc
+                            |]
 
-                    let ps = 
-                        [|
-                            yield pos
+                        let ps = 
+                            [|
+                                yield pos
                                  
-                            //yield oc.Unproject tttt (-oc.FocalLength - 0.0001)
+                                //yield oc.Unproject tttt (-oc.FocalLength - 0.0001)
 
-                            for (oci,othercam) in otherpoints do
-                                match othercam with
-                                | None -> ()
-                                | Some (p3d, (ii,_)) -> 
-                                    yield p3d
+                                for (oci,othercam) in otherpoints do
+                                    match othercam with
+                                    | None -> ()
+                                    | Some (p3d, (ii,_)) -> 
+                                        yield p3d
 
-                                    let (oc,_) = solution.cameras.[oci]
+                                        let (oc,_) = solution.cameras.[oci]
 
-                                    let oo = oc.Unproject ii (-1.0 - 0.0001)
-                                    Log.line "Unprojected in other cam: %A" oo 
-                                    yield oo
+                                        let oo = oc.Unproject ii (-1.0 - 0.0001)
+                                        Log.line "Unprojected in other cam: %A" oo 
+                                        yield oo
                                 
-                        |]
+                            |]
 
-                    IndexedGeometryPrimitives.points ps [|C4b.DarkYellow; C4b.Yellow; C4b(250,200,130,255)|]
-                    |> Sg.ofIndexedGeometry
+                        IndexedGeometryPrimitives.points ps [|C4b.DarkYellow; C4b.Yellow; C4b(250,200,130,255)|]
+                        |> Sg.ofIndexedGeometry
+                    | None ->
+                        Log.error "No solution convergence."
+                        Sg.ofList []
                 )   |> Sg.set
                     |> Sg.uniform "PointSize" (Mod.constant (float 10))
                     |> Sg.shader { 
@@ -689,32 +735,34 @@ module BundlerViewer =
             let rand = RandomSystem()
             let (pos,col) = 
                 [|
-                    let cam = solution.cameras.[0] |> fst
-                    let oc =  solution.cameras.[1] |> fst
-                    let t =  tris.[0]
-                    let ot = tris.[1]
+                    match solution with
+                    | Some solution ->
+                        let cam = solution.cameras.[0] |> fst
+                        let oc =  solution.cameras.[1] |> fst
+                        let t =  tris.[0]
+                        let ot = tris.[1]
                    
-                    //for (f,_) in edg.weight |> Array.map ( fun (i0,i1) -> features.[edg.i0].[i0], features.[edg.i1].[i1]) do
+                        //for (f,_) in edg.weight |> Array.map ( fun (i0,i1) -> features.[edg.i0].[i0], features.[edg.i1].[i1]) do
                         
-                        //let ndc = f.ndc
-                        //let ondc = tttt ndc
-                        //let (_, ( ondc, _ )) = transferPoint (cam,t) (oc,ot) ndc |> Option.get
+                            //let ndc = f.ndc
+                            //let ondc = tttt ndc
+                            //let (_, ( ondc, _ )) = transferPoint (cam,t) (oc,ot) ndc |> Option.get
                     
-                    //let s = 40.0
-                    //for i in -s .. s do
-                    //    for j in -s .. s do
-                    //        let ndc = V2d(i / s, j / s)
+                        //let s = 40.0
+                        //for i in -s .. s do
+                        //    for j in -s .. s do
+                        //        let ndc = V2d(i / s, j / s)
 
-                    for f in features.[0] do
-                        ()
-                                //let ndc = f.ndc
-                                //let ondc = yolo ndc
+                        for f in features.[0] do
+                            ()
+                                    //let ndc = f.ndc
+                                    //let ondc = yolo ndc
 
-                                //let col = rand.UniformC3f().ToC4b()
+                                    //let col = rand.UniformC3f().ToC4b()
                         
-                                //yield cam.Unproject ndc (-cam.FocalLength - 0.0001), col
-                                //yield oc.Unproject ondc (-oc.FocalLength - 0.0001), col
-
+                                    //yield cam.Unproject ndc (-cam.FocalLength - 0.0001), col
+                                    //yield oc.Unproject ondc (-oc.FocalLength - 0.0001), col
+                    | None -> ()
                 |] |> Array.unzip
             
             IndexedGeometryPrimitives.points pos col
@@ -743,13 +791,15 @@ module BundlerViewer =
                       |> Sg.onOff totalblurg
             
 
-
             let stuff = 
                 [
-                    SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution imgs b
-                    blurgs
-                    allPointsSg
-                    klickPointsSg
+                    match solution with
+                    | Some solution ->
+                        yield SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution surface surfacePoints surfaceBox imgs b
+                    | None -> Log.error "No solution."
+                    yield blurgs
+                    yield allPointsSg
+                    yield klickPointsSg
                 ] |> Sg.ofList
 
             let frustum = win.Sizes |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
@@ -776,8 +826,11 @@ module BundlerViewer =
                         let f = f |> Frustum.projTrafo
                         return cv |> CameraView.viewTrafo, f
                     | Fix i ->
-                        let fs = (solution.cameras.[i] |> fst).ViewProjTrafo far
-                        return Trafo3d.Identity, fs
+                        match solution with
+                        | None -> return Trafo3d.Identity, Trafo3d.Identity
+                        | Some solution -> 
+                            let fs = (solution.cameras.[i] |> fst).ViewProjTrafo far
+                            return Trafo3d.Identity, fs
                 }
 
             stuff |> Sg.viewTrafo (cameraView |> Mod.map fst )
@@ -812,6 +865,29 @@ module BundlerViewer =
         printfn "Done."
 
     open System.IO
+    let sponzaWithoutRender sponzaPath =
+        
+        use app = new OpenGlApplication()
+        use win = app.CreateSimpleRenderWindow(8)
+
+        let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+
+        let graphInput = sponzaPath 
+                            |> File.readAllBytes 
+                            |> ser.UnPickle
+                            |> ModelSer.toGraphInput
+        
+        let graph = Feature.FeatureGraph.build graphInput
+
+        let input = Feature.FeatureGraph.toBundlerInputSiegfried graph 2
+
+        let problem = input |> BundlerInput.toProblem
+        
+        printfn "Done."
+
+        Bundler.solve ignore problem
+        
+    open System.IO
     let sponza sponzaPath =
         
         use app = new OpenGlApplication()
@@ -830,22 +906,48 @@ module BundlerViewer =
 
         let problem = input |> BundlerInput.toProblem
 
-        let cacheSolution = false
-        let solution = 
-            if not cacheSolution then 
-                Log.line "No caching involved."
-                Bundler.solve true problem
-            else
-                let fn = @"D:\file\sponza_bun\cachedSol"
-                let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
-                if File.Exists fn then
-                    Log.warn "Reading cached solution"
-                    fn |> File.readAllBytes |> ser.UnPickle
+        let solution = Mod.init None
+
+        let renderSolution = Mod.init None
+
+        let updateVis () = transact ( fun _ ->  renderSolution.Value <- solution.Value)
+        
+        let mutable visRunning = true
+        async {
+            do! Async.SwitchToNewThread()
+            while visRunning do
+                do! Async.Sleep 250
+                updateVis()
+        } |> Async.Start
+
+        
+
+        async {
+            let cacheSolution = false
+            let adorner sol =
+                transact ( fun _ -> Mod.change solution (sol |> Some) )
+
+            let finalSol = 
+                if not cacheSolution then 
+                    Log.line "No caching involved."
+                    Bundler.solve adorner problem
                 else
-                    let sol = Bundler.solve true problem
-                    Log.warn "Writing solution to cache"
-                    sol |> ser.Pickle |> File.writeAllBytes fn
-                    sol
+                    let fn = @"D:\file\sponza_bun\cachedSol"
+                    let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+                    if File.Exists fn then
+                        Log.warn "Reading cached solution"
+                        fn |> File.readAllBytes |> ser.UnPickle
+                    else
+                        let sol = Bundler.solve adorner problem
+                        Log.warn "Writing solution to cache"
+                        sol |> ser.Pickle |> File.writeAllBytes fn
+                        sol
+            match finalSol with
+            | None -> ()
+            | Some finalSol ->
+                adorner finalSol
+
+        } |> Async.Start
 
         let blurg = Mod.init Bam.Oida
         
@@ -860,6 +962,7 @@ module BundlerViewer =
         win.Keyboard.KeyDown(Keys.D9).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 8))
         win.Keyboard.KeyDown(Keys.D0).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 9))
         win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ ->  blurg.Value <- Bam.Oida))
+        win.Keyboard.KeyDown(Keys.O).Values.Add updateVis 
         
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
                                 |> Mod.map Frustum.projTrafo
@@ -878,6 +981,10 @@ module BundlerViewer =
                     let! f = proj
                     return cv, f
                 | Fix i ->
+                    let! s = solution
+                    match s with
+                    | None -> return Trafo3d.Identity, Trafo3d.Identity
+                    | Some solution ->
                         let fs = 
                             try 
                                 (solution.cameras.[i] |> fst).ViewProjTrafo far
@@ -887,7 +994,18 @@ module BundlerViewer =
 
         let (view,proj) = vp |> Mod.map fst, vp |> Mod.map snd
 
-        let sg = SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution graphInput.images (Mod.constant Bam.Oida)
+        let surface = Shader.surfaceApp win
+        let surfacePoints = Shader.surfacePointApp C4b.Green win
+        let surfaceBox = Shader.surfaceBoxApp C4b.Red win
+
+        let sg = 
+            adaptive {
+                let! s = renderSolution
+                match s with
+                | None -> return Sg.ofList []
+                | Some solution ->
+                     return SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution surface surfacePoints surfaceBox graphInput.images (Mod.constant Bam.Oida)
+            }       |> Sg.dynamic
                     |> Sg.viewTrafo view
                     |> Sg.projTrafo proj
 
@@ -896,6 +1014,8 @@ module BundlerViewer =
 
         win.Run()
            
+        visRunning <- false
+        
         printfn "Done."
 
 
@@ -905,7 +1025,7 @@ module Example =
     open System.Collections.Generic
 
 
-    let renderSponza outPath =
+    let renderSponza percentObservations outPath =
 
         //euclid/inout/backend-paper/sponza_obj_copy
         Loader.Assimp.initialize()
@@ -940,7 +1060,7 @@ module Example =
             pos
                 |> Array.zip norm
                 |> Array.sortBy ( fun _ -> rand.UniformDouble())
-                |> Array.take 15
+                |> Array.take 100
                 |> Array.unzip
            
         let cams = 10
@@ -1018,6 +1138,7 @@ module Example =
                     yield List<int*Feature>()
             |]
         
+        let rand = RandomSystem()
 
         Log.startTimed "Fill small array"
         for c in 0 .. cams-1 do
@@ -1027,18 +1148,19 @@ module Example =
             
             for pi in 0..sponzaVertices.Length-1 do
 
-                let v = sponzaVertices.[pi]
+                if rand.UniformDouble() < percentObservations then
+                    let v = sponzaVertices.[pi]
 
-                let f = {   
-                            ndc         = cam.Project v
-                            angle       = 0.0
-                            size        = 1.0
-                            response    = 1.0
-                            descriptor  = FeatureDescriptor([||])
-                        }
+                    let f = {   
+                                ndc         = cam.Project v
+                                angle       = 0.0
+                                size        = 1.0
+                                response    = 1.0
+                                descriptor  = FeatureDescriptor([||])
+                            }
                     
-                if f.ndc.X < 1.0 && f.ndc.X > -1.0 && f.ndc.Y < 1.0 && f.ndc.Y > -1.0 then
-                    fs.[c].Add (pi,f)
+                    if f.ndc.X < 1.0 && f.ndc.X > -1.0 && f.ndc.Y < 1.0 && f.ndc.Y > -1.0 then
+                        fs.[c].Add (pi,f)
 
             i <- i + step
 
@@ -1065,16 +1187,38 @@ module Example =
         let s = { ms = ms; fs = fs }
 
         let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
-
-
-
-
-
-
-
-
-
-
+        
 
         s |> ser.Pickle |> File.writeAllBytes outPath
         
+    
+
+    let testManySponzas () =
+        
+        let sols =
+            [
+                let mutable ct = 0
+                let range = [0.2 .. 0.1 .. 1.0]
+                for percentObservations in range do
+                    ct <- ct+1
+                    Log.warn "Starting %A of %A" ct (range |> Seq.length)
+                    renderSponza percentObservations @"D:\file\sponza_bun\sponzaVertices"
+                    yield ct, percentObservations, BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices"
+            ]
+        
+        let ostr = 
+            [
+                yield sprintf "Test run: %A" (DateTime.Now.ToString(" HH:mm (YYYY-MM-dd) "))
+                yield ""
+                for (i,o,s) in sols do
+                    match s with
+                    | None -> 
+                        yield sprintf "nr:%A\t\tpo:%A\t\NO CONVERGENCE!!" i o
+                    | Some s -> 
+                        yield sprintf "nr:%A\t\tpo:%A\t\terr=%A" i o s.cost
+                yield ""
+            ] |> String.concat " \n"
+
+        ostr |> File.writeAllText @"D:\file\out.txt"
+        
+        Log.line "%A" ostr

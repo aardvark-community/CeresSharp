@@ -2,6 +2,7 @@
 
 open System
 open Aardvark.Base
+open Aardvark.Base.AMD64
 
 [<AutoOpen>]
 module Oida =
@@ -92,6 +93,9 @@ type Camera3s(pos : V3s, aa : V3s) =
         let p   = V3s(scalar.Variable(offset + 0, v.Position.X), scalar.Variable(offset + 1, v.Position.Y), scalar.Variable(offset + 2, v.Position.Z))
         let aa  = V3s(scalar.Variable(offset + 3, v.AngleAxis.X), scalar.Variable(offset + 4, v.AngleAxis.Y), scalar.Variable(offset + 5, v.AngleAxis.Z))
         Camera3s(p, aa)
+
+    static member Value(cam : Camera3s) =
+        Camera3d(cam.Position.Value, cam.AngleAxis.Value)
 
 module V3s =
     

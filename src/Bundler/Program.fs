@@ -85,21 +85,24 @@ module BundlerTest =
 
 
         Log.startTimed "solver"
-        let sol = Bundler.solve true problem //solve 0 4 problem
+        let sol = Bundler.solve ignore problem //solve 0 4 problem
+        match sol with
+        | Some sol -> 
+            let err = sol |> BundlerSolution.errorMetrics
+            Log.start "error metrics"
+            Log.line "cost:    %A" err.cost
+            Log.line "average: %.4f%%" (100.0 * err.average)
+            Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
+            Log.line "min:     %.4f%%" (100.0 * err.min)
+            Log.line "max:     %.4f%%" (100.0 * err.max)
+            Log.stop()
+            Log.stop()
 
-        let err = sol |> BundlerSolution.errorMetrics
-        Log.start "error metrics"
-        Log.line "cost:    %A" err.cost
-        Log.line "average: %.4f%%" (100.0 * err.average)
-        Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
-        Log.line "min:     %.4f%%" (100.0 * err.min)
-        Log.line "max:     %.4f%%" (100.0 * err.max)
-        Log.stop()
-        Log.stop()
+            let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.map ( fun c -> c,false ) |> Seq.indexed |> Map.ofSeq }
 
-        let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.map ( fun c -> c,false ) |> Seq.indexed |> Map.ofSeq }
-
-        input, sol, realPimgs
+            input, sol, realPimgs
+        | None -> 
+            failwith "No convergence."
 
         
     let haus() =
@@ -245,18 +248,22 @@ module BundlerTest =
         if problem.cameras.Count >  0 then
 
             Log.startTimed "solver"
-            let sol = Bundler.solve true problem //solve 0 4 problem
+            let sol = Bundler.solve ignore problem //solve 0 4 problem
 
-            let err = sol |> BundlerSolution.errorMetrics
-            Log.start "error metrics"
-            Log.line "cost:    %A" err.cost
-            Log.line "average: %.4f%%" (100.0 * err.average)
-            Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
-            Log.line "min:     %.4f%%" (100.0 * err.min)
-            Log.line "max:     %.4f%%" (100.0 * err.max)
-            Log.stop()
-            Log.stop()
-            sol
+            match sol with
+            | Some sol ->
+
+                let err = sol |> BundlerSolution.errorMetrics
+                Log.start "error metrics"
+                Log.line "cost:    %A" err.cost
+                Log.line "average: %.4f%%" (100.0 * err.average)
+                Log.line "stdev:   %.4f%%" (100.0 * err.stdev)
+                Log.line "min:     %.4f%%" (100.0 * err.min)
+                Log.line "max:     %.4f%%" (100.0 * err.max)
+                Log.stop()
+                Log.stop()
+                sol
+            | None -> failwith "No convergence"
         else
             { cost = 0.0; problem = problem; points = Map.empty; cameras = Map.empty }
 
@@ -324,16 +331,17 @@ let testGlobal() =
     use app = new OpenGlApplication()
     use win = app.CreateSimpleRenderWindow(8)
 
+
     let trafo = PointCloud.trafo2 sol.points input.points
     let input =
-        SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow input pimgs (Mod.constant Bam.Oida)
+        SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow input (Shader.solutionSurface ()) ((Shader.surfacePoint C4b.Yellow)) ((Shader.surfaceBox C4b.DarkRed)) pimgs (Mod.constant Bam.Oida)
             |> Sg.pass (RenderPass.after "asdasd" RenderPassOrder.Arbitrary RenderPass.main)
             |> Sg.depthTest (Mod.constant DepthTestMode.None)
             |> Sg.blendMode (Mod.constant BlendMode.Blend)
 
     let s = sol |> BundlerSolution.transformed trafo
     let sol =
-        SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red s pimgs (Mod.constant Bam.Oida)
+        SceneGraph.ofBundlerSolution C4b.Green 20 C4b.Red s (Shader.solutionSurface ()) ((Shader.surfacePoint C4b.Green)) ((Shader.surfaceBox C4b.Red)) pimgs (Mod.constant Bam.Oida)
         
     let stuff = Sg.ofList [ (* input; *) sol ]
 
@@ -418,7 +426,9 @@ let main argv =
     //PairViewer.app path
     //BundlerViewer.folder path
 
-    //Example.renderSponza @"D:\file\sponza_bun\sponzaVertices"
+    Example.renderSponza 1.0 @"D:\file\sponza_bun\sponzaVertices"
     BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
+
+    //Example.testManySponzas()
 
     0 // return an integer exit code

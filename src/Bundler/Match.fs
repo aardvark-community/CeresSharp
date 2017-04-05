@@ -227,20 +227,20 @@ module Bundle =
         
 
 
-        let sol = 
+        let solo = 
             if cacheBundlerResult then
                 if File.Exists fn then
                     printfn "Taking cached bundle result."
                     ser.UnPickle (File.ReadAllBytes fn)
                 else
-                    let solution = Bundler.solve (not allCamerasSameDistortion) problem
+                    let solution = Bundler.solve ignore problem
                     printfn "Saving bundle result cache."
                     ser.Pickle solution |> File.writeAllBytes fn
                     solution
             else
-                Bundler.solve (not allCamerasSameDistortion) problem
+                Bundler.solve ignore problem
         
-
+        let sol = solo |> Option.get
         
         //match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun (c,_) -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
 
@@ -360,6 +360,6 @@ module Bundle =
                     a <- true
             ] 
             
-        (sol, tris, someSg, images, data)
+        (solo, tris, someSg, images, data)
 
 
