@@ -242,7 +242,7 @@ module Bundle =
         
 
         
-        match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun (c,_) -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
+        //match sol.cameras |> Map.toList |> List.map snd |> List.tryFind ( fun (c,_) -> c.FocalLength.IsNaN() ) with Some c -> Log.warn "camera focal length is NaN !!!! abort!! %A" c; System.Environment.Exit 0 | None -> ()
 
         Log.startTimed "Tessellating for %A cam and %A points" sol.cameras.Count sol.points.Count
         

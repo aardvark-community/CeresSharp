@@ -86,13 +86,11 @@ DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 	opt.function_tolerance = options->FunctionTolerance;
 	opt.parameter_tolerance = options->ParameterTolerance;
 
-
 	ceres::Solver::Summary summary;
 	ceres::Solve(opt, problem, &summary);
 
 	if(options->PrintProgress != 0) std::cout << summary.FullReport() << "\n";
 
-	
 	if (summary.termination_type == ceres::TerminationType::CONVERGENCE)
 	{
 		return summary.final_cost;

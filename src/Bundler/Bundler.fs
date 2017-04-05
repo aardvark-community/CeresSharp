@@ -153,15 +153,15 @@ module Bundler =
     let solve (useDistortion : bool) (p : BundlerProblem) =
         Log.startTimed "solve %d cameras" p.cameras.Count
         printfn " "
-        let options = CeresOptions(700, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-10, 1.0E-10)
+        let options = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-32, 1.0E-32, 1.0E-32)
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
 
-        let tinyCost = 1.0E-6 * float measurementCount
+        let tinyCost = 1.0E-16 * float measurementCount
 
         let mutable bestCost = Double.PositiveInfinity
         let mutable best : Option<BundlerSolution> = None
         let mutable iter = 0
-        while iter < 1 && bestCost > tinyCost do    //only one iteration with non-random starting values
+        while iter < 12 && bestCost > tinyCost do
             let n = improveSol useDistortion options (BundlerSolution.random p)
             if n.cost < bestCost then
                 bestCost <- n.cost

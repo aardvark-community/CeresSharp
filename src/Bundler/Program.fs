@@ -418,7 +418,7 @@ let main argv =
     //PairViewer.app path
     //BundlerViewer.folder path
 
-    Example.renderSponza @"D:\file\sponza_bun\sponzaVertices"
+    //Example.renderSponza @"D:\file\sponza_bun\sponzaVertices"
     BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
 
     0 // return an integer exit code

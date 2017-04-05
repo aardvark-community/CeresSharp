@@ -558,7 +558,7 @@ module BundlerViewer =
     let transferPoint (fromCam : Camera3d * DepthFun) (toCam : Camera3d * DepthFun) (point : V2d) : Option<V3d*(V2d*float)> =
         let (fcam, ftris) = fromCam
         let (tcam, _) = toCam
-        let pos = fcam.Unproject point (-fcam.FocalLength - 0.0001)
+        let pos = fcam.Unproject point (-1.0 - 0.0001)
 
         let ray = Ray3d(fcam.Position,(pos - fcam.Position).Normalized)
         let intersection = intersect ray ftris
@@ -636,7 +636,7 @@ module BundlerViewer =
             klickPoints 
             |> ASet.map ( fun (ci, ndc) ->
                     let cam = solution.cameras.[ci] |> fst
-                    let pos = cam.Unproject ndc (-cam.FocalLength - 0.0001)
+                    let pos = cam.Unproject ndc (-1.0 - 0.0001)
 //                    Log.line "Unprojected to: %A" pos
 //                    let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
 //                    
@@ -667,7 +667,7 @@ module BundlerViewer =
 
                                     let (oc,_) = solution.cameras.[oci]
 
-                                    let oo = oc.Unproject ii (-oc.FocalLength - 0.0001)
+                                    let oo = oc.Unproject ii (-1.0 - 0.0001)
                                     Log.line "Unprojected in other cam: %A" oo 
                                     yield oo
                                 
@@ -940,7 +940,7 @@ module Example =
             pos
                 |> Array.zip norm
                 |> Array.sortBy ( fun _ -> rand.UniformDouble())
-                |> Array.take 200
+                |> Array.take 15
                 |> Array.unzip
            
         let cams = 10
