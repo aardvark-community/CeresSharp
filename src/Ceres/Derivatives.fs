@@ -68,12 +68,12 @@ type Solver() =
             let np = NativePtr.alloc cap // Marshal.AllocHGlobal (sizeof<float> * cap)
             let nb = NativePtr.alloc cap
             if capacity <> 0 then
-                NativeInt.memcpy (NativePtr.toNativeInt storage) (NativePtr.toNativeInt np) (sizeof<float> * parameterCount)
-                NativeInt.memcpy (NativePtr.toNativeInt bounds) (NativePtr.toNativeInt nb) (sizeof<ParameterBound> * parameterCount)
+                NativeInt.memcpy (NativePtr.toNativeInt storage ) (NativePtr.toNativeInt np) (sizeof<float> * parameterCount)
+                NativeInt.memcpy (NativePtr.toNativeInt bounds  ) (NativePtr.toNativeInt nb) (sizeof<ParameterBound> * parameterCount)
                 NativePtr.free storage
                 NativePtr.free bounds
-                let off = (sizeof<ParameterBound> * parameterCount) |> nativeint
-                let size = (sizeof<ParameterBound> * cap) |> nativeint
+                let off =   (sizeof<ParameterBound> * parameterCount) |> nativeint
+                let size =  (sizeof<ParameterBound> * cap) |> nativeint
                 NativeInt.memset (NativePtr.toNativeInt nb + off) 0 (int (size - off))
             else
                 NativeInt.memset (NativePtr.toNativeInt nb) 0 (sizeof<ParameterBound> * cap)

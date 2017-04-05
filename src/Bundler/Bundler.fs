@@ -8,6 +8,7 @@ open CeresSharp
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Bundler =
     open CeresSharp
+    open OpenTK.Platform.Windows
 
     let private rand = RandomSystem()
 
@@ -18,74 +19,91 @@ module Bundler =
         let guessedPoints   : V3d[] = points |> Array.copy
         let guessedCameras  : Map<int,(Camera3d*bool)[]> =
             [|
-                let mutable cc = 0
                 for kvp in measurements do
                     let ci = kvp.Key
-                    let cam = [| cameras.[cc] |]
+                    let cam = [| cameras.[ci] |]
                     yield ci, cam
-                    cc <- cc+1
             |] |> Map.ofArray
 
-        let worldPoints     = p.AddParameterBlock guessedPoints
-        let camBlocks       = guessedCameras 
-                                |> Map.filter (fun _ o -> let (_,f) = o |> Array.head in not f) 
-                                |> Map.map (fun _ c -> c |> Array.map fst )
-                                |> Map.map (fun _ c -> p.AddParameterBlock<Camera3d, Camera3s>(c))
+        let pointBlocks      = 
+            guessedPoints   |> Array.map ( fun po -> [| po |] )
+                            |> Array.map p.AddParameterBlock
 
-        let camFixed        = guessedCameras
-                                |> Map.filter (fun _ o -> let (_,f) = o |> Array.head in f) 
+        let (camIdx, camb)  = guessedCameras 
+                                |> Map.filter (fun _ o -> let (_,f) = o.[0] in not f) 
                                 |> Map.map (fun _ c -> c |> Array.map fst )
+                                |> Map.toArray
+                                |> Array.unzip
+
+        let camBlocks        = camb |> Array.map p.AddParameterBlock<Camera3d,Camera3s>
         
-        for kvp in measurements do
-            let ci = kvp.Key
-            let measurements = measurements.[ci] |> Seq.toArray
-            let residuals = 2 * measurements.Length
-            let res = Array.zeroCreate residuals
+        let (camFixedIdx, camFixed) = 
+                              guessedCameras
+                                |> Map.filter (fun _ o -> let (_,f) = o.[0] in f) 
+                                |> Map.map (fun _ c -> (c |> Array.map fst) )
+                                |> Map.toArray
+                                |> Array.unzip
+        
+        for pi in 0 .. pointBlocks.Length-1 do
+            let pb = pointBlocks.[pi]
+            let pointIndex = pi
 
-            match camBlocks |> Map.tryFind ci, camFixed |> Map.tryFind ci with
-            | Some cb, None ->  //this camera is a free variable
-                p.AddCostFunction(residuals, worldPoints, cb, fun world cam ->
-                    let cam = cam.[0]
-                    let mutable oi = 0
-                    for kvp in measurements do
-                        let obs = cam.Project(world.[kvp.Key])
+            for ci in 0 .. camFixed.Length-1 do 
+                let cf = camFixed.[ci]
+                let fixedIndex = camFixedIdx.[ci]
 
-                        let r = obs - kvp.Value
-                        res.[oi + 0] <- r.X 
-                        res.[oi + 1] <- r.Y 
-                        oi <- oi + 2
+                let real = measurements.[fixedIndex].[pointIndex]
 
-                    res
+                p.AddCostFunction(2, pb, fun point ->
+                        
+                        let obs = point.[0] |> V3s.getProjectedBy cf.[0]
+
+                        let diff = real - obs
+
+                        [|
+                            diff.X
+                            diff.Y
+                        |]
+
+                    )
+                    
+            for ci in 0 .. camBlocks.Length-1 do
+                let cb = camBlocks.[ci]
+                let camIndex = camIdx.[ci]
+
+                let real = measurements.[camIndex].[pointIndex]
+
+                p.AddCostFunction(2, pb, cb, fun point cam ->
+                    
+                    let obs = cam.[0].Project point.[0]
+                    
+                    let diff = real - obs
+
+                    [|
+                        diff.X
+                        diff.Y
+                    |]
                 )
-
-            | None, Some cam ->  //this camera is fixed.
-                let cam = cam.[0]
-                p.AddCostFunction(residuals, worldPoints, fun world ->
-                    let mutable oi = 0
-                    for kvp in measurements do
-                        let obs = world.[kvp.Key] |> V3s.getProjectedBy cam
-
-                        let r = obs - kvp.Value
-                        res.[oi + 0] <- r.X 
-                        res.[oi + 1] <- r.Y 
-                        oi <- oi + 2
-
-                    res
-                )
-
-            | _ -> 
-                failwith "can not happen"
 
         let cost = p.Solve(options)
 
-        let points = worldPoints.Result
-        let cameras = 
-            let cb = camBlocks |> Map.map (fun k b -> 
-                                        let c = b.Result.[0]  
-                                        Camera3d(c.Position, c.AngleAxis, c.FocalLength),false)
-            let cf = (camFixed |> Map.map (fun _ cb -> cb.[0],true))
+        let points =
+            pointBlocks |> Array.map ( fun pb -> pb.Result ) |> Array.concat
 
-            Map.union cb cf
+        let cameras = 
+
+            let cb = camBlocks 
+                        |> Array.map (fun b -> b.Result.[0], false)
+
+            let cf = camFixed
+                        |> Array.map (fun b -> b.[0], true)
+                
+            [|
+                for i in 0 .. cf.Length-1 do
+                    yield camFixedIdx.[i], cf.[i]
+                for i in 0 .. cb.Length-1 do
+                    yield camIdx.[i], cb.[i]
+            |] |> Map.ofArray
 
         cost, points, cameras
 
@@ -135,7 +153,7 @@ module Bundler =
     let solve (useDistortion : bool) (p : BundlerProblem) =
         Log.startTimed "solve %d cameras" p.cameras.Count
         printfn " "
-        let options = CeresOptions(700, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-5, 1.0E-5)
+        let options = CeresOptions(700, CeresSolverType.SparseSchur, true, 1.0E-10, 1.0E-10, 1.0E-10)
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
 
         let tinyCost = 1.0E-6 * float measurementCount

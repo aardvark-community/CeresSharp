@@ -830,7 +830,7 @@ module BundlerViewer =
 
         let problem = input |> BundlerInput.toProblem
 
-        let cacheSolution = true
+        let cacheSolution = false
         let solution = 
             if not cacheSolution then 
                 Log.line "No caching involved."
@@ -846,6 +846,20 @@ module BundlerViewer =
                     Log.warn "Writing solution to cache"
                     sol |> ser.Pickle |> File.writeAllBytes fn
                     sol
+
+        let blurg = Mod.init Bam.Oida
+        
+        win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 0))
+        win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 1))
+        win.Keyboard.KeyDown(Keys.D3).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 2))
+        win.Keyboard.KeyDown(Keys.D4).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 3))
+        win.Keyboard.KeyDown(Keys.D5).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 4))
+        win.Keyboard.KeyDown(Keys.D6).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 5))
+        win.Keyboard.KeyDown(Keys.D7).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 6))
+        win.Keyboard.KeyDown(Keys.D8).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 7))
+        win.Keyboard.KeyDown(Keys.D9).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 8))
+        win.Keyboard.KeyDown(Keys.D0).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 9))
+        win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ ->  blurg.Value <- Bam.Oida))
         
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
                                 |> Mod.map Frustum.projTrafo
@@ -853,6 +867,25 @@ module BundlerViewer =
         let view = CameraView.lookAt (V3d(0.0, 2.0, 0.0)) V3d.Zero -V3d.OOI
                                 |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
                                 |> Mod.map CameraView.viewTrafo
+
+        let vp =
+            let far = 1000.0
+            adaptive {
+                let! b = blurg
+                match b with
+                | Oida ->
+                    let! cv = view
+                    let! f = proj
+                    return cv, f
+                | Fix i ->
+                        let fs = 
+                            try 
+                                (solution.cameras.[i] |> fst).ViewProjTrafo far
+                            with _ -> (solution.cameras.[0] |> fst).ViewProjTrafo far
+                        return Trafo3d.Identity, fs
+            }
+
+        let (view,proj) = vp |> Mod.map fst, vp |> Mod.map snd
 
         let sg = SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution graphInput.images (Mod.constant Bam.Oida)
                     |> Sg.viewTrafo view
@@ -906,10 +939,11 @@ module Example =
 
             pos
                 |> Array.zip norm
-                |> Array.filter (fun _ -> rand.UniformDouble() < 0.0001)
+                |> Array.sortBy ( fun _ -> rand.UniformDouble())
+                |> Array.take 200
                 |> Array.unzip
            
-        let cams = 4
+        let cams = 10
 
         let center = V3d.OOO
         let r = 3000.0
@@ -922,41 +956,41 @@ module Example =
 
 
 
-        use app = new OpenGlApplication()
-        use win = app.CreateSimpleRenderWindow(8)
+        //use app = new OpenGlApplication()
+        //use win = app.CreateSimpleRenderWindow(8)
 
-        let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
-                                |> Mod.map Frustum.projTrafo
+        //let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
+        //                        |> Mod.map Frustum.projTrafo
 
-        let view = CameraView.lookAt (V3d(0.0, r*1.0, 0.0)) V3d.Zero V3d.OOI
-                                |> DefaultCameraController.controlWithSpeed (Mod.init 1000.0) win.Mouse win.Keyboard win.Time
-                                |> Mod.map CameraView.viewTrafo
+        //let view = CameraView.lookAt (V3d(0.0, r*1.0, 0.0)) V3d.Zero V3d.OOI
+        //                        |> DefaultCameraController.controlWithSpeed (Mod.init 1000.0) win.Mouse win.Keyboard win.Time
+        //                        |> Mod.map CameraView.viewTrafo
 
-        let sg = 
-            IndexedGeometry(
-                Mode = IndexedGeometryMode.PointList,
-                IndexedAttributes = 
-                    SymDict.ofList [
-                        DefaultSemantic.Positions, sponzaVertices :> Array
-                        DefaultSemantic.Normals, sponzaNormals :> Array
-                    ]
-                )       
-                    |> Sg.ofIndexedGeometry
-                    |> Sg.shader {
-                        do! DefaultSurfaces.trafo
-                        do! DefaultSurfaces.pointSprite
-                        do! DefaultSurfaces.pointSpriteFragment
-                        do! DefaultSurfaces.constantColor C4f.White
-                        do! DefaultSurfaces.simpleLighting
-                    }
-                    |> Sg.uniform "PointSize" (Mod.constant 5.0)
-                    |> Sg.viewTrafo view
-                    |> Sg.projTrafo proj
+        //let sg = 
+        //    IndexedGeometry(
+        //        Mode = IndexedGeometryMode.PointList,
+        //        IndexedAttributes = 
+        //            SymDict.ofList [
+        //                DefaultSemantic.Positions, sponzaVertices :> Array
+        //                DefaultSemantic.Normals, sponzaNormals :> Array
+        //            ]
+        //        )       
+        //            |> Sg.ofIndexedGeometry
+        //            |> Sg.shader {
+        //                do! DefaultSurfaces.trafo
+        //                do! DefaultSurfaces.pointSprite
+        //                do! DefaultSurfaces.pointSpriteFragment
+        //                do! DefaultSurfaces.constantColor C4f.White
+        //                do! DefaultSurfaces.simpleLighting
+        //            }
+        //            |> Sg.uniform "PointSize" (Mod.constant 5.0)
+        //            |> Sg.viewTrafo view
+        //            |> Sg.projTrafo proj
 
-        let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
-        win.RenderTask <- task
+        //let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
+        //win.RenderTask <- task
 
-        win.Run()
+        //win.Run()
 
         //System.Environment.Exit 0
 
@@ -995,19 +1029,16 @@ module Example =
 
                 let v = sponzaVertices.[pi]
 
-                if rand.UniformDouble() < 1.5 then
+                let f = {   
+                            ndc         = cam.Project v
+                            angle       = 0.0
+                            size        = 1.0
+                            response    = 1.0
+                            descriptor  = FeatureDescriptor([||])
+                        }
                     
-                    
-                    let f = {   
-                                ndc         = cam.Project v
-                                angle       = 0.0
-                                size        = 1.0
-                                response    = 1.0
-                                descriptor  = FeatureDescriptor([||])
-                            }
-                    
-                    if f.ndc.X < 1.0 && f.ndc.X > -1.0 && f.ndc.Y < 1.0 && f.ndc.Y > -1.0 then
-                        fs.[c].Add (pi,f)
+                if f.ndc.X < 1.0 && f.ndc.X > -1.0 && f.ndc.Y < 1.0 && f.ndc.Y > -1.0 then
+                    fs.[c].Add (pi,f)
 
             i <- i + step
 

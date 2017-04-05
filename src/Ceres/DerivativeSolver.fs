@@ -60,7 +60,6 @@ module DerivativeSolverExtensions =
                             let index = i * c0 + pi
                             NativePtr.set jacobians index value
                                 
-
                 1
 
             x.AddCostFunction([| c0 |], residualCount, evaluate, id, [p0.Pointer])
