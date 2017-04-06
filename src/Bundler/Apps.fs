@@ -531,7 +531,7 @@ module SceneGraph =
                           else Sg.ofList []
                         ) 
                 ]   |> Sg.ofList 
-                    |> Sg.transform ((c |> fst).ViewProjTrafo(100.0).Inverse)
+                    |> Sg.transform (c.cam.ViewProjTrafo(100.0).Inverse)
 
             )
             |> Sg.ofList
@@ -678,7 +678,7 @@ module BundlerViewer =
             |> ASet.map ( fun (ci, ndc) ->
                     match solution with
                     | Some solution ->
-                        let cam = solution.cameras.[ci] |> fst
+                        let cam = solution.cameras.[ci].cam
                         let pos = cam.Unproject ndc (-1.0 - 0.0001)
     //                    Log.line "Unprojected to: %A" pos
     //                    let ray = Ray3d(cam.Position,(pos - cam.Position).Normalized)
@@ -691,7 +691,7 @@ module BundlerViewer =
                             [| 
                                 let ocs = [ 0 .. solution.cameras.Count - 1 ] |> List.except [ci]
                                 for other in ocs do
-                                    let oc = solution.cameras.[other] |> fst
+                                    let oc = solution.cameras.[other].cam
                                     let tro = tris.[other]
                                     yield other,transferPoint (cam,f) (oc,tro) ndc
                             |]
@@ -708,7 +708,7 @@ module BundlerViewer =
                                     | Some (p3d, (ii,_)) -> 
                                         yield p3d
 
-                                        let (oc,_) = solution.cameras.[oci]
+                                        let oc = solution.cameras.[oci].cam
 
                                         let oo = oc.Unproject ii (-1.0 - 0.0001)
                                         Log.line "Unprojected in other cam: %A" oo 
@@ -737,8 +737,8 @@ module BundlerViewer =
                 [|
                     match solution with
                     | Some solution ->
-                        let cam = solution.cameras.[0] |> fst
-                        let oc =  solution.cameras.[1] |> fst
+                        let cam = solution.cameras.[0].cam
+                        let oc =  solution.cameras.[1].cam
                         let t =  tris.[0]
                         let ot = tris.[1]
                    
@@ -829,7 +829,7 @@ module BundlerViewer =
                         match solution with
                         | None -> return Trafo3d.Identity, Trafo3d.Identity
                         | Some solution -> 
-                            let fs = (solution.cameras.[i] |> fst).ViewProjTrafo far
+                            let fs = solution.cameras.[i].cam.ViewProjTrafo far
                             return Trafo3d.Identity, fs
                 }
 
@@ -987,8 +987,8 @@ module BundlerViewer =
                     | Some solution ->
                         let fs = 
                             try 
-                                (solution.cameras.[i] |> fst).ViewProjTrafo far
-                            with _ -> (solution.cameras.[0] |> fst).ViewProjTrafo far
+                                solution.cameras.[i].cam.ViewProjTrafo far
+                            with _ -> solution.cameras.[0].cam.ViewProjTrafo far
                         return Trafo3d.Identity, fs
             }
 
@@ -1025,7 +1025,7 @@ module Example =
     open System.Collections.Generic
 
 
-    let renderSponza percentObservations outPath =
+    let renderSponza percentObservations outPath cams (points : Option<int>) =
 
         //euclid/inout/backend-paper/sponza_obj_copy
         Loader.Assimp.initialize()
@@ -1049,7 +1049,6 @@ module Example =
                     |> Array.map V3d.op_Explicit
                     |> Array.map center.Forward.TransformPos
 
-
             let norm = 
                 [|
                     for a in scene.meshes do
@@ -1060,21 +1059,14 @@ module Example =
             pos
                 |> Array.zip norm
                 |> Array.sortBy ( fun _ -> rand.UniformDouble())
-                |> Array.take 100
+                |> (match points with Some count -> Array.take count | None -> id)
                 |> Array.unzip
            
-        let cams = 10
-
         let center = V3d.OOO
         let r = 3000.0
 
         let mutable i = 0.0
         let step = (2.0 * Math.PI) / float cams
-
-
-
-
-
 
         //use app = new OpenGlApplication()
         //use win = app.CreateSimpleRenderWindow(8)
@@ -1140,6 +1132,7 @@ module Example =
         
         let rand = RandomSystem()
 
+//        let mutable ct = 0
         Log.startTimed "Fill small array"
         for c in 0 .. cams-1 do
             let x = r * sin i
@@ -1149,6 +1142,7 @@ module Example =
             for pi in 0..sponzaVertices.Length-1 do
 
                 if rand.UniformDouble() < percentObservations then
+//                if ct > 0 then
                     let v = sponzaVertices.[pi]
 
                     let f = {   
@@ -1161,6 +1155,8 @@ module Example =
                     
                     if f.ndc.X < 1.0 && f.ndc.X > -1.0 && f.ndc.Y < 1.0 && f.ndc.Y > -1.0 then
                         fs.[c].Add (pi,f)
+                
+//                ct <- ct+1
 
             i <- i + step
 

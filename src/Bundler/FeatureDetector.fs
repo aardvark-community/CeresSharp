@@ -877,52 +877,61 @@ module Feature =
             
             let result = result |> Seq.toList
 
-            Log.line "Found %A paths within %A FeatureNodes (%A imgs)."     result.Length    used.Count  g.images.Length
-            Log.line "MinTrackLength:\t\t%A"                                minTrackLength
-            Log.line "Too short tracks:\t\t%A"                              tooShort
-            Log.line "Used FeatureNodes:\t\t%A"                             (used |> Dict.toList |> List.sumBy ( fun (_,b) -> if b then 1 else 0))
-            Log.line "Unused FeatureNodes:\t%A"                             (used |> Dict.toList |> List.sumBy ( fun (_,b) -> if b then 0 else 1))
+            let debugoutput1() =
+                Log.line "Found %A paths within %A FeatureNodes (%A imgs)."     result.Length    used.Count  g.images.Length
+                Log.line "MinTrackLength:\t\t%A"                                minTrackLength
+                Log.line "Too short tracks:\t\t%A"                              tooShort
+                Log.line "Used FeatureNodes:\t\t%A"                             (used |> Dict.toList |> List.sumBy ( fun (_,b) -> if b then 1 else 0))
+                Log.line "Unused FeatureNodes:\t%A"                             (used |> Dict.toList |> List.sumBy ( fun (_,b) -> if b then 0 else 1))
             
-            let resultByCount =
-                result  |> List.fold (fun (counts:Dict<int,int>) (path) -> 
-                                        let key = path.Length
-                                        let ct = counts.GetOrCreate(key, fun _ -> 0)
-                                        counts |> Dict.set key (ct + 1) 
-                                        counts) (Dict<int,int>())
+                let resultByCount =
+                    result  |> List.fold (fun (counts:Dict<int,int>) (path) -> 
+                                            let key = path.Length
+                                            let ct = counts.GetOrCreate(key, fun _ -> 0)
+                                            counts |> Dict.set key (ct + 1) 
+                                            counts) (Dict<int,int>())
             
-            Log.line "Number of valid tracks:"
-            for KeyValue(len,ct) in resultByCount do
-                Log.line "length: %A  count: %A" len ct
+                Log.line "Number of valid tracks:"
+                for KeyValue(len,ct) in resultByCount do
+                    Log.line "length: %A  count: %A" len ct
+            debugoutput1()
             
-            let colors = result |> Seq.concat |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
 
             let measurements = Dictionary<_,_>()
+            for ci in 0 .. g.images.Length - 1 do
+                measurements.Add(ci,Dictionary<_,_>())
 
-            for i in 0 .. g.images.Length - 1 do
-                let file = g.images.[i].ToPixImage<byte>()
-                
-                measurements.Add(i,Dictionary<_,_>())
-
-                for fn in result |> List.map ( fun fs -> fs |> List.filter ( fun f -> f.image = i ) ) |> List.concat do
-                    let f = fn.feature
+                for fn in result |> List.map ( fun fs -> fs |> List.filter ( fun f -> f.image = ci ) ) |> List.concat do
                     let pi = fn.featureIndex
-                    let p = f.ndc
+                    let p = fn.feature.ndc
+                    measurements.[ci].Add(pi,p)
                     
-                    measurements.[i].Add(pi,p)
+            let debugoutput2() =
+                let colors = result |> Seq.concat |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
+                for i in 0 .. g.images.Length - 1 do
+                    let file = g.images.[i].ToPixImage<byte>()
+                    for fn in result |> List.map ( fun fs -> fs |> List.filter ( fun f -> f.image = i ) ) |> List.concat do
+                        let f = fn.feature
+                        let pi = fn.featureIndex
+                        let p = f.ndc
 
-                    let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
-                    let size = clamp 5 10 (ceil (f.size / 3.0) |> int)
+                        let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
+                        let size = clamp 5 10 (ceil (f.size / 3.0) |> int)
                     
-                    file.GetMatrix<C4b>().SetCross(pp, size, colors.[pi])
-                    file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
+                        file.GetMatrix<C4b>().SetCross(pp, size, colors.[pi])
+                        file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
                     
-                let path = sprintf @"D:\file\pix\mtl%A" minTrackLength
+                    let path = sprintf @"D:\file\pix\mtl%A" minTrackLength
 
-                if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+                    if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
 
-                file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
-                
-            { measurements = measurements |> Seq.map ( fun kvp -> int kvp.Key, kvp.Value |> Seq.map ( fun ikvp -> ikvp.Key, ikvp.Value ) |> Map.ofSeq ) |> Map.ofSeq }
+                    file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
+            debugoutput2()
+
+            let flat = measurements |> Seq.map ( fun kvp -> int kvp.Key, kvp.Value |> Seq.map ( fun ikvp -> ikvp.Key, ikvp.Value ) |> Map.ofSeq ) |> Map.ofSeq
+            let tracks = result |> List.map ( fun nodes -> nodes |> List.map ( fun fn -> fn.image, fn.featureIndex ) |> List.sortBy fst |> List.toArray ) |> List.toArray
+
+            { measurements = flat; tracks = tracks }
                         
                     
 
@@ -1013,7 +1022,7 @@ module Feature =
 
                 file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
 
-            { measurements = measurements |> Array.mapi ( fun i x -> i,x) |> Map.ofArray }
+            { measurements = measurements |> Array.mapi ( fun i x -> i,x) |> Map.ofArray; tracks = failwith "implement me" }
 
             
 //    let toBundlerInput (config : MatchingConfig) (images : PixImage<byte>[]) (data : Feature[][]) =
@@ -1037,10 +1046,7 @@ module Feature =
 
         for e in edges do
             nodes.[e.i0] := e :: nodes.[e.i0].Value 
-
-
-
-
+            
         ()
 
 //

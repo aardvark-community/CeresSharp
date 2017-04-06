@@ -12,26 +12,30 @@ module Bundler =
 
     let private rand = RandomSystem()
 
-    let private improveInternal (options : CeresOptions) (points : V3d[]) (cameras : Map<int,Camera3d*bool>) 
-                                ( iterationAdorner : V3d[] -> Map<int,(Camera3d*bool)> -> unit )
-                                (measurements : Map<int,Map<int, V2d>>) : float * V3d[] * Map<int,Camera3d*bool> =
+    let private improveInternal (options : CeresOptions) (prob : BundlerProblem) (points : Map<int,V3d>) (cameras : Map<int,SolverCamera>) 
+                                ( iterationAdorner : Map<int,V3d> -> Map<int,SolverCamera> -> unit )
+                                (measurements : Map<int,Map<int, V2d>>) : float * Map<int,V3d> * Map<int,SolverCamera> =
         use p = new Problem()
-        let guessedPoints   : V3d[] = points |> Array.copy
-        let guessedCameras  : Map<int,(Camera3d*bool)[]> =
+        let guessedPoints   : Map<int,V3d> = points
+        let guessedCameras  : Map<int,SolverCamera[]> =
             [|
                 for kvp in measurements do
                     let ci = kvp.Key
-                    let cam = [| if cameras.ContainsKey ci then yield cameras.[ci] |]
+                    let cam = [| cameras.[ci] |]
                     yield ci, cam
             |] |> Map.ofArray
 
-        let pointBlocks      = 
-            guessedPoints   |> Array.map ( fun po -> [| po |] )
+        let (pointIdx, pointb) = 
+            guessedPoints   |> Map.map ( fun _ po -> [| po |] )
+                            |> Map.toArray
+                            |> Array.unzip
+        
+        let pointBlocks = pointb
                             |> Array.map p.AddParameterBlock
 
         let (camIdx, camb)  = guessedCameras 
-                                |> Map.filter (fun _ o -> let (_,f) = o.[0] in not f) 
-                                |> Map.map (fun _ c -> c |> Array.map fst )
+                                |> Map.filter (fun _ o -> not o.[0].isFixed) 
+                                |> Map.map (fun _ o -> o |> Array.map ( fun c -> c.cam ))
                                 |> Map.toArray
                                 |> Array.unzip
 
@@ -39,23 +43,28 @@ module Bundler =
         
         let (camFixedIdx, camFixed) = 
                               guessedCameras
-                                |> Map.filter (fun _ o -> let (_,f) = o.[0] in f) 
-                                |> Map.map (fun _ c -> (c |> Array.map fst) )
+                                |> Map.filter (fun _ o -> o.[0].isFixed) 
+                                |> Map.map (fun _ o -> o |> Array.map ( fun c -> c.cam ))
                                 |> Map.toArray
                                 |> Array.unzip
         
         let getCurrentPointsCams() =  
             
             let points =
-                pointBlocks |> Array.map ( fun pb -> pb.Result ) |> Array.concat
+                let pb = pointBlocks |> Array.map ( fun pb -> pb.Result ) |> Array.concat
+
+                [|
+                    for i in 0 .. pb.Length-1 do
+                        yield pointIdx.[i], pb.[i]
+                |] |> Map.ofArray
 
             let cameras = 
 
                 let cb = camBlocks 
-                            |> Array.map (fun b -> b.Result.[0], false)
+                            |> Array.map (fun b -> { cam = b.Result.[0]; isFixed = false })
 
                 let cf = camFixed
-                            |> Array.map (fun b -> b.[0], true)
+                            |> Array.map (fun b -> { cam = b.[0]; isFixed = true })
                 
                 [|
                     for i in 0 .. cf.Length-1 do
@@ -66,19 +75,26 @@ module Bundler =
             
             points, cameras
 
+        let indexOf x xs =
+            xs |> Array.findIndex ( fun y -> y = x )
 
         let ipointsCams() =  
             
             let points =
-                pointBlocks |> Array.map ( fun pb -> pb.IntermediaryResult |> Array.map ( fun s -> s.Value ) ) |> Array.concat
+                let pb = pointBlocks |> Array.map ( fun pb -> pb.IntermediaryResult |> Array.map ( fun s -> s.Value ) ) |> Array.concat
+
+                [|
+                    for i in 0 .. pb.Length-1 do
+                        yield pointIdx.[i], pb.[i]
+                |] |> Map.ofArray
 
             let cameras = 
 
                 let cb = camBlocks 
-                            |> Array.map (fun b -> b.IntermediaryResult.[0] |> Camera3s.Value, false)
+                            |> Array.map (fun b -> { cam = b.IntermediaryResult.[0] |> Camera3s.Value; isFixed = false } )
 
                 let cf = camFixed
-                            |> Array.map (fun b -> b.[0], true)
+                            |> Array.map (fun b ->  { cam = b.[0]; isFixed = true })
                 
                 [|
                     for i in 0 .. cf.Length-1 do
@@ -103,52 +119,52 @@ module Bundler =
                 let (points, cameras) = ipointsCams()
                 iterationAdorner points cameras
 
-        for pi in 0 .. pointBlocks.Length-1 do
-            let pb = pointBlocks.[pi]
-            let pointIndex = pi
+        for i in 0 .. prob.input.tracks.Length-1 do
+            let pb = pointBlocks.[pointIdx.[i]]
 
-            for ci in 0 .. camFixed.Length-1 do 
-                let cf = camFixed.[ci]
-                let fixedIndex = camFixedIdx.[ci]
-                
-                if measurements.[fixedIndex] |> Map.containsKey pointIndex then
-                    let real = measurements.[fixedIndex].[pointIndex]
+            let track = prob.input.tracks.[i]
 
-                    p.AddCostFunction(2, pb, fun point ->
-                        
-                            let obs = point.[0] |> V3s.getProjectedBy cf.[0]
+            for (ci,lpi) in track do
+                if camIdx |> Array.contains ci then
+                    let cb = camBlocks.[camIdx |> indexOf ci]
 
-                            let diff = real - obs
-                        
-                            iterationCallback()
-
-                            [|
-                                diff.X
-                                diff.Y
-                            |]
-
-                        )
-                    
-            for ci in 0 .. camBlocks.Length-1 do
-                let cb = camBlocks.[ci]
-                let camIndex = camIdx.[ci]
-
-                if measurements.[camIndex] |> Map.containsKey pointIndex then
-                    let real = measurements.[camIndex].[pointIndex]
+                    let real = measurements.[ci].[lpi]
 
                     p.AddCostFunction(2, pb, cb, fun point cam ->
-                    
+                      
                         let obs = cam.[0].Project point.[0]
-                    
+                      
                         let diff = real - obs
-
+                    
                         iterationCallback()
-
+                    
                         [|
                             diff.X
                             diff.Y
                         |]
                     )
+                
+                elif camFixedIdx |> Array.contains ci then
+                    let cf = camFixed.[camFixedIdx |> indexOf ci]
+
+                    let real = measurements.[ci].[lpi] 
+
+                    p.AddCostFunction(2, pb, fun point ->
+                          
+                            let obs = point.[0] |> V3s.getProjectedBy cf.[0]
+                    
+                            let diff = real - obs
+                          
+                            iterationCallback()
+                    
+                            [|
+                                diff.X
+                                diff.Y
+                            |]
+                    
+                        )
+                else    
+                    Log.error "CAN NOT HAPPEN!!!!!!!!!"
 
         let cost = p.Solve(options)
 
@@ -157,39 +173,12 @@ module Bundler =
         cost, points, cameras
 
     let private improveSol (options : CeresOptions) (adorner : BundlerSolution -> unit) (sol : BundlerSolution) =
-        let parent = sol.problem
-        let input = parent.input
-
-        let subMeasurements =
-            input.measurements
-                |> Map.filter (fun ci _ -> Map.containsKey ci sol.cameras)
-
-        let subPoints =
-            subMeasurements
-                |> Map.toSeq
-                |> Seq.map snd
-                |> Seq.collect (Map.toSeq >> Seq.map fst)
-                |> Set.ofSeq
-                |> Set.toArray
-
-        let innerPointIndices =
-            let count = 1 + subPoints.[subPoints.Length - 1]
-            let arr = Array.zeroCreate count
-            for i in subPoints do
-                arr.[i] <- 1
-            Array.scan (+) 0 arr
-
-        let subMeasurements =
-            subMeasurements
-                |> Map.map (fun _ m ->
-                    m |> Map.toSeq |> Seq.map (fun (pi, v) -> innerPointIndices.[pi], v) |> Map.ofSeq
-                )
         
         let mkSolution cost points cameras =
             {
                 cost = cost
-                problem = parent
-                points = points |> Seq.mapi (fun i p -> subPoints.[i], p) |> Map.ofSeq
+                problem = sol.problem
+                points = points
                 cameras = cameras
             }
 
@@ -198,9 +187,7 @@ module Bundler =
             adorner sol
 
         let cost, points, cameras =  
-            let points = sol.points |> Map.toSeq |> Seq.map snd |> Seq.toArray
-            let cameras = sol.cameras
-            improveInternal options points cameras iterationCallback subMeasurements
+            improveInternal options sol.problem sol.points sol.cameras iterationCallback sol.problem.input.measurements
         
         mkSolution cost points cameras
 
@@ -216,7 +203,8 @@ module Bundler =
         let mutable best : Option<BundlerSolution> = None
         let mutable iter = 0
         while iter < 8 && bestCost > tinyCost do
-            let n = improveSol options adorner (BundlerSolution.random p)
+            let initial = BundlerSolution.random p
+            let n = improveSol options adorner initial
             if n.cost < bestCost then
                 bestCost <- n.cost
                 best <- Some n

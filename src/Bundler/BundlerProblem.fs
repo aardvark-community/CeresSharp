@@ -127,7 +127,11 @@ type Match2d(pos : V2d, vel : V2d, o : V4d, li : int, ri : int) =
     static member Dot(l : Match2d,r : Match2d) =
         Vec.dot l.Pos r.Pos + Vec.dot l.Vel r.Vel + Vec.dot l.O r.O
         
-
+type SolverCamera =
+    {
+        cam : Camera3d
+        isFixed : bool
+    }
 
 module MatchProblem =       
     open CeresSharp
@@ -641,6 +645,7 @@ module MatchProblem =
 type BundlerInput =
     {
         measurements : Map<int,Map<int, V2d>>
+        tracks : (int*int)[][]
     }
 
 type BundlerProblem =
@@ -654,7 +659,7 @@ type BundlerSolution =
         cost        : float
         problem     : BundlerProblem
         points      : Map<int, V3d>
-        cameras     : Map<int, Camera3d*bool>
+        cameras     : Map<int, SolverCamera>
     }
 
 type BundlerError =
@@ -682,20 +687,37 @@ module BundlerSolution =
  
     let errorMetrics (s : BundlerSolution) =
         let errors =
-            s.problem.cameras
-                |> Seq.collect (fun ci ->
-                    let measurements = s.problem.input.measurements.[ci]
-                    let (cam,_) = s.cameras.[ci]
+            [|
+                for pi in 0 .. s.problem.input.tracks.Length-1 do
+                    let estimatedPoint = s.points.[pi]
 
-                    measurements 
-                        |> Map.toSeq 
-                        |> Seq.map (fun (pi, m) -> 
-                            let obs = cam.Project s.points.[pi]
-                            let v = obs - m
-                            v, Vec.length (0.5 * v) // 0.5 because [-1,1]
-                        ) 
-                    )
-                |> Seq.toArray
+                    let track = s.problem.input.tracks.[pi]
+                    for (ci,lpi) in track do
+                        
+                        let cam = s.cameras.[ci]
+                        
+                        let observedPoint = s.problem.input.measurements.[ci].[lpi]
+
+                        let projection = cam.cam.Project estimatedPoint
+                        let diff = projection - observedPoint
+                        yield diff, (Vec.length (0.5*diff))
+            |] 
+
+            //s.problem.cameras
+            //    |> Seq.collect (fun ci ->
+            //        let measurements = s.problem.input.measurements.[ci]
+            //        let scam = s.cameras.[ci]
+            //        let cam = scam.cam
+
+            //        measurements 
+            //            |> Map.toSeq 
+            //            |> Seq.map (fun (pi, m) -> 
+            //                let obs = cam.Project s.points.[pi]
+            //                let v = obs - m
+            //                v, Vec.length (0.5 * v) // 0.5 because [-1,1]
+            //            ) 
+            //        )
+            //    |> Seq.toArray
 
         let mutable sumSq = 0.0
         let mutable sum = 0.0
@@ -732,7 +754,7 @@ module BundlerSolution =
         let fw = trafo.Forward
         { s with 
             points = s.points |> Map.map (fun _ p -> fw.TransformPosProj p)
-            cameras = s.cameras |> Map.map (fun _ (c,f) -> c.Transformed trafo,f)
+            cameras = s.cameras |> Map.map (fun _ sc -> { sc with cam = sc.cam.Transformed trafo })
         }
 
     let merge (l : BundlerSolution) (r : BundlerSolution) =
@@ -777,20 +799,15 @@ module BundlerSolution =
                     let ci = cams.[i]
                     match i with
                     | 0 -> 
-                        yield ci, (Camera3d.LookAt(V3d.IOO * 10.0, V3d.Zero, 1.0, V3d.OOI),true)     //<- isFixedVariable
+                        yield ci, { cam = Camera3d.LookAt(V3d.IOO * 10.0, V3d.Zero, 1.0, V3d.OOI); isFixed = true }
                     | 1 -> 
-                        yield ci, (Camera3d.LookAt(V3d.OIO * 10.0, V3d.Zero, 1.0, V3d.OOI),false)    //<- isFreeVariable
+                        yield ci, { cam = Camera3d.LookAt(V3d.OIO * 10.0, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
                     | _ -> 
-                        yield ci, (Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.0, V3d.OOI),false)    //<- isFreeVariable
+                        yield ci, { cam = Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
             ] |> Map.ofList
 
         let points = 
-            p.cameras 
-                |> Seq.collect (fun ci -> 
-                    p.input.measurements.[ci] |> Map.toSeq |> Seq.map fst) 
-                |> Set.ofSeq 
-                |> Seq.map (fun pi -> pi, crap.[pi]) 
-                |> Map.ofSeq
+            p.input.tracks |> Array.mapi ( fun i _ -> i,crap.[i] ) |> Map.ofArray
 
         withCost {
             cost = 0.0
@@ -845,8 +862,9 @@ module BundlerInput =
         let cameras = 
             i.measurements |> Map.filter (fun i m -> 
                 if m.Count < 8 then
-                    Log.warn "Camera %A has less than 8 points (%A) and is discarded." i m.Count
-                    false
+//                    Log.warn "Camera %A has less than 8 points (%A) and is discarded." i m.Count
+//                    false
+                    true
                 else
                     true
             )

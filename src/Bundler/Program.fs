@@ -51,6 +51,7 @@ module BundlerTest =
         let input = 
             BundlerInput.preprocess {
                 measurements = measurements
+                tracks = failwith "implement me"
             }
 
         realPoints, realCameras, imgs, BundlerInput.toProblem input
@@ -98,7 +99,7 @@ module BundlerTest =
             Log.stop()
             Log.stop()
 
-            let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.map ( fun c -> c,false ) |> Seq.indexed |> Map.ofSeq }
+            let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.map ( fun c -> { cam = c; isFixed = false } ) |> Seq.indexed |> Map.ofSeq }
 
             input, sol, realPimgs
         | None -> 
@@ -363,7 +364,7 @@ let testGlobal() =
         let far = 1000.0
         let getCam i =
             try 
-                (s.cameras.[i] |> fst).ViewProjTrafo far
+                s.cameras.[i].cam.ViewProjTrafo far
             with _ -> Trafo3d.Identity
 
         adaptive {
@@ -426,8 +427,9 @@ let main argv =
     //PairViewer.app path
     //BundlerViewer.folder path
 
-    Example.renderSponza 1.0 @"D:\file\sponza_bun\sponzaVertices"
+    Example.renderSponza 1.0 @"D:\file\sponza_bun\sponzaVertices" 10 (Some 100)
     BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
+//    BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices" |> ignore
 
     //Example.testManySponzas()
 
