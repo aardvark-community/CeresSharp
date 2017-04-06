@@ -89,6 +89,12 @@ type Camera3s(pos : V3s, aa : V3s) =
 
         ndc
 
+    member x.ProjectWithDepth(p : V3s) =
+        let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
+        let ndc = view.XY / view.Z
+
+        ndc, view.Z
+
     static member Read(offset : int, v : Camera3d) =
         let p   = V3s(scalar.Variable(offset + 0, v.Position.X), scalar.Variable(offset + 1, v.Position.Y), scalar.Variable(offset + 2, v.Position.Z))
         let aa  = V3s(scalar.Variable(offset + 3, v.AngleAxis.X), scalar.Variable(offset + 4, v.AngleAxis.Y), scalar.Variable(offset + 5, v.AngleAxis.Z))
@@ -104,6 +110,12 @@ module V3s =
         let ndc = view.XY / view.Z
 
         ndc
+
+    let getProjectedByWithDepth (cam : Camera3d) (p : V3s) =   
+        let view = AngleAxis.RotatePoint(cam.AngleAxis, p - cam.Position)
+        let ndc = view.XY / view.Z
+
+        ndc, view.Z
 
 [<Struct>]
 type Match2d(pos : V2d, vel : V2d, o : V4d, li : int, ri : int) =
@@ -130,6 +142,12 @@ type Match2d(pos : V2d, vel : V2d, o : V4d, li : int, ri : int) =
 type SolverCamera =
     {
         cam : Camera3d
+        isFixed : bool
+    }
+
+type SolverPoint =  
+    {
+        point : V3d
         isFixed : bool
     }
 
@@ -658,7 +676,7 @@ type BundlerSolution =
     {
         cost        : float
         problem     : BundlerProblem
-        points      : Map<int, V3d>
+        points      : Map<int, SolverPoint>
         cameras     : Map<int, SolverCamera>
     }
 
@@ -698,7 +716,7 @@ module BundlerSolution =
                         
                         let observedPoint = s.problem.input.measurements.[ci].[lpi]
 
-                        let projection = cam.cam.Project estimatedPoint
+                        let projection = cam.cam.Project estimatedPoint.point
                         let diff = projection - observedPoint
                         yield diff, (Vec.length (0.5*diff))
             |] 
@@ -753,7 +771,7 @@ module BundlerSolution =
     let transformed (trafo : Trafo3d) (s : BundlerSolution) =
         let fw = trafo.Forward
         { s with 
-            points = s.points |> Map.map (fun _ p -> fw.TransformPosProj p)
+            points = s.points |> Map.map (fun _ p -> { p with point = fw.TransformPosProj p.point })
             cameras = s.cameras |> Map.map (fun _ sc -> { sc with cam = sc.cam.Transformed trafo })
         }
 
@@ -763,7 +781,7 @@ module BundlerSolution =
         let overlapping = Map.intersect l.points r.points
         if overlapping.Count < 8 then failwith "cannot merge SubSolutions with less than 8 shared points"
 
-        let lPoints, rPoints = overlapping |> Map.toSeq |> Seq.map snd |> Seq.toArray |> Array.unzip
+        let lPoints, rPoints = overlapping |> Map.toSeq |> Seq.map snd |> Seq.toArray |> Array.map ( fun (lsp,rsp) -> lsp.point, rsp.point ) |> Array.unzip
 
         let trafo = PointCloud.trafo rPoints lPoints
 
@@ -789,25 +807,36 @@ module BundlerSolution =
             |] |> Array.map ( fun v -> V3d(Math.Round(v.X,places),Math.Round(v.Y,places),Math.Round(v.Z,places) ) )
                |> Array.distinct
 
-    let random (p : BundlerProblem) =
+    let withFixings (fixCams : bool) (fixPoints : bool) n =
+        { n with 
+            points = n.points |> Map.map ( fun i p -> {p with isFixed = fixPoints} )
+            cameras = n.cameras |> Map.map ( fun _ c -> {c with isFixed = fixCams} ) 
+        }
+
+    let random (p : BundlerProblem)=
         //let cameras = p.cameras |> Seq.map (fun ci -> ci, Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.5, V3d.OOI)) |> Map.ofSeq
 
         let cameras =
             let cams = p.cameras |> Seq.toArray
             [
+                let dist = 20.0
                 for i in 0..cams.Length-1 do
                     let ci = cams.[i]
                     match i with
                     | 0 -> 
-                        yield ci, { cam = Camera3d.LookAt(V3d.IOO * 10.0, V3d.Zero, 1.0, V3d.OOI); isFixed = true }
+                        yield ci, { cam = Camera3d.LookAt(V3d.IOI * dist, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
                     | 1 -> 
-                        yield ci, { cam = Camera3d.LookAt(V3d.OIO * 10.0, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
+                        yield ci, { cam = Camera3d.LookAt(V3d.OII * dist, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
+                    | 2 -> 
+                        yield ci, { cam = Camera3d.LookAt(V3d.IIO * dist, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
+                    | 3 -> 
+                        yield ci, { cam = Camera3d.LookAt(-V3d.III * dist, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
                     | _ -> 
-                        yield ci, { cam = Camera3d.LookAt(rand.UniformV3dDirection() * 10.0, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
+                        yield ci, { cam = Camera3d.LookAt(rand.UniformV3dDirection() * dist, V3d.Zero, 1.0, V3d.OOI); isFixed = false }
             ] |> Map.ofList
 
         let points = 
-            p.input.tracks |> Array.mapi ( fun i _ -> i,crap.[i] ) |> Map.ofArray
+            p.input.tracks |> Array.mapi ( fun i _ -> i, { point = crap.[i]; isFixed = false } ) |> Map.ofArray
 
         withCost {
             cost = 0.0
@@ -862,17 +891,20 @@ module BundlerInput =
         let cameras = 
             i.measurements |> Map.filter (fun i m -> 
                 if m.Count < 8 then
-//                    Log.warn "Camera %A has less than 8 points (%A) and is discarded." i m.Count
-//                    false
-                    true
+                    Log.warn "Camera %A has less than 8 points (%A) and is discarded." i m.Count
+                    
+                    false
+                    //true
                 else
                     true
             )
 
         if cameras.Count = 0 then Log.error "No stable cameras found, solution impossible."
 
+        let cams = cameras |> Map.toArray |> Array.map fst |> Set.ofArray 
+
         {
             input = i
-            cameras = cameras |> Map.toArray |> Array.map fst |> Set.ofArray 
+            cameras = cams 
         }
 

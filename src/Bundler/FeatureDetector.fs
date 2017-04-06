@@ -906,6 +906,25 @@ module Feature =
                     let p = fn.feature.ndc
                     measurements.[ci].Add(pi,p)
                     
+            let measurements =
+                [|
+                    for KeyValue(ci, ms) in measurements do
+                        if ms.Count < 8 then
+                            Log.warn "ms count less than 8 (only %d) bye bye camera %d" ms.Count ci
+                        else
+                            yield ci, ms
+                            
+                |] |> Dictionary.ofArray
+
+            let result = 
+                result |> List.choose ( fun track -> 
+                    let filtered = track |> List.filter ( fun n -> measurements.ContainsKey n.image )
+                    if List.length filtered < minTrackLength then
+                        None
+                    else
+                        Some filtered
+                )
+
             let debugoutput2() =
                 let colors = result |> Seq.concat |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
                 for i in 0 .. g.images.Length - 1 do
@@ -929,6 +948,7 @@ module Feature =
             debugoutput2()
 
             let flat = measurements |> Seq.map ( fun kvp -> int kvp.Key, kvp.Value |> Seq.map ( fun ikvp -> ikvp.Key, ikvp.Value ) |> Map.ofSeq ) |> Map.ofSeq
+            
             let tracks = result |> List.map ( fun nodes -> nodes |> List.map ( fun fn -> fn.image, fn.featureIndex ) |> List.sortBy fst |> List.toArray ) |> List.toArray
 
             { measurements = flat; tracks = tracks }

@@ -111,23 +111,24 @@ type IParameterBlock<'a, 'b> =
     inherit IDisposable
     inherit IParameterBlock<'b>
     abstract member Result : 'a[]
-    abstract member IntermediaryResult : 'b[]
+    abstract member IntermediaryResult : 'a[]
 
 type ParameterBlock<'a, 'b when 'a : unmanaged>(data : 'a[], read : int -> 'a -> 'b) =
     static let doubles = TypeInfo.doubles<'a>
 
     let gc = GCHandle.Alloc(data, GCHandleType.Pinned)
 
-    let mutable intermediaryResult = Unchecked.defaultof<_>
+    let intermediaryResult = Array.copy data
 
     member x.Read(offset : int, ptr : nativeptr<'a>) =
         let res = Array.zeroCreate data.Length
         let mutable vi = offset
         let step = doubles 
         for i in 0 .. data.Length - 1 do
-            res.[i] <- NativePtr.get ptr i |> read vi
+            let v = NativePtr.get ptr i
+            res.[i] <- v |> read vi
+            intermediaryResult.[i] <- v
             vi <- vi + step
-        intermediaryResult <- res
         res
 
     member x.IntermediaryResult = intermediaryResult

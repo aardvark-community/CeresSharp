@@ -254,7 +254,7 @@ module Bundle =
 
                     let poly = TriangleNet.Geometry.Polygon(sol.points.Count)
                     for pw in sol.points do
-                        let (p,d) = c.cam.ProjectWithDepth pw.Value
+                        let (p,d) = c.cam.ProjectWithDepth pw.Value.point
                         let vertex = TriangleNet.Geometry.Vertex(-p.X, -p.Y, 0, 1)
                         vertex.Attributes.[0] <- d
                         poly.Add vertex

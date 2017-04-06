@@ -45,6 +45,7 @@ type Jacobian =
         if Map.isEmpty l then Map.empty
         else Jacobian.Map (fun v -> v / r) l
 
+
 [<CustomComparison; CustomEquality>]
 type scalar =
     struct
@@ -117,6 +118,10 @@ type scalar =
         static member (*) (l : scalar, r : scalar) =
             scalar(l.Value * r.Value, Jacobian.Add(Jacobian.Mul(l.Jacobian, r.Value), Jacobian.Mul(l.Value, r.Jacobian)))
 
+        // (r.Value*r.Value, 2 * r.Jacobian * r.Value)
+        // (r.Value ** 3, 3 * r.Jacobian * r.Value ** 2)
+        // (r.Value ** 4, 4 * r.Jacobian * r.Value ** 3)
+
         static member (*) (l : scalar, r : float) =
             scalar(l.Value * r, Jacobian.Mul(l.Jacobian, r))
 
@@ -133,6 +138,9 @@ type scalar =
 
         static member (/) (l : float, r : scalar) =
             scalar l / r
+
+        static member Pow (v : scalar, e : float) =
+            scalar(v.Value ** e, Jacobian.Mul(e * v.Value ** (e - 1.0), v.Jacobian))
 
         static member Sin (v : scalar) =
             scalar(sin v.Value, Jacobian.Mul(cos v.Value, v.Jacobian))

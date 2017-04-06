@@ -541,7 +541,7 @@ module SceneGraph =
                 Mode = IndexedGeometryMode.PointList,
                 IndexedAttributes =
                     SymDict.ofList [
-                        DefaultSemantic.Positions, s.points |> Map.toSeq |> Seq.map snd |> Seq.map V3f |> Seq.toArray :> Array
+                        DefaultSemantic.Positions, s.points |> Map.toSeq |> Seq.map snd |> Seq.map ( fun sp -> V3f sp.point) |> Seq.toArray :> Array
                     ]
             )
             |> Sg.ofIndexedGeometry
@@ -902,7 +902,7 @@ module BundlerViewer =
         
         let graph = Feature.FeatureGraph.build graphInput
 
-        let input = Feature.FeatureGraph.toBundlerInputSiegfried graph 2
+        let input = Feature.FeatureGraph.toBundlerInputSiegfried graph 3
 
         let problem = input |> BundlerInput.toProblem
 
@@ -924,8 +924,15 @@ module BundlerViewer =
 
         async {
             let cacheSolution = false
+            let mutable iterCt = -1
             let adorner sol =
+                //if iterCt = 0 then
+                //    printf "Enter iterCt: "
+                //    match Console.ReadLine() |> Int32.TryParse with
+                //    | (true,v) -> iterCt <- -v
+                //    | _ -> iterCt <- -10
                 transact ( fun _ -> Mod.change solution (sol |> Some) )
+                iterCt <- iterCt + 1
 
             let finalSol = 
                 if not cacheSolution then 
@@ -967,7 +974,7 @@ module BundlerViewer =
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
                                 |> Mod.map Frustum.projTrafo
 
-        let view = CameraView.lookAt (V3d(0.0, 2.0, 0.0)) V3d.Zero -V3d.OOI
+        let view = CameraView.lookAt (V3d(0.0, 50.0, 0.0)) V3d.Zero -V3d.OOI
                                 |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
                                 |> Mod.map CameraView.viewTrafo
 
@@ -1194,11 +1201,11 @@ module Example =
         let sols =
             [
                 let mutable ct = 0
-                let range = [0.2 .. 0.1 .. 1.0]
+                let range = [0.1 .. 0.1 .. 1.0]
                 for percentObservations in range do
                     ct <- ct+1
                     Log.warn "Starting %A of %A" ct (range |> Seq.length)
-                    renderSponza percentObservations @"D:\file\sponza_bun\sponzaVertices"
+                    renderSponza percentObservations @"D:\file\sponza_bun\sponzaVertices" 5 (Some 50)
                     yield ct, percentObservations, BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices"
             ]
         

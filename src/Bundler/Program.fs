@@ -99,7 +99,7 @@ module BundlerTest =
             Log.stop()
             Log.stop()
 
-            let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.map ( fun c -> { cam = c; isFixed = false } ) |> Seq.indexed |> Map.ofSeq }
+            let input = { cost = 0.0; problem = problem; points = realPoints |> Seq.map ( fun p -> { point = p; isFixed = false } ) |> Seq.indexed |> Map.ofSeq; cameras = realCameras |> Seq.map ( fun c -> { cam = c; isFixed = false } ) |> Seq.indexed |> Map.ofSeq }
 
             input, sol, realPimgs
         | None -> 
@@ -333,7 +333,7 @@ let testGlobal() =
     use win = app.CreateSimpleRenderWindow(8)
 
 
-    let trafo = PointCloud.trafo2 sol.points input.points
+    let trafo = failwith "" //PointCloud.trafo2 (sol.points |> Array.map input.points
     let input =
         SceneGraph.ofBundlerSolution (C4b(0uy, 0uy, 255uy, 127uy)) 10 C4b.Yellow input (Shader.solutionSurface ()) ((Shader.surfacePoint C4b.Yellow)) ((Shader.surfaceBox C4b.DarkRed)) pimgs (Mod.constant Bam.Oida)
             |> Sg.pass (RenderPass.after "asdasd" RenderPassOrder.Arbitrary RenderPass.main)
@@ -427,10 +427,10 @@ let main argv =
     //PairViewer.app path
     //BundlerViewer.folder path
 
-    Example.renderSponza 1.0 @"D:\file\sponza_bun\sponzaVertices" 10 (Some 100)
+    Example.renderSponza 0.75 @"D:\file\sponza_bun\sponzaVertices" 4 (Some 32)
     BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
 //    BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices" |> ignore
 
-    //Example.testManySponzas()
+//    Example.testManySponzas()
 
     0 // return an integer exit code
