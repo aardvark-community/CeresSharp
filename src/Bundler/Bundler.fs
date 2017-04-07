@@ -293,7 +293,7 @@ module Bundler =
                         redorn (n-1) f (f a)
 
                 let solution =
-                    BundlerSolution.random p
+                    BundlerSolution.estimateStartingValues p
                         |> redorn 10 (
                             BundlerSolution.withFixings true false >>
                             improveSol options adorner >>

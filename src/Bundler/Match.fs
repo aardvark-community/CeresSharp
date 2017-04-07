@@ -10,9 +10,13 @@ open Aardvark.Base.Rendering
 open Aardvark.Rendering
 open Aardvark.SceneGraph
 
+[<AutoOpen>]
+module Undefined =
+    let undefined<'a> : 'a = failwith ""
+
 module Match =
 
-    let bruteforce t l r = Feature.matchCandidates t l r
+    let bruteforce t l r = Feature.bruteforceMatch t l r
     
     let probability l s p ms =
         
@@ -209,7 +213,7 @@ module Bundle =
         Log.stop()
 
         Log.startTimed "BundlerInput generation"
-        let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
+        let input = failwith "" //Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
             
 
         let problem = input |> BundlerInput.toProblem

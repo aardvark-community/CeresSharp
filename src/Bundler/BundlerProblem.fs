@@ -660,8 +660,80 @@ module MatchProblem =
         q
 
 
+type FeatureDescriptor internal(raw : float[]) =
+    let dim = raw.Length
+    let scale = sqrt (float dim)
+    let vector = raw |> Array.map (fun v -> v / scale)
+
+    member x.Dimension = dim
+    member x.Data = vector
+    member x.RawData = raw
+
+    static member Distance(l : FeatureDescriptor, r : FeatureDescriptor) =
+        if l.Dimension <> r.Dimension then
+            failwithf "cannot compare features with different dimensions: %A vs %A" l.Dimension r.Dimension
+
+        let l = l.Data
+        let r = r.Data
+        let mutable res = 0.0
+        for i in 0 .. l.Length - 1 do
+            let v = l.[i] - r.[i]
+            res <- res + v * v
+        sqrt res
+
+
+type Feature =
+    {
+        ndc         : V2d
+        angle       : float
+        size        : float
+        response    : float
+        descriptor  : FeatureDescriptor
+    }
+    
+open System.Collections.Generic
+
+[<CustomEquality; NoComparison>]
+type FeatureNode =
+    {
+        image           : int
+        featureIndex    : int
+        feature         : Feature
+        corresponding   : Dict<int, HashSet<FeatureNode>>
+    }
+
+    override x.GetHashCode() = x.featureIndex
+    override x.Equals o =
+        match o with
+            | :? FeatureNode as o -> x.featureIndex = o.featureIndex
+            | _ -> false
+
+    member x.Add(image : int, f : FeatureNode) =
+        let set = x.corresponding.GetOrCreate(image, fun _ -> HashSet())
+        set.Add f |> ignore
+
+    member x.Remove(image : int, f : FeatureNode) =
+        match x.corresponding.TryGetValue image with
+            | (true, set) ->
+                if set.Remove f then
+                    if set.Count = 0 then
+                        x.corresponding.Remove image |> ignore
+            | _ -> Log.error "Removing something that isn't here."; ()
+    member x.Clear(image : int) =
+        x.corresponding.Remove image |> ignore
+
+
+type FeatureGraph =
+    {
+        images : PixImage<byte>[]
+        data : Feature[][]
+        features : Dict<int, HashSet<FeatureNode>>
+        edges : Edge<(int*int)[]>[]
+    }
+
 type BundlerInput =
     {
+        graph : FeatureGraph
         measurements : Map<int,Map<int, V2d>>
         tracks : (int*int)[][]
     }
@@ -844,6 +916,10 @@ module BundlerSolution =
             cameras = cameras
             points = points
         }
+
+    let estimateStartingValues (p : BundlerProblem) =
+        
+        failwith "estimate me"
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BundlerError =

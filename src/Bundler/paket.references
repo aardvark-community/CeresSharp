@@ -6,3 +6,4 @@ Aardvark.SceneGraph.IO
 Aardvark.Rendering.Text
 Aardvark.OpenCvSharp
 FsPickler
+MiniCV
