@@ -729,6 +729,7 @@ type FeatureGraph =
         data : Feature[][]
         features : Dict<int, HashSet<FeatureNode>>
         edges : Edge<(int*int)[]>[]
+        tree : RoseTree<int>
     }
 
 type BundlerInput =
@@ -916,10 +917,86 @@ module BundlerSolution =
             cameras = cameras
             points = points
         }
+    
+    let flip (v : V2d) =
+        V2d( v.X, v.Y )
 
     let estimateStartingValues (p : BundlerProblem) =
         
-        failwith "estimate me"
+        let register ci parent =
+            let (parentms, cms) = 
+                let i = p.input.graph.edges
+                            |> Array.tryFind ( fun e -> e.i0 = parent && e.i1 = ci )
+                let o1 = i  |> Option.map   ( fun i -> i.weight    |> Array.unzip )
+
+                let i = p.input.graph.edges
+                            |> Array.tryFind ( fun e -> e.i0 = ci && e.i1 = parent )
+
+                let o2 = i |> Option.map ( fun i -> i.weight |> Array.map ( fun (s,p) -> p,s ) |> Array.unzip )
+
+                [|
+                    match o1 with
+                    | None -> ()
+                    | Some (p,s) -> yield p,s
+
+                    match o2 with
+                    | None -> ()
+                    | Some (p,s) -> yield p,s
+                |] |> Seq.head
+
+                    
+            let a = parentms    |> Array.map ( fun pi -> p.input.graph.data.[parent].[pi].ndc |> flip  )
+            let b = cms         |> Array.map ( fun si -> p.input.graph.data.[ci].[si].ndc     |> flip )
+
+
+            let (i,R,t) = MiniCV.recoverPose a b
+            Log.line "(parent:%A-child:%A) have POINTS %A; INLIERS:%A" parent ci a.Length i
+
+            Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
+            
+
+        let cameras =
+            
+            let rec traverse (cur : Trafo3d) (parent : int) (remaining : RoseTree<_>) =
+                match remaining with
+                | Empty -> Empty
+                | Leaf ci ->
+                    let trafo = cur * register ci parent
+                    Leaf(ci, trafo)
+                | Node (ci, children) ->
+                    let trafo = cur * register ci parent
+                    Node((ci, trafo), children |> List.map (traverse trafo ci) )
+            
+            let tree = 
+                match p.input.graph.tree with
+                | Empty -> Empty
+                | Leaf i ->
+                    Leaf(i, Trafo3d.Identity)
+                | Node(i, children) ->
+                    let trafo = Trafo3d.Identity
+                    Node((i, trafo), children |> List.map (traverse trafo i))
+                
+            let cams = p.cameras |> Seq.toArray
+
+            tree 
+                |> RoseTree.toList
+                |> List.map ( fun (ci,trafo) -> 
+                    let oc = Camera3d.LookAt(V3d.IOO * 10.0, V3d.Zero, 1.0, V3d.OOI)
+                    let forward = AngleAxis.RotatePoint(-oc.AngleAxis, -V3d.OOI)
+                    let trafo = (Trafo3d.Rotation(forward, -Math.PI/2.0)) * trafo
+                    ci, { cam = oc.Transformed trafo; isFixed = false }
+                    ) 
+                |> Map.ofList
+            
+        let points = 
+            p.input.tracks |> Array.mapi ( fun i _ -> i, { point = crap.[i]; isFixed = false } ) |> Map.ofArray
+
+        withCost {
+            cost = 0.0
+            problem = p
+            cameras = cameras
+            points = points
+        }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BundlerError =
@@ -970,7 +1047,6 @@ module BundlerInput =
                     Log.warn "Camera %A has less than 8 points (%A) and is discarded." i m.Count
                     
                     false
-                    //true
                 else
                     true
             )

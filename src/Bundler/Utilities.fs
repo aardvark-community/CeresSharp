@@ -3,6 +3,11 @@ open System
 open Aardvark.Base
 open CeresSharp
 
+
+[<AutoOpen>]
+module Undefined =
+    let undefined<'a> : 'a = failwith "undefined"
+
 module Array =
     let private parOpt = System.Threading.Tasks.ParallelOptions(MaxDegreeOfParallelism = Environment.ProcessorCount)
 
@@ -97,12 +102,33 @@ type Edge<'w> = { i0 : int; i1 : int; weight : 'w }
     
 type Graph<'w> = { edges : list<Edge<'w>> }
 
+type RoseTree<'a> =
+    | Empty
+    | Leaf of 'a
+    | Node of 'a * list<RoseTree<'a>>
+
+
+module RoseTree =
+    let rec map (f : 'a -> 'b) (t : RoseTree<'a>) =
+        match t with
+            | Empty -> Empty
+            | Leaf a -> Leaf (f a)
+            | Node(a,c) -> Node(f a, List.map (map f) c)
+    
+    let rec toList (t : RoseTree<'a>) =
+        match t with
+            | Empty ->      []
+            | Leaf a ->     [a]
+            | Node(a,c) ->  a :: (c |> List.collect toList)
+
 module Graph =
     open System.Collections.Generic
+    open Aardvark.Base.GridCell
 
     type UnionNode(id : int) as this =
         let mutable parent = this
         let mutable rank = 1
+        //let mutable tree = Leaf id
 
         override x.GetHashCode() = id
         override x.Equals o =
@@ -112,13 +138,23 @@ module Graph =
 
         member x.Id = id
 
+        //member x.Tree
+        //    with get() = tree
+        //    and set v = tree <- v
+
         member x.Parent 
             with get() = parent
-            and set v = parent <- v
+            and set (v : UnionNode) = 
+                //match v.Tree with
+                //    | Leaf p -> v.Tree <- Node(p, [tree])
+                //    | Node(p, c) -> v.Tree <- Node(p, tree :: c)
+                //    | Empty -> ()
+                parent <- v
 
         member x.Rank 
             with get() = rank
             and set v = rank <- v
+
 
     type UnionFind() =
         let nodes = Dict<int, UnionNode>()
@@ -129,29 +165,43 @@ module Graph =
         let rec find (n : UnionNode) =
             if n.Parent <> n then
                 let res = find n.Parent
-                n.Parent <- res
                 res
             else
                 n
 
-        let rec union (l : UnionNode) (r : UnionNode) =
-            let l = find l
-            let r = find r
+        let rec union (ln : UnionNode) (rn : UnionNode) =
+            let l = find ln
+            let r = find rn
+            
 
             if l = r then 
                 false
             else
                 if l.Rank < r.Rank then
-                    l.Parent <- r
+                    ln.Parent <- rn
                     true
                 elif r.Rank < l.Rank then
-                    r.Parent <- l
+                    rn.Parent <- ln
                     true
                 else
-                    r.Parent <- l
-                    l.Rank <- l.Rank + 1
+                    rn.Parent <- ln
+                    ln.Rank <- ln.Rank + 1
                     true
-                  
+
+        let rec toTree (root : int) =
+            let children = nodes.Values |> Seq.choose (fun n -> if n.Id <> root && n.Parent.Id = root then Some n.Id else None) |> Seq.toList
+            match children with
+                | [] -> Leaf(root)
+                | _ -> Node(root, children |> List.map toTree)
+
+        member x.ToTree() =
+            let roots = nodes.Values |> Seq.choose (fun n -> if n.Parent = n then Some n.Id else None) |> Seq.toList
+
+            match roots with
+                | [] -> Empty
+                | [r] -> toTree r
+                | _ -> failwith "HATE"
+
         member x.Add(l : int, r : int) =
             let l = node l
             let r = node r
@@ -159,6 +209,7 @@ module Graph =
 
     let ofEdges (edges : list<Edge<'w>>) =
         { edges = edges }
+
 
     let minimumSpanningTree (cmp : 'w -> 'w -> int) (g : Graph<'w>) =
         let edges = List.toArray g.edges
@@ -170,7 +221,11 @@ module Graph =
         for e in edges do
             if uf.Add(e.i0, e.i1) then
                 result.Add e
+                
+        let edges = CSharpList.toArray result
 
-        CSharpList.toArray result
+        let tree = uf.ToTree()
 
+            
+        tree, edges
 

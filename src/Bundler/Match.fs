@@ -10,9 +10,6 @@ open Aardvark.Base.Rendering
 open Aardvark.Rendering
 open Aardvark.SceneGraph
 
-[<AutoOpen>]
-module Undefined =
-    let undefined<'a> : 'a = failwith ""
 
 module Match =
 

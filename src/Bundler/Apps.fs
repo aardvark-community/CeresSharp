@@ -185,7 +185,7 @@ module PairViewer =
                     | Brisk ->  lImg |> Brisk.ofImage, rImg |> Brisk.ofImage
 
                 let mc = 
-                    Feature.matchCandidates config.threshold lFtr rFtr
+                    Feature.bruteforceMatch config.threshold lFtr rFtr
 
                 let m2d =
                     mc |> Array.map ( fun (li,ri) ->
@@ -902,7 +902,7 @@ module BundlerViewer =
         
         let graph = Feature.FeatureGraph.build graphInput
 
-        let input = Feature.FeatureGraph.toBundlerInputSiegfried graph 3
+        let input = Feature.FeatureGraph.toBundlerInputSiegfried graph 2
 
         let problem = input |> BundlerInput.toProblem
 
@@ -926,11 +926,11 @@ module BundlerViewer =
             let cacheSolution = false
             let mutable iterCt = -1
             let adorner sol =
-                //if iterCt = 0 then
-                //    printf "Enter iterCt: "
-                //    match Console.ReadLine() |> Int32.TryParse with
-                //    | (true,v) -> iterCt <- -v
-                //    | _ -> iterCt <- -10
+                if iterCt = 0 then
+                    printf "Enter iterCt: "
+                    match Console.ReadLine() |> Int32.TryParse with
+                    | (true,v) -> iterCt <- -v
+                    | _ -> iterCt <- -10
                 transact ( fun _ -> Mod.change solution (sol |> Some) )
                 iterCt <- iterCt + 1
 
@@ -1012,6 +1012,7 @@ module BundlerViewer =
                 | None -> return Sg.ofList []
                 | Some solution ->
                      return SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution surface surfacePoints surfaceBox graphInput.images (Mod.constant Bam.Oida)
+                                |> Sg.normalizeAdaptive
             }       |> Sg.dynamic
                     |> Sg.viewTrafo view
                     |> Sg.projTrafo proj

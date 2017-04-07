@@ -127,8 +127,8 @@ module Bundler =
 
 
         let mutable iterationCounter = 0
-        let mutable processedParams = 0
         let numParams = ((pointBlocks |> Array.length) + (fixedPointb |> Array.length)) * ((camBlocks |> Array.length) + (camFixed |> Array.length))
+        let mutable processedParams = numParams
         let iterationCallback() =
             processedParams <- processedParams + 1
             if processedParams > numParams then
@@ -163,17 +163,16 @@ module Bundler =
             iterationCallback()
                     
             [|
-                diff.X * 1000.0
-                diff.Y * 1000.0
-                clamp obs.X -1.0 1.0
-                clamp obs.Y -1.0 1.0
-                clamp depth 2.0 Double.PositiveInfinity
+                diff.X 
+                diff.Y 
+                //clamp obs.X -1.0 1.0
+                //clamp obs.Y -1.0 1.0
+                //clamp depth 2.0 Double.PositiveInfinity
 //                mega 
             |]
 
         for i in 0 .. prob.input.tracks.Length-1 do
             
-            //this is wrong
             if pointIdx |> Array.contains i then
                 let pi = pointIdx.[i]
                 let pb = pointBlocks.[pi]
@@ -263,7 +262,7 @@ module Bundler =
     let solve (adorner : BundlerSolution -> unit) (p : BundlerProblem)  =
         Log.startTimed "solve %d cameras" p.cameras.Count
         printfn " "
-        let options = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-8, 1.0E-8, 1.0E-8)
+        let options = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
 
         if p.cameras.Count < 3 then 
@@ -283,7 +282,7 @@ module Bundler =
 
                 let adorn name v =
                     printf "%s" name
-                    //Console.ReadLine() |> ignore
+                    Console.ReadLine() |> ignore
                     v
                 
                 let rec redorn n f a =  
@@ -294,15 +293,17 @@ module Bundler =
 
                 let solution =
                     BundlerSolution.estimateStartingValues p
-                        |> redorn 10 (
-                            BundlerSolution.withFixings true false >>
-                            improveSol options adorner >>
-                            adorn "pts adorned" >>
-                            BundlerSolution.withFixings false true >>
-                            improveSol options adorner >>
-                            adorn "cams adorned" >>
-                            unbox
-                        )
+                        //|> redorn 10 (
+                        //    BundlerSolution.withFixings true false >>
+                        //    improveSol options adorner >>
+                        //    adorn "pts adorned" >>
+                        //    BundlerSolution.withFixings false true >>
+                        //    improveSol options adorner >>
+                        //    adorn "cams adorned" >>
+                        //    unbox
+                        //)
+                        |> BundlerSolution.withFixings true false
+                        |> improveSol (CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) adorner
                         |> BundlerSolution.withFixings false false
                         |> improveSol (CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) adorner
         

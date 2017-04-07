@@ -407,8 +407,9 @@ module Feature =
                 )
 
             h1, h2
-        
-        let rgbaFromHsva (h : float, s : float, v : float) =
+    
+    
+    let rgbaFromHsva (h : float, s : float, v : float) =
         let c = v * s
         let hh = (h * 6.0) % 6.0
         let x = c * (1.0 - abs(hh % 2.0 - 1.0))
@@ -494,14 +495,14 @@ module Feature =
                         None
                 )
                     
-            let spanningTree = 
+            let spanningTree, spanningEdges = 
                 edges
                     |> Array.toList
                     |> Graph.ofEdges
                     |> Graph.minimumSpanningTree (fun l r -> compare r.Length l.Length)
 
             Log.start "using"
-            for e in spanningTree do
+            for e in spanningEdges do
                 let lImg = e.i0
                 let rImg = e.i1
                 Log.line "(%d, %d): %d" lImg rImg e.weight.Length
@@ -512,7 +513,7 @@ module Feature =
                     rNode.Add(lImg, lNode)
             Log.stop()
 
-            { data = input.data; images = input.images; features = features; edges = spanningTree }
+            { data = input.data; images = input.images; features = features; edges = spanningEdges; tree = spanningTree }
 
         let toBundlerInputSiegfried (g : FeatureGraph) (minTrackLength : int) =
             
