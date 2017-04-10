@@ -128,7 +128,6 @@ module Graph =
     type UnionNode(id : int) as this =
         let mutable parent = this
         let mutable rank = 1
-        //let mutable tree = Leaf id
 
         override x.GetHashCode() = id
         override x.Equals o =
@@ -138,17 +137,9 @@ module Graph =
 
         member x.Id = id
 
-        //member x.Tree
-        //    with get() = tree
-        //    and set v = tree <- v
-
         member x.Parent 
             with get() = parent
             and set (v : UnionNode) = 
-                //match v.Tree with
-                //    | Leaf p -> v.Tree <- Node(p, [tree])
-                //    | Node(p, c) -> v.Tree <- Node(p, tree :: c)
-                //    | Empty -> ()
                 parent <- v
 
         member x.Rank 
@@ -165,42 +156,29 @@ module Graph =
         let rec find (n : UnionNode) =
             if n.Parent <> n then
                 let res = find n.Parent
+                n.Parent <- res
                 res
             else
                 n
 
-        let rec union (ln : UnionNode) (rn : UnionNode) =
-            let l = find ln
-            let r = find rn
+        let rec union (l : UnionNode) (r : UnionNode) =
+            let l = find l
+            let r = find r
             
 
             if l = r then 
                 false
             else
                 if l.Rank < r.Rank then
-                    ln.Parent <- rn
+                    l.Parent <- r
                     true
                 elif r.Rank < l.Rank then
-                    rn.Parent <- ln
+                    r.Parent <- l
                     true
                 else
-                    rn.Parent <- ln
-                    ln.Rank <- ln.Rank + 1
+                    r.Parent <- l
+                    l.Rank <- l.Rank + 1
                     true
-
-        let rec toTree (root : int) =
-            let children = nodes.Values |> Seq.choose (fun n -> if n.Id <> root && n.Parent.Id = root then Some n.Id else None) |> Seq.toList
-            match children with
-                | [] -> Leaf(root)
-                | _ -> Node(root, children |> List.map toTree)
-
-        member x.ToTree() =
-            let roots = nodes.Values |> Seq.choose (fun n -> if n.Parent = n then Some n.Id else None) |> Seq.toList
-
-            match roots with
-                | [] -> Empty
-                | [r] -> toTree r
-                | _ -> failwith "HATE"
 
         member x.Add(l : int, r : int) =
             let l = node l
@@ -209,8 +187,7 @@ module Graph =
 
     let ofEdges (edges : list<Edge<'w>>) =
         { edges = edges }
-
-
+        
     let minimumSpanningTree (cmp : 'w -> 'w -> int) (g : Graph<'w>) =
         let edges = List.toArray g.edges
         edges.QuickSort(fun e0 e1 -> cmp e0.weight e1.weight )
@@ -223,9 +200,46 @@ module Graph =
                 result.Add e
                 
         let edges = CSharpList.toArray result
+        
+        let neighbours = Dict<int,HashSet<int>>()
 
-        let tree = uf.ToTree()
+        edges |> Array.iter ( fun e ->
+                    let lns = neighbours.GetOrCreate(e.i0, (fun _ -> HashSet())) 
+                    lns.Add e.i1 |> ignore
 
-            
-        tree, edges
+                    let rns = neighbours.GetOrCreate(e.i1, (fun _ -> HashSet())) 
+                    rns.Add e.i0 |> ignore
+                 )
+
+        if neighbours.Count = 0 then
+            Empty, edges
+        else
+            let root = neighbours.Keys |> Seq.head
+
+            let rec traverse (edgeCount : ref<int>) (visited : HashSet<int>) (n : int) =
+                if visited.Add n then
+                    let neighbours = neighbours.[n]
+
+                    let children = 
+                        neighbours 
+                            |> Seq.toList 
+                            |> List.choose (fun ri -> 
+                                match traverse edgeCount visited ri with
+                                    | Some r -> 
+                                        edgeCount := !edgeCount + 1
+                                        Some r
+                                    | None -> 
+                                        None
+                            )
+
+                    match children with
+                    | [] -> Leaf n |> Some
+                    | _ -> Node(n, children) |> Some
+                else
+                    None
+
+            match traverse (ref 0) (HashSet()) root with
+            | Some t -> t, edges
+            | None -> Empty, edges
+        
 
