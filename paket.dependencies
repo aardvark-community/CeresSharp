@@ -1,22 +1,24 @@
+framework: net45
 source https://api.nuget.org/v3/index.json
 source https://vrvis.myget.org/F/aardvark_public/api/v3/index.json
 source https://vrvis.myget.org/F/aardvark/api/v3/index.json
 
-nuget Aardvark.Base ~> 2.4.8
-nuget Aardvark.Base.FSharp ~> 2.4.8
+nuget Aardvark.Base ~> 3.0.0
+nuget Aardvark.Base.FSharp ~> 3.0.0
 
-nuget MiniCV
+nuget MiniCV ~> 0.0.2
 
-nuget Aardvark.Application.WinForms.GL ~> 3.0.0
-nuget Aardvark.SceneGraph ~> 3.0.0
-nuget Aardvark.SceneGraph.IO ~> 3.0.0
-nuget Aardvark.Rendering.Text ~> 3.0.0
+nuget Aardvark.Application.WinForms.GL ~> 3.1.0
+nuget Aardvark.SceneGraph ~> 3.1.0
+nuget Aardvark.SceneGraph.IO ~> 3.1.0
+nuget Aardvark.Rendering.Text ~> 3.1.0
 
 nuget Aardvark.OpenCvSharp ~> 2.4.0
 
 nuget FsPickler ~> 3.1.0
 
 group Build
+framework: net45
 content: none
 source https://api.nuget.org/v3/index.json
 source https://vrvis.myget.org/F/aardvark_public/api/v3/index.json

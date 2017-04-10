@@ -144,6 +144,8 @@ module Bundler =
                 else scalar 0.0
 
             (100.0 * err) ** 20.0
+            
+        iterationCallback()
 
         let costFunction (real : V2d) (obs : V2s, depth : scalar) =
             let diff = real - obs
@@ -302,8 +304,8 @@ module Bundler =
                         //    adorn "cams adorned" >>
                         //    unbox
                         //)
-                        |> BundlerSolution.withFixings true false
-                        |> improveSol (CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) adorner
+                        //|> BundlerSolution.withFixings true false
+                        //|> improveSol (CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) adorner
                         |> BundlerSolution.withFixings false false
                         |> improveSol (CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) adorner
         

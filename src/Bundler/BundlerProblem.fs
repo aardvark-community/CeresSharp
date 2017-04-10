@@ -3,11 +3,7 @@
 open System
 open Aardvark.Base
 open Aardvark.Base.AMD64
-
-[<AutoOpen>]
-module Oida =
-    let offsetForFocalLength = 0.5
-
+    
 type Camera3d =
     struct
         val mutable public Position         : V3d
@@ -51,8 +47,8 @@ type Camera3d =
             x.Position + dir
 
         member x.GetRay (pt : V2d) =
-            let ndc = V3d(pt.X, pt.Y, 1.0)
-            let dir = AngleAxis.RotatePoint(-x.AngleAxis, ndc) |> Vec.normalize
+            let point = x.Unproject pt 1.0
+            let dir = (point - x.Position) |> Vec.normalize
             Ray3d(x.Position, dir)
 
         static member LookAt(eye : V3d, center : V3d, f : float, sky : V3d) : Camera3d =
@@ -151,6 +147,11 @@ type SolverPoint =
         isFixed : bool
     }
 
+[<AutoOpen>]
+module MathUtil =
+    let inline toArray2d arrays =
+        Array2D.init (arrays |> Array.length) (arrays.[0] |> Array.length) ( fun i j -> arrays.[i].[j] )
+
 module MatchProblem =       
     open CeresSharp
 
@@ -159,6 +160,7 @@ module MatchProblem =
         for i in 0 .. n - 1 do
             res <- res + f i
         res
+
 
     let m2v (m : Match2d) = V4d(m.Pos.X, m.Pos.Y, m.Vel.X, m.Vel.Y)
 
@@ -239,96 +241,93 @@ module MatchProblem =
 
 
         let M =
-            let arrays = 
-                [|
-                    for k in 0..N-1 do  //d/du
-                        yield [|
-                            for i in 0..N-1 do      //u
-                                yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> x j * x j * G.[i,j] * G.[j,k] )
-                            for i in 0..N-1 do      //v
-                                yield sum N ( fun j -> x j * y j * G.[i,j] * G.[j,k] )
-                            for i in 0..N-1 do      //w
-                                yield sum N ( fun j -> x j * G.[i,j] * G.[j,k] )
+            [|
+                for k in 0..N-1 do  //d/du
+                    yield [|
+                        for i in 0..N-1 do      //u
+                            yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> x j * x j * G.[i,j] * G.[j,k] )
+                        for i in 0..N-1 do      //v
+                            yield sum N ( fun j -> x j * y j * G.[i,j] * G.[j,k] )
+                        for i in 0..N-1 do      //w
+                            yield sum N ( fun j -> x j * G.[i,j] * G.[j,k] )
 
-                            yield sum N ( fun i -> x i * x i * G.[i,k] )  //H
-                            yield sum N ( fun i -> x i * y i * G.[i,k] )  //I
-                            yield sum N ( fun i -> x i * G.[i,k] )        //J
-                        |]
-
-
-                    for k in 0..N-1 do  //d/dv
-                        yield [|
-                            for i in 0..N-1 do      //u
-                                yield sum N ( fun j -> x j * y j * G.[i,j] * G.[j,k] )
-                            for i in 0..N-1 do      //v
-                                yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> y j * y j * G.[i,j] * G.[j,k] )
-                            for i in 0..N-1 do      //w
-                                yield sum N ( fun j -> y j * G.[i,j] * G.[j,k] )
-
-                            yield sum N ( fun i -> y i * x i * G.[i,k] )  //H
-                            yield sum N ( fun i -> y i * y i * G.[i,k] )  //I
-                            yield sum N ( fun i -> y i * G.[i,k] )        //J
-                        |]
-
-
-                    for k in 0..N-1 do  //d/dw
-                        yield [|
-                            for i in 0..N-1 do      //u
-                                yield sum N ( fun j -> x j * G.[i,j] * G.[j,k] )
-                            for i in 0..N-1 do      //v
-                                yield sum N ( fun j -> y j * G.[i,j] * G.[j,k] )
-                            for i in 0..N-1 do      //w
-                                yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> G.[i,j] * G.[j,k] )
-
-                            yield sum N ( fun i -> x i * G.[i,k] )        //H
-                            yield sum N ( fun i -> y i * G.[i,k] )        //I
-                            yield sum N ( fun i -> G.[i,k] )              //J
-                        |]
-
-
-                    yield [|            //d/dH
-                            for i in 0..N-1 do      //u
-                                yield sum N ( fun j -> x j * x j * G.[i,j] )
-                            for i in 0..N-1 do      //v
-                                yield sum N ( fun j -> x j * y j * G.[i,j] )
-                            for i in 0..N-1 do      //w
-                                yield sum N ( fun j -> x j * G.[i,j] )
-
-                            yield sum N ( fun i -> x i * x i )        //H
-                            yield sum N ( fun i -> x i * y i )        //I
-                            yield sum N ( fun i -> x i )              //J
+                        yield sum N ( fun i -> x i * x i * G.[i,k] )  //H
+                        yield sum N ( fun i -> x i * y i * G.[i,k] )  //I
+                        yield sum N ( fun i -> x i * G.[i,k] )        //J
                     |]
 
 
-                    yield [|            //d/dI
-                            for i in 0..N-1 do      //u
-                                yield sum N ( fun j -> y j * x j * G.[i,j] )
-                            for i in 0..N-1 do      //v
-                                yield sum N ( fun j -> y j * y j * G.[i,j] )
-                            for i in 0..N-1 do      //w
-                                yield sum N ( fun j -> y j * G.[i,j] )
+                for k in 0..N-1 do  //d/dv
+                    yield [|
+                        for i in 0..N-1 do      //u
+                            yield sum N ( fun j -> x j * y j * G.[i,j] * G.[j,k] )
+                        for i in 0..N-1 do      //v
+                            yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> y j * y j * G.[i,j] * G.[j,k] )
+                        for i in 0..N-1 do      //w
+                            yield sum N ( fun j -> y j * G.[i,j] * G.[j,k] )
 
-                            yield sum N ( fun i -> y i * x i )        //H
-                            yield sum N ( fun i -> y i * y i )        //I
-                            yield sum N ( fun i -> y i )              //J
+                        yield sum N ( fun i -> y i * x i * G.[i,k] )  //H
+                        yield sum N ( fun i -> y i * y i * G.[i,k] )  //I
+                        yield sum N ( fun i -> y i * G.[i,k] )        //J
                     |]
 
 
-                    yield [|            //d/dJ
-                            for i in 0..N-1 do      //u
-                                yield sum N ( fun j -> x j * G.[i,j] )
-                            for i in 0..N-1 do      //v
-                                yield sum N ( fun j -> y j * G.[i,j] )
-                            for i in 0..N-1 do      //w
-                                yield sum N ( fun j -> G.[i,j] )
+                for k in 0..N-1 do  //d/dw
+                    yield [|
+                        for i in 0..N-1 do      //u
+                            yield sum N ( fun j -> x j * G.[i,j] * G.[j,k] )
+                        for i in 0..N-1 do      //v
+                            yield sum N ( fun j -> y j * G.[i,j] * G.[j,k] )
+                        for i in 0..N-1 do      //w
+                            yield 2.0 * lambda * G.[i,k] + sum N ( fun j -> G.[i,j] * G.[j,k] )
 
-                            yield sum N ( fun i -> x i )        //H
-                            yield sum N ( fun i -> y i )        //I
-                            yield float N                       //J
+                        yield sum N ( fun i -> x i * G.[i,k] )        //H
+                        yield sum N ( fun i -> y i * G.[i,k] )        //I
+                        yield sum N ( fun i -> G.[i,k] )              //J
                     |]
+
+
+                yield [|            //d/dH
+                        for i in 0..N-1 do      //u
+                            yield sum N ( fun j -> x j * x j * G.[i,j] )
+                        for i in 0..N-1 do      //v
+                            yield sum N ( fun j -> x j * y j * G.[i,j] )
+                        for i in 0..N-1 do      //w
+                            yield sum N ( fun j -> x j * G.[i,j] )
+
+                        yield sum N ( fun i -> x i * x i )        //H
+                        yield sum N ( fun i -> x i * y i )        //I
+                        yield sum N ( fun i -> x i )              //J
                 |]
 
-            Array2D.init (arrays |> Array.length) (arrays.[0] |> Array.length) ( fun i j -> arrays.[i].[j] )
+
+                yield [|            //d/dI
+                        for i in 0..N-1 do      //u
+                            yield sum N ( fun j -> y j * x j * G.[i,j] )
+                        for i in 0..N-1 do      //v
+                            yield sum N ( fun j -> y j * y j * G.[i,j] )
+                        for i in 0..N-1 do      //w
+                            yield sum N ( fun j -> y j * G.[i,j] )
+
+                        yield sum N ( fun i -> y i * x i )        //H
+                        yield sum N ( fun i -> y i * y i )        //I
+                        yield sum N ( fun i -> y i )              //J
+                |]
+
+
+                yield [|            //d/dJ
+                        for i in 0..N-1 do      //u
+                            yield sum N ( fun j -> x j * G.[i,j] )
+                        for i in 0..N-1 do      //v
+                            yield sum N ( fun j -> y j * G.[i,j] )
+                        for i in 0..N-1 do      //w
+                            yield sum N ( fun j -> G.[i,j] )
+
+                        yield sum N ( fun i -> x i )        //H
+                        yield sum N ( fun i -> y i )        //I
+                        yield float N                       //J
+                |]
+            |] |> toArray2d
 
         let perm =  M.LuFactorize()
         let w =     M.LuSolve(perm, r)
@@ -731,7 +730,7 @@ type FeatureGraph =
         edges : Edge<(int*int)[]>[]
         tree : RoseTree<int>
     }
-
+    
 type BundlerInput =
     {
         graph : FeatureGraph
@@ -918,8 +917,10 @@ module BundlerSolution =
             points = points
         }
     
-    let flip (v : V2d) =
-        V2d( v.X, v.Y )
+    let flip (v : V2d) = v //100.0 * v - 0.5
+        //let r = V2d( v.X, v.Y ) * 0.5 + 0.5
+        //r * 1024.0 + 0.5
+
 
     let estimateStartingValues (p : BundlerProblem) =
         
@@ -948,8 +949,9 @@ module BundlerSolution =
             let a = parentms    |> Array.map ( fun pi -> p.input.graph.data.[parent].[pi].ndc |> flip  )
             let b = cms         |> Array.map ( fun si -> p.input.graph.data.[ci].[si].ndc     |> flip )
 
-
-            let (i,R,t) = MiniCV.recoverPose a b
+            let cfg = RecoverPoseConfig(1.0, V2d.Zero, 0.9999999, 0.001) 
+            
+            let (i,R,t) = MiniCV.recoverPose cfg a b
             Log.line "(parent:%A-child:%A) have POINTS %A; INLIERS:%A" parent ci a.Length i
 
             Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
@@ -987,12 +989,44 @@ module BundlerSolution =
                     ) 
                 |> Map.ofList
             
+        let avg (rays : list<Ray3d>) =
+            
+            match rays with
+            | [] | [_] -> None
+            | _ ->
+                let (M, r) = 
+                    rays    |> List.collect
+                                ( fun r -> 
+                                    let nx = r.Direction.AxisAlignedNormal()
+                                    let ny = r.Direction.Cross nx |> Vec.normalize
+                                    let o = r.Origin
+                                    [nx, nx.Dot o; ny, ny.Dot o]
+                                )
+                            |> List.map
+                                ( fun (n,d) ->
+                                    n.OuterProduct n, d * n
+                                )
+                            |> List.fold ( fun (ms,vs) (m,v) -> (ms+m),(vs+v) ) (M33d.Zero,V3d.Zero)
+                
+                let p = (M.Inverse * r)
+                let ds = rays |> List.map ( fun r -> r.GetMinimalDistanceTo p )
+                Some (p,ds)
+            
+        let avg2 (rays : list<Ray3d>) =
+            
+            rays.GetMiddlePoint() |> Some
+
         let points = 
             p.input.tracks // |> Array.mapi ( fun i _ -> i, { point = crap.[i]; isFixed = false } ) |> Map.ofArray
-                |> Array.mapi ( fun i t ->
-                    i, (t |> Array.map ( fun (ci,pi) -> undefined ) |> Array.fold ( fun ps p -> ps + p ) V3d.OOO) / float t.Length  )
+                |> Array.mapi 
+                    ( fun i t ->
+                        i, (t |> Array.map ( fun (ci,pi) -> cameras.[ci].cam.GetRay p.input.measurements.[ci].[pi]  ) 
+                              |> Array.toList
+                              |> avg
+                              |> Option.defaultValue (crap.[i],[]))
+                    )
                 |> Map.ofArray
-                |> Map.map ( fun _ pt -> { point = pt; isFixed = false } )
+                |> Map.map ( fun _ (pt, ds) -> { point = pt; isFixed = false } )
 
 
         withCost {

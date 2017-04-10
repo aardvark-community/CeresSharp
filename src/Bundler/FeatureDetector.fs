@@ -544,7 +544,7 @@ module Feature =
                         let subPath = traverseNeighboursAndFindPath [] (neighboursOf m)                                 //first, collect all subresults from the neighbours
                         traverseNeighboursAndFindPath ([[m]; subPath; path] |> List.concat) remainingNeighbours         //then, append them to the current and continue with next neighbour
                         
-            let result = List<list<FeatureNode>>()
+            let result = List<List<FeatureNode>>()
 
             for KeyValue(ci,features) in g.features do for f in features do used |> Dict.add (ci,f) false
             
@@ -562,14 +562,43 @@ module Feature =
                             //status string print
                             [ "Path: "; sprintf "start=%A " ci; [ for p in path do yield (sprintf " (%A:%A) " p.image p.featureIndex) ] |> String.concat "->"  ] |> String.concat " " |> Log.line "%s"
 
-                            result.Add path
+                            result.Add (List(path))
                         else
                             tooShort <- tooShort+1
                     else
                         ()
             
-            let result = result |> Seq.toList
 
+            //mkEvilness
+            let rand = RandomSystem()
+            let inTrackKaputtProb = 0.75
+            let prob = 0.0 //0.01
+
+            for i in 0 .. result.Count-1 do
+                let thisTrack = result.[i]
+                if rand.UniformDouble() < prob then
+
+                    for j in 0 .. thisTrack.Count-1 do
+                        let thisFeature = thisTrack.[j]
+                        if rand.UniformDouble() < inTrackKaputtProb then
+                        
+                            Log.line "Making feature kaputt"
+                        
+                            let newFeature = { thisFeature.feature with ndc = rand.UniformV2d(Box2d(V2d(-0.99,-0.99),V2d(0.99,0.99))) }
+                            thisTrack.[j] <- { thisFeature with feature = newFeature }
+
+                            //let otherTrack = result |> Seq.sortBy ( fun _ -> rand.UniformDouble() ) |> Seq.head
+                            //let otherFeature = otherTrack |> Seq.sortBy ( fun _ -> rand.UniformDouble() ) |> Seq.head
+
+                            ////swap this 
+                            //otherTrack.Remove otherFeature |> ignore
+                            //otherTrack.Add { thisFeature with image = otherFeature.image }
+                            //thisTrack.Remove thisFeature |> ignore
+                            //thisTrack.Add { otherFeature with image = thisFeature.image }
+                            
+                            
+            let result = result |> Seq.toList |> List.map ( fun l -> l |> Seq.toList )
+            
             let debugoutput1() =
                 Log.line "Found %A paths within %A FeatureNodes (%A imgs)."     result.Length    used.Count  g.images.Length
                 Log.line "MinTrackLength:\t\t%A"                                minTrackLength

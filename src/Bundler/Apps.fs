@@ -981,6 +981,7 @@ module BundlerViewer =
         } |> Async.Start
 
         let blurg = Mod.init Bam.Oida
+        let blub = Mod.init Bam.Oida
         
         win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 0))
         win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 1))
@@ -993,6 +994,18 @@ module BundlerViewer =
         win.Keyboard.KeyDown(Keys.D9).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 8))
         win.Keyboard.KeyDown(Keys.D0).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 9))
         win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ ->  blurg.Value <- Bam.Oida))
+
+        win.Keyboard.KeyDown(Keys.NumPad1).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 0))
+        win.Keyboard.KeyDown(Keys.NumPad2).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 1))
+        win.Keyboard.KeyDown(Keys.NumPad3).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 2))
+        win.Keyboard.KeyDown(Keys.NumPad4).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 3))
+        win.Keyboard.KeyDown(Keys.NumPad5).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 4))
+        win.Keyboard.KeyDown(Keys.NumPad6).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 5))
+        win.Keyboard.KeyDown(Keys.NumPad7).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 6))
+        win.Keyboard.KeyDown(Keys.NumPad8).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 7))
+        win.Keyboard.KeyDown(Keys.NumPad9).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 8))
+        win.Keyboard.KeyDown(Keys.NumPad0).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 9))
+        win.Keyboard.KeyDown(Keys.C).Values.Add ( fun _ -> transact ( fun _ ->           blub.Value <- Bam.Oida))
         win.Keyboard.KeyDown(Keys.O).Values.Add updateVis 
         
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
@@ -1014,6 +1027,23 @@ module BundlerViewer =
             let ocam = cam.Transformed( resizeToUnit |> Mod.force )
             transact( fun _ -> Mod.change asdf ocam.Position )
             ocam.ViewProjTrafo far
+
+        let rays solution i =
+            let ocam = solution.cameras.[i].cam.Transformed( resizeToUnit |> Mod.force )
+            [|
+                for ti in 0 .. solution.problem.input.tracks.Length-1 do
+                    let track = solution.problem.input.tracks.[ti]
+                    match track |> Array.exists (fun (ci,_) -> ci = i) with
+                    | true -> yield 
+                                Line3d(solution.points.[ti].point, ocam.Position)
+                    | false -> ()
+            |]  |> Mod.constant
+                |> Sg.lines (Mod.constant C4b.Yellow)
+                |> Sg.shader {
+                    do! DefaultSurfaces.trafo
+                    do! DefaultSurfaces.vertexColor
+                   }
+            
 
         let vp =
             adaptive {
@@ -1042,6 +1072,27 @@ module BundlerViewer =
         let surfacePoints = Shader.surfacePointApp C4b.Green win
         let surfaceBox = Shader.surfaceBoxApp C4b.Red win
 
+        let sg2 =   
+            adaptive {
+                let! s = renderSolution
+                match s with
+                | None -> return Sg.ofList []
+                | Some solution ->
+                    let! b = blub
+                    match b with
+                    | Bam.Oida -> 
+                        return Sg.ofList []
+                    | Fix i ->
+                        let isg =
+                            try 
+                                rays solution i
+                            with _ ->
+                                Sg.ofList []
+
+                        return isg
+                                
+            }   |> Sg.dynamic
+
         let sg = 
             adaptive {
                 let! s = renderSolution
@@ -1051,6 +1102,8 @@ module BundlerViewer =
                      return SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution surface surfacePoints surfaceBox graphInput.images (Mod.constant Bam.Oida)
                             |> Sg.trafo resizeToUnit
             }       |> Sg.dynamic
+
+        let sg = Sg.ofList [sg; sg2]
                     |> Sg.viewTrafo view
                     |> Sg.projTrafo proj
 
@@ -1066,11 +1119,18 @@ module BundlerViewer =
 
 module Example =
 
+    type RenderSponzaConfig = 
+        {
+            PercentObservations : float
+            JitterNDC : float
+            PercentFalse : float
+        }
+
     open Aardvark.SceneGraph.IO
     open System.Collections.Generic
 
 
-    let renderSponza percentObservations outPath cams (points : Option<int>) =
+    let renderSponza (cfg : RenderSponzaConfig) outPath cams (points : Option<int>) =
 
         //euclid/inout/backend-paper/sponza_obj_copy
         Loader.Assimp.initialize()
@@ -1186,12 +1246,15 @@ module Example =
             
             for pi in 0..sponzaVertices.Length-1 do
 
-                if rand.UniformDouble() < percentObservations then
-//                if ct > 0 then
+                if rand.UniformDouble() < cfg.PercentObservations then
                     let v = sponzaVertices.[pi]
 
+                    let projected = cam.Project v
+                    
+                    let projected = projected + (rand.UniformV2dDirection() * (cfg.JitterNDC))
+
                     let f = {   
-                                ndc         = cam.Project v
+                                ndc         = projected
                                 angle       = 0.0
                                 size        = 1.0
                                 response    = 1.0
@@ -1199,10 +1262,9 @@ module Example =
                             }
                     
                     if f.ndc.X < 1.0 && f.ndc.X > -1.0 && f.ndc.Y < 1.0 && f.ndc.Y > -1.0 then
+                        
                         fs.[c].Add (pi,f)
                 
-//                ct <- ct+1
-
             i <- i + step
 
         Log.stop ()
@@ -1234,32 +1296,32 @@ module Example =
         
     
 
-    let testManySponzas () =
+    //let testManySponzas () =
         
-        let sols =
-            [
-                let mutable ct = 0
-                let range = [0.1 .. 0.1 .. 1.0]
-                for percentObservations in range do
-                    ct <- ct+1
-                    Log.warn "Starting %A of %A" ct (range |> Seq.length)
-                    renderSponza percentObservations @"D:\file\sponza_bun\sponzaVertices" 5 (Some 50)
-                    yield ct, percentObservations, BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices"
-            ]
+    //    let sols =
+    //        [
+    //            let mutable ct = 0
+    //            let range = [0.1 .. 0.1 .. 1.0]
+    //            for percentObservations in range do
+    //                ct <- ct+1
+    //                Log.warn "Starting %A of %A" ct (range |> Seq.length)
+    //                renderSponza percentObservations @"D:\file\sponza_bun\sponzaVertices" 5 (Some 50)
+    //                yield ct, percentObservations, BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices"
+    //        ]
         
-        let ostr = 
-            [
-                yield sprintf "Test run: %A" (DateTime.Now.ToString(" HH:mm (YYYY-MM-dd) "))
-                yield ""
-                for (i,o,s) in sols do
-                    match s with
-                    | None -> 
-                        yield sprintf "nr:%A\t\tpo:%A\t\NO CONVERGENCE!!" i o
-                    | Some s -> 
-                        yield sprintf "nr:%A\t\tpo:%A\t\terr=%A" i o s.cost
-                yield ""
-            ] |> String.concat " \n"
+    //    let ostr = 
+    //        [
+    //            yield sprintf "Test run: %A" (DateTime.Now.ToString(" HH:mm (YYYY-MM-dd) "))
+    //            yield ""
+    //            for (i,o,s) in sols do
+    //                match s with
+    //                | None -> 
+    //                    yield sprintf "nr:%A\t\tpo:%A\t\NO CONVERGENCE!!" i o
+    //                | Some s -> 
+    //                    yield sprintf "nr:%A\t\tpo:%A\t\terr=%A" i o s.cost
+    //            yield ""
+    //        ] |> String.concat " \n"
 
-        ostr |> File.writeAllText @"D:\file\out.txt"
+    //    ostr |> File.writeAllText @"D:\file\out.txt"
         
-        Log.line "%A" ostr
+    //    Log.line "%A" ostr
