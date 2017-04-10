@@ -920,7 +920,31 @@ module BundlerViewer =
                 updateVis()
         } |> Async.Start
 
-        
+        //does not work so good
+        let resizeToUnit =
+            let getBoxScale (fromBox : Box3d) (toBox : Box3d) : float =
+                let fromSize = fromBox.Size
+                let toSize = toBox.Size
+                let factor = toSize / fromSize
+
+                let mutable smallest = factor.X
+
+                if factor.Y < smallest then
+                    smallest <- factor.Y
+                if factor.Z < smallest then
+                    smallest <- factor.Z
+
+                smallest
+            let transformBox (sbox : Box3d) (tbox : Box3d) = Trafo3d.Translation(-sbox.Center) * Trafo3d.Scale(getBoxScale sbox tbox) * Trafo3d.Translation(tbox.Center)
+            
+            let sol = renderSolution |> Mod.force
+            match sol with
+            | None ->  Trafo3d.Identity |> Mod.constant
+            | Some solution ->
+                let pts = solution.points |> Map.toArray |> Array.map snd |> Array.map ( fun sp -> sp.point )
+                let bb = Box3d(pts)
+                let trafo = transformBox bb (Box3d(V3d(-1.0,-1.0,-1.0),V3d(1.0,1.0,1.0)))
+                trafo |> Mod.constant
 
         async {
             let cacheSolution = false
@@ -974,12 +998,24 @@ module BundlerViewer =
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
                                 |> Mod.map Frustum.projTrafo
 
-        let view = CameraView.lookAt (V3d(0.0, 50.0, 0.0)) V3d.Zero -V3d.OOI
-                                |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
-                                |> Mod.map CameraView.viewTrafo
+        let asdf = Mod.init (V3d(0.0, 50.0, 0.0))
+        let view = 
+            adaptive {
+                let! asdf = asdf
+                let! c =  CameraView.lookAt asdf V3d.Zero -V3d.OOI
+                            |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
+                            |> Mod.map CameraView.viewTrafo
+                return c
+            }
+    
+        let far = 1000.0
+        let camview solution i = 
+            let cam = solution.cameras.[i].cam
+            let ocam = cam.Transformed( resizeToUnit |> Mod.force )
+            transact( fun _ -> Mod.change asdf ocam.Position )
+            ocam.ViewProjTrafo far
 
         let vp =
-            let far = 1000.0
             adaptive {
                 let! b = blurg
                 match b with
@@ -994,8 +1030,9 @@ module BundlerViewer =
                     | Some solution ->
                         let fs = 
                             try 
-                                solution.cameras.[i].cam.ViewProjTrafo far
-                            with _ -> solution.cameras.[0].cam.ViewProjTrafo far
+                                camview solution i
+                            with _ -> 
+                                camview solution 0
                         return Trafo3d.Identity, fs
             }
 
@@ -1012,7 +1049,7 @@ module BundlerViewer =
                 | None -> return Sg.ofList []
                 | Some solution ->
                      return SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution surface surfacePoints surfaceBox graphInput.images (Mod.constant Bam.Oida)
-                                |> Sg.normalizeAdaptive
+                                |> Sg.trafo resizeToUnit
             }       |> Sg.dynamic
                     |> Sg.viewTrafo view
                     |> Sg.projTrafo proj
