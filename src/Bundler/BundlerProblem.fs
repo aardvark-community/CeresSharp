@@ -954,7 +954,6 @@ module BundlerSolution =
 
             Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
             
-
         let cameras =
             
             let rec traverse (cur : Trafo3d) (parent : int) (remaining : RoseTree<_>) =
@@ -989,7 +988,12 @@ module BundlerSolution =
                 |> Map.ofList
             
         let points = 
-            p.input.tracks |> Array.mapi ( fun i _ -> i, { point = crap.[i]; isFixed = false } ) |> Map.ofArray
+            p.input.tracks // |> Array.mapi ( fun i _ -> i, { point = crap.[i]; isFixed = false } ) |> Map.ofArray
+                |> Array.mapi ( fun i t ->
+                    i, (t |> Array.map ( fun (ci,pi) -> undefined ) |> Array.fold ( fun ps p -> ps + p ) V3d.OOO) / float t.Length  )
+                |> Map.ofArray
+                |> Map.map ( fun _ pt -> { point = pt; isFixed = false } )
+
 
         withCost {
             cost = 0.0

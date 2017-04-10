@@ -1049,7 +1049,7 @@ module BundlerViewer =
                 | None -> return Sg.ofList []
                 | Some solution ->
                      return SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution surface surfacePoints surfaceBox graphInput.images (Mod.constant Bam.Oida)
-                                |> Sg.trafo resizeToUnit
+                            |> Sg.trafo resizeToUnit
             }       |> Sg.dynamic
                     |> Sg.viewTrafo view
                     |> Sg.projTrafo proj
