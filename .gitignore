@@ -24,3 +24,8 @@ bin/Debug
 *.iobj
 *.ipdb
 /libs/Native/Ceres/windows/AMD64/CeresCpp.lib
+*.TMP
+Debug
+Release
+System.ValueTuple.4.3.0
+UpgradeLog.htm

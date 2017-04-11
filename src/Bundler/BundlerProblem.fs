@@ -1017,7 +1017,7 @@ module BundlerSolution =
             rays.GetMiddlePoint() |> Some
 
         let points = 
-            p.input.tracks // |> Array.mapi ( fun i _ -> i, { point = crap.[i]; isFixed = false } ) |> Map.ofArray
+            p.input.tracks
                 |> Array.mapi 
                     ( fun i t ->
                         i, (t |> Array.map ( fun (ci,pi) -> cameras.[ci].cam.GetRay p.input.measurements.[ci].[pi]  ) 

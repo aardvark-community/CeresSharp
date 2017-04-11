@@ -4,6 +4,9 @@ open Aardvark.Base
 
     
 type Edge<'w> = { i0 : int; i1 : int; weight : 'w }
+
+module Edge =
+    let map (f : 'w -> 'v) (e : Edge<'w>) : Edge<'v> = { i0 = e.i0; i1 = e.i1; weight = f e.weight }
     
 type Graph<'w> = { edges : list<Edge<'w>> }
 
@@ -147,3 +150,25 @@ module Graph =
             | Some t -> t, edges
             | None -> Empty, edges
         
+module Ray3d =
+    let avg (rays : list<Ray3d>) =
+        match rays with
+        | [] | [_] -> None
+        | _ ->
+            let (M, r) = 
+                rays    |> List.collect
+                            ( fun r -> 
+                                let nx = r.Direction.AxisAlignedNormal()
+                                let ny = r.Direction.Cross nx |> Vec.normalize
+                                let o = r.Origin
+                                [nx, nx.Dot o; ny, ny.Dot o]
+                            )
+                        |> List.map
+                            ( fun (n,d) ->
+                                n.OuterProduct n, d * n
+                            )
+                        |> List.fold ( fun (ms,vs) (m,v) -> (ms+m),(vs+v) ) (M33d.Zero,V3d.Zero)
+                
+            let p = (M.Inverse * r)
+            let ds = rays |> List.map ( fun r -> r.GetMinimalDistanceTo p )
+            Some p
