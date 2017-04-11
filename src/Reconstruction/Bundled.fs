@@ -66,8 +66,8 @@ module Bundled =
             return p
         } |> assertInvariants
 
-    let mapPoints pf prob = map pf snd>>id prob
-    let mapCams   cf prob = map snd>>id cf prob
+    let mapPoints pf prob = map pf (snd>>id) prob
+    let mapCams   cf prob = map (snd>>id) cf prob
     
     let filter (pf : TrackId*V3d -> bool) (cf : CameraId*Camera3d -> bool) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
         state {
@@ -188,7 +188,7 @@ module Bundled =
         }
 
     let maxRayDist = 100.0
-    let removeRayOutliers (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
+    let removeRayOutliersEntirePoint (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
         state {
             let! s = State.get
             let! op = prob
@@ -205,6 +205,31 @@ module Bundled =
 
             return np
         }
+
+    let removeRayOutliersObservationsOnly (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
+        state {
+            let! s = State.get
+            let mutable badObs = []
+            
+            let! op = prob
+            let! np = prob |> mapPoints 
+                              ( fun (ti,p) -> 
+                                s.cameras 
+                                  |> MapExt.toList
+                                  |> List.iter ( fun (ci,cam) ->
+                                         let ray = cam.GetRay op.tracks.[ti].[ci]
+                                         if ray.GetMinimalDistanceTo p > maxRayDist then
+                                            badObs <- (ti,ci)::badObs
+                                     )
+                                p
+                              )
+            
+            let mutable res = np
+            for (ti,ci) in badObs do
+                res <- BundlerProblem.removeMeasurement ti ci res
+
+            return np
+        } |> assertInvariants
 
     let bundleAdjust (options : CeresOptions) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
         undefined
@@ -238,7 +263,7 @@ module Bundler =
                 |> estimatePoints
                 |> assertInvariants
                 |> removeOffscreenPoints
-                |> removeRayOutliers
+                |> removeRayOutliersObservationsOnly
                 |> bundleAdjust ceresOptions
                 |> assertInvariants
                 |> bundleAdjust ceresOptions
