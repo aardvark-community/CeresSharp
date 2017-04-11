@@ -5,7 +5,7 @@ open System.Collections.Generic
 open Aardvark.Base
 open Aardvark.Base.Monads.State
 
-module Bundled =
+module Bundler =
     open CeresSharp
 
     let minTrackLength = 2
@@ -234,9 +234,9 @@ module Bundled =
     let bundleAdjust (options : CeresOptions) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
         undefined
  
-module Bundler =
+module BundlerSuperName =
     
-    open Bundled
+    open Bundler
 
     let ofMeasurements (measurements : MapExt<CameraId, MapExt<TrackId, V2d>>) : BundlerProblem =
         

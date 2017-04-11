@@ -83,6 +83,45 @@ module Geometry =
                 { Position = pos; AngleAxis = angleAxis}
         end
 
+type Camera3s(pos : V3s, aa : V3s) =
+    member x.Position = pos
+    member x.AngleAxis = aa
+
+    member x.Project(p : V3s) =
+        let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
+        let ndc = view.XY / view.Z
+
+        ndc
+
+    member x.ProjectWithDepth(p : V3s) =
+        let view = AngleAxis.RotatePoint(x.AngleAxis, p - x.Position)
+        let ndc = view.XY / view.Z
+
+        ndc, view.Z
+
+    static member Read(offset : int, v : Camera3d) =
+        let p   = V3s(scalar.Variable(offset + 0, v.Position.X), scalar.Variable(offset + 1, v.Position.Y), scalar.Variable(offset + 2, v.Position.Z))
+        let aa  = V3s(scalar.Variable(offset + 3, v.AngleAxis.X), scalar.Variable(offset + 4, v.AngleAxis.Y), scalar.Variable(offset + 5, v.AngleAxis.Z))
+        Camera3s(p, aa)
+
+    static member Value(cam : Camera3s) =
+        Camera3d(cam.Position.Value, cam.AngleAxis.Value)
+
+module V3s =
+    
+    let getProjectedBy (cam : Camera3d) (p : V3s) =   
+        let view = AngleAxis.RotatePoint(cam.AngleAxis, p - cam.Position)
+        let ndc = view.XY / view.Z
+
+        ndc
+
+    let getProjectedByWithDepth (cam : Camera3d) (p : V3s) =   
+        let view = AngleAxis.RotatePoint(cam.AngleAxis, p - cam.Position)
+        let ndc = view.XY / view.Z
+
+        ndc, view.Z
+
+
 [<Struct; CustomComparison; CustomEquality>]
 type CameraId(id : int) =
     static let mutable current = 0
