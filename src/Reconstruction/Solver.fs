@@ -22,112 +22,87 @@ type SolverConfig =
         ParameterFixing : Fixing
     }
 
+module SolverConfig =
+    
+    let allFree = { ParameterFixing = EverythingFree }
+
 module Solver =
-
-    let pointIsFixed (tid : TrackId) (fixations : Fixing) =
-        match fixations with
-        | EverythingFree | CamsFixedPointsFree -> false
-        | FixationMap f -> f.fixedPoints.[tid]
-        | _ -> true
-
-    let cameraIsFixed (cid : CameraId) (fixations : Fixing) =
-        match fixations with
-        | EverythingFree | PointsFixedCamsFree -> false
-        | FixationMap f -> f.fixedCams.[cid]
-        | _ -> true
+    open System.Runtime.InteropServices
 
     let bundleAdjust 
               (options : CeresOptions) (config : SolverConfig) (points : MapExt<TrackId, V3d>) (cameras : MapExt<CameraId, Camera3d>) 
-              (observations : MapExt<TrackId,MapExt<CameraId,V2d>>)
-                : float * points : MapExt<TrackId, V3d> * MapExt<CameraId, Camera3d> =
+              (tracks : MapExt<TrackId,MapExt<CameraId,V2d>>)
+                : float * MapExt<TrackId, V3d> * MapExt<CameraId, Camera3d> =
+                
+        let pointIsFixed (tid : TrackId) =
+            match config.ParameterFixing with
+            | EverythingFree | CamsFixedPointsFree -> false
+            | FixationMap f -> f.fixedPoints.[tid]
+            | _ -> true
+
+        let cameraIsFixed (cid : CameraId) =
+            match config.ParameterFixing with
+            | EverythingFree | PointsFixedCamsFree -> false
+            | FixationMap f -> f.fixedCams.[cid]
+            | _ -> true
 
         use problem = new Problem()
 
         let pointBlocks = 
             points |> MapExt.choose ( fun tid p ->
-                        if not (pointIsFixed tid config.ParameterFixing) then Some (problem.AddParameterBlock [| p |]) else None
+                        if not (pointIsFixed tid) then Some (problem.AddParameterBlock [| p |]) else None
                       )
 
         let camBlocks   = 
              cameras |> MapExt.choose ( fun cid c ->
-                        if not (cameraIsFixed cid config.ParameterFixing) then Some (problem.AddParameterBlock<Camera3d,Camera3s> [| c |]) else None
+                        if not (cameraIsFixed cid) then Some (problem.AddParameterBlock<Camera3d,Camera3s> [| c |]) else None
                       )
                       
-        let costFunction (real : V2d) (obs : V2s, depth : scalar) =
+        let costFunction (real : V2d) (obs : V2s) =
             let diff = real - obs
-                    
-            let depth = depth * depth
-                    
             [|
                 diff.X 
                 diff.Y 
             |]
 
-        for i in 0 .. prob.input.tracks.Length-1 do
+        let numResiduals = costFunction V2d.OO V2s.OO |> Array.length
+
+        let costFunctionCamPoint (real : V2d) (pb : IParameterBlock<V3d,V3s>) (cb : IParameterBlock<Camera3d,Camera3s>) =
+            problem.AddCostFunction(numResiduals, pb, cb, fun point cam ->
+                let obs = cam.[0].Project point.[0]
+                costFunction real obs
+            )
+
+        let costFunctionCamOnly (real : V2d) (point : V3d) (cb : IParameterBlock<Camera3d,Camera3s>) =
+            problem.AddCostFunction(numResiduals, cb, fun cam ->
+                let obs = cam.[0].Project (V3s point)
+                costFunction real obs
+            )
+
+        let costFunctionPointOnly (real : V2d) (pb : IParameterBlock<V3d,V3s>) (cam : Camera3d) =
+            problem.AddCostFunction(numResiduals, pb, fun point ->
+                let obs = point.[0] |> V3s.getProjectedBy cam
+                costFunction real obs
+            )
+
+        for KeyValue(tid, track) in tracks do
             
-            if pointIdx |> Array.contains i then
-                let pi = pointIdx.[i]
-                let pb = pointBlocks.[pi]
-                let pw = pointWeights.[pi]
-                let track = prob.input.tracks.[i]
-
-                for (ci,lpi) in track do
-                    let real = measurements.[ci].[lpi]
-                    
-                    let costFunction = costFunction real
-
-                    let numResiduals =
-                        costFunction (V2s.OO, scalar 0.0) |> Array.length
-
-                    if camIdx |> Array.contains ci then
-                        let cb = camBlocks.[camIdx |> indexOf ci]
-                    
-                        p.AddCostFunction(numResiduals, pb, cb, fun point cam ->
-                            let obs = cam.[0].ProjectWithDepth point.[0]
-                            costFunction obs
-                        )
+            for KeyValue(cid, obs) in track do
                 
-                    elif camFixedIdx |> Array.contains ci then
-                        let cf = camFixed.[camFixedIdx |> indexOf ci]
-                    
-                        p.AddCostFunction(numResiduals, pb, fun point ->
-                                let obs = point.[0] |> V3s.getProjectedByWithDepth cf.[0]
-                                costFunction obs
-                            )
-                    else    
-                        Log.error "CAN NOT HAPPEN!!!!!!!!!"
+                match pointIsFixed tid, cameraIsFixed cid with
+                | false, false -> costFunctionCamPoint  obs pointBlocks.[tid] camBlocks.[cid]
+                | true,  false -> costFunctionCamOnly   obs points.[tid]      camBlocks.[cid]
+                | false, true  -> costFunctionPointOnly obs pointBlocks.[tid] cameras.[cid]
+                | true,  true  -> ()
 
-            elif fixedpointIdx |> Array.contains i then
-                let pi = fixedpointIdx.[i]
-                let pb = fixedPointb.[pi]
-                let pw = pointWeights.[pi]
-                let track = prob.input.tracks.[i]
+        let cost = problem.Solve(options)
+        
+        let points = 
+            pointBlocks |> MapExt.map ( fun _ pb -> pb.Result.[0] )
+                        |> MapExt.union ( points |> MapExt.filter ( fun tid _ -> pointIsFixed tid ) )
 
-                for (ci,lpi) in track do
-                    let real = measurements.[ci].[lpi]
-                
-                    let costFunction = costFunction real
-
-                    let numResiduals =
-                        costFunction (V2s.OO, scalar 0.0) |> Array.length
-
-                    if camIdx |> Array.contains ci then
-                        let cb = camBlocks.[camIdx |> indexOf ci]
-                    
-                        p.AddCostFunction(numResiduals, cb, fun cam ->
-                            let obs = cam.[0].ProjectWithDepth (V3s pb.[0])
-                            costFunction obs
-                        )
-                
-                    elif camFixedIdx |> Array.contains ci then
-                        //failwith "dont do this"
-                        ()
-                    else    
-                        Log.error "CAN NOT HAPPEN!!!!!!!!!"
-            else failwith "can't happen"
-
-        let cost = p.Solve(options)
-
-        let (points, cameras) = getCurrentPointsCams()
+        let cameras =
+            camBlocks |> MapExt.map ( fun _ cb -> cb.Result.[0] )
+                      |> MapExt.union ( cameras |> MapExt.filter ( fun cid _ -> cameraIsFixed cid ) ) 
 
         cost, points, cameras

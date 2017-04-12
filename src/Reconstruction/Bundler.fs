@@ -231,10 +231,21 @@ module Bundler =
             return np
         } |> assertInvariants
 
-    let bundleAdjust (options : CeresOptions) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
-        undefined
+    let bundleAdjust (options : CeresOptions) (config : SolverConfig) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
+        state {
+            let! s = State.get
+            let! p = prob
+
+            let (cost, points, cams) = Solver.bundleAdjust options config s.points s.cameras p.tracks
+
+            do! State.put { s with points = points; cameras = cams }
+
+            return p
+        }
+
+
  
-module BundlerSuperName =
+module CoolNameGoesHere =
     
     open Bundler
 
@@ -255,6 +266,7 @@ module BundlerSuperName =
         
     let miniCV (p : BundlerProblem) : Bundled<BundlerProblem> =
         let ceresOptions = undefined
+        let solverConfig = SolverConfig.allFree
         
         let state = 
             emptyState p
@@ -264,9 +276,9 @@ module BundlerSuperName =
                 |> assertInvariants
                 |> removeOffscreenPoints
                 |> removeRayOutliersObservationsOnly
-                |> bundleAdjust ceresOptions
+                |> bundleAdjust ceresOptions solverConfig
                 |> assertInvariants
-                |> bundleAdjust ceresOptions
+                |> bundleAdjust ceresOptions solverConfig
                 //...
                 
         state
