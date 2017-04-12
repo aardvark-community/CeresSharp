@@ -19,6 +19,9 @@ type BundlerState =
 type Bundled<'a> = State<BundlerState, 'a>
 
 module BundlerState =
+
+    let empty = { cameras = MapExt.empty; points = MapExt.empty }
+
     let setPoint (t : TrackId) (pt : V3d) =
         State.modify (fun s -> { s with points = MapExt.add t pt s.points })
 
@@ -33,14 +36,28 @@ module BundlerState =
         
 module Edges =
 
-    let toTracks (edges : list<Edge<list<V2d*V2d>>>) : MapExt<TrackId, MapExt<CameraId, V2d>> =
+    let toTracks (edges : list<Edge<MapExt<TrackId,V2d*V2d>>>) : MapExt<TrackId, MapExt<CameraId, V2d>> =
+        
+        let mutable res = MapExt.empty
+
+        for e in edges do
+            let l = CameraId(e.i0)
+            let r = CameraId(e.i1)
             
-        let used = 
-            let d = Dict<Edge<_>, bool>()
-            for e in edges do d.[e] <- false
-            d
-            
-        failwith "IMPLEMENT ME PLS"
+            for KeyValue(tid, (lo, ro)) in e.weight do
+
+                let addBoth (m : MapExt<_,_>) =
+                    let mutable obs = m
+                    obs <- obs.Add (l,lo)
+                    obs <- obs.Add (r,ro)
+                    obs
+
+                res <- res |> MapExt.alter tid ( fun m ->
+                            match m with
+                            | None -> addBoth MapExt.empty |> Some
+                            | Some obs -> addBoth obs |> Some
+                       )
+        res
 
 module Tracks =
 
@@ -56,19 +73,19 @@ module Tracks =
                             )
         measures
             
-    let toEdges (tracks : MapExt<TrackId, MapExt<CameraId, V2d>>) : list<Edge<List<V2d*V2d>>> =
-        let edges = Dict<CameraId * CameraId, List<V2d * V2d>>()
+    let toEdges (tracks : MapExt<TrackId, MapExt<CameraId, V2d>>) : list<Edge<MapExt<TrackId,V2d*V2d>>> =
+        let edges = Dict<CameraId * CameraId, ref<MapExt<TrackId,V2d * V2d>>>()
             
-        for KeyValue(_, track) in tracks do
+        for KeyValue(tid, track) in tracks do
             for KeyValue(ci,pi) in track do
                 for KeyValue(cj,pj) in track do
                     if ci < cj then
-                        let list = edges.GetOrCreate((ci,cj), (fun _ -> List()))
-                        list.Add (pi,pj)
+                        let m = edges.GetOrCreate((ci,cj), (fun _ -> ref MapExt.empty))
+                        m := !m |> MapExt.add tid (pi,pj)
             
-        edges |> Dict.toList 
-                |> List.choose ( fun ((ci, cj),l) -> 
-                    Some { i0 = ci.Id; i1 = cj.Id; weight = l } 
+        edges   |> Dict.toList 
+                |> List.choose ( fun ((ci, cj),m) -> 
+                    Some { i0 = ci.Id; i1 = cj.Id; weight = !m } 
                 )
                     
 module BundlerProblem =

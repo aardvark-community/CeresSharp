@@ -178,7 +178,10 @@ let gen (places : int) =
        |> Array.distinct
        |> ser.Pickle
        |> File.writeAllBytes @"C:\blub\random"
+    
+open Aardvark.Reconstruction
 
+   
 [<EntryPoint>]
 let main argv =
     Ag.initialize()
@@ -187,22 +190,28 @@ let main argv =
     //testGlobal()
     //System.Environment.Exit 0
     
-    let path = @"C:\blub\yolo"
+    //let path = @"C:\blub\yolo"
 
     //PairViewer.app path
     //BundlerViewer.folder path
 
-    let sponzacfg =
-        {
-            Example.PercentObservations = 0.3
-            Example.JitterNDC           = 1.0 / 500.0
-            Example.PercentFalse        = 0.4
-        }
+    //let sponzacfg =
+    //    {
+    //        Example.PercentObservations = 0.3
+    //        Example.JitterNDC           = 1.0 / 500.0
+    //        Example.PercentFalse        = 0.4
+    //    }
 
-    Example.renderSponza sponzacfg @"D:\file\sponza_bun\sponzaVertices" 10 (Some 1000)
-    BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
+    //Example.renderSponza sponzacfg @"D:\file\sponza_bun\sponzaVertices" 10 (Some 1000)
+    //BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
 //    BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices" |> ignore
 
 //    Example.testManySponzas()
+
+    
+
+
+
+
 
     0 // return an integer exit code

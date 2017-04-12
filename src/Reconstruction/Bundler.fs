@@ -83,15 +83,15 @@ module Bundler =
     let filterPoints pf prob = filter pf (fun _ -> true) prob
     let filterCams   cf prob = filter (fun _ -> true) cf prob
     
-    let emptyState (p : BundlerProblem) : Bundled<BundlerProblem> =
+    let invalidPointsCams (p : BundlerProblem) : Bundled<BundlerProblem> =
         state {
             let edges = Tracks.toEdges p.tracks
                                               
             let (mst, minimumEdges) =
-                edges |> Graph.ofEdges
+                edges   |> Graph.ofEdges
                         |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
 
-            let minimumEdges = minimumEdges |> Array.toList |> List.map (Edge.map Seq.toList)         
+            let minimumEdges = minimumEdges |> Array.toList 
              
             let minimumTracks = Edges.toTracks minimumEdges
 
@@ -112,12 +112,12 @@ module Bundler =
             let getMatches l r =
                 let i = minimumEdges
                             |> List.tryFind ( fun e -> e.i0 = l && e.i1 = r )
-                let o1 = i  |> Option.map   ( fun i -> i.weight    |> List.toArray )
+                let o1 = i  |> Option.map   ( fun i -> i.weight |> MapExt.toArray |> Array.map snd )
 
                 let i = minimumEdges
                             |> List.tryFind ( fun e -> e.i0 = r && e.i1 = l )
 
-                let o2 = i |> Option.map ( fun i -> i.weight |> List.map ( fun (s,p) -> p,s ) |> List.toArray )
+                let o2 = i |> Option.map ( fun i -> i.weight |> MapExt.toArray |> Array.map snd |> Array.map tupleSwap )
 
                 [|
                     match o1 with
@@ -141,7 +141,7 @@ module Bundler =
                 edges |> Graph.ofEdges
                         |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
 
-            let minimumEdges = minimumEdges |> Array.toList |> List.map (Edge.map Seq.toList)     
+            let minimumEdges = minimumEdges |> Array.toList   
 
             let cams = initialCameras mst minimumEdges
             
@@ -173,8 +173,7 @@ module Bundler =
     let removeOffscreenPoints (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
         state {
             let! s = State.get
-            let! np = prob |> filterPoints 
-                              ( fun (_,p) -> 
+            let! np = prob |> filterPoints ( fun (_,p) -> 
                                 s.cameras 
                                   |> MapExt.toList
                                   |> List.map snd
@@ -192,8 +191,7 @@ module Bundler =
         state {
             let! s = State.get
             let! op = prob
-            let! np = prob |> filterPoints 
-                              ( fun (ti,p) -> 
+            let! np = prob |> filterPoints ( fun (ti,p) -> 
                                 s.cameras 
                                   |> MapExt.toList
                                   |> List.exists ( fun (ci,cam) ->
@@ -228,7 +226,7 @@ module Bundler =
             for (ti,ci) in badObs do
                 res <- BundlerProblem.removeMeasurement ti ci res
 
-            return np
+            return res
         } |> assertInvariants
 
     let bundleAdjust (options : CeresOptions) (config : SolverConfig) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
@@ -242,13 +240,7 @@ module Bundler =
 
             return p
         }
-
-
- 
-module CoolNameGoesHere =
-    
-    open Bundler
-
+        
     let ofMeasurements (measurements : MapExt<CameraId, MapExt<TrackId, V2d>>) : BundlerProblem =
         
         // get all the tracks
@@ -263,14 +255,20 @@ module CoolNameGoesHere =
                     )
                     
         { tracks = tracks }
-        
-    let miniCV (p : BundlerProblem) : Bundled<BundlerProblem> =
-        let ceresOptions = undefined
+
+
+ 
+module CoolNameGoesHere =
+    
+    open Bundler
+    open CeresSharp
+    
+    let miniCV (p : BundlerProblem) =
+        let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let solverConfig = SolverConfig.allFree
         
-        let state = 
-            emptyState p
-                |> assertInvariants
+        let bundled = 
+            invalidPointsCams p
                 |> estimateCams
                 |> estimatePoints
                 |> assertInvariants
@@ -279,6 +277,5 @@ module CoolNameGoesHere =
                 |> bundleAdjust ceresOptions solverConfig
                 |> assertInvariants
                 |> bundleAdjust ceresOptions solverConfig
-                //...
-                
-        state
+        
+        State.run BundlerState.empty bundled

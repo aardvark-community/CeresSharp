@@ -2,6 +2,14 @@
 
 open Aardvark.Base
 
+
+
+[<AutoOpen>]
+module Undefined =
+    let undefined<'a> : 'a = failwith "undefined"
+
+    let tupleSwap (a,b) = (b,a)
+
     
 type Edge<'w> = { i0 : int; i1 : int; weight : 'w }
 

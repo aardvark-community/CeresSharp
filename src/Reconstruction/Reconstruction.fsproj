@@ -434,9 +434,10 @@
   <ItemGroup>
     <Compile Include="Utilities.fs" />
     <Compile Include="Types.fs" />
-    <Compile Include="Estimation.fs" />
+    <Compile Include="PoseRecovery.fs" />
+    <Compile Include="Solver.fs" />
     <Compile Include="BundlerProblem.fs" />
-    <Compile Include="Bundled.fs" />
+    <Compile Include="Bundler.fs" />
     <Content Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

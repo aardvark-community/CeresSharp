@@ -93,6 +93,11 @@
       <Project>{f00c3690-b2c8-429e-8b90-2b319530d754}</Project>
       <Private>True</Private>
     </ProjectReference>
+    <ProjectReference Include="..\Reconstruction\Reconstruction.fsproj">
+      <Name>Reconstruction</Name>
+      <Project>{17568b1b-ae62-42f9-b3e1-1e5da4a8b1b3}</Project>
+      <Private>True</Private>
+    </ProjectReference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

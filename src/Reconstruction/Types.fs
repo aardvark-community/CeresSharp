@@ -6,10 +6,6 @@ open Aardvark.Base
 
 
 [<AutoOpen>]
-module Undefined =
-    let undefined<'a> : 'a = failwith "undefined"
-
-[<AutoOpen>]
 module Geometry =
 
     type Camera3d =
