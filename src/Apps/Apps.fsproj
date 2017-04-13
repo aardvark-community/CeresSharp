@@ -11,7 +11,7 @@
     <AssemblyName>ReconstructionApps</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <TargetFSharpCoreVersion>4.4.1.0</TargetFSharpCoreVersion>
+    <TargetFSharpCoreVersion>4.4.0.0</TargetFSharpCoreVersion>
     <Name>Apps</Name>
     <TargetFrameworkProfile />
   </PropertyGroup>
