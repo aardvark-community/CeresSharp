@@ -138,7 +138,7 @@ type CameraId(id : int) =
                 | _ -> failwith ""
 
 [<Struct; CustomComparison; CustomEquality>]
-type TrackId private(id : int) =
+type TrackId(id : int) =
     static let mutable current = 0
     static member New = TrackId(System.Threading.Interlocked.Increment(&current))
 

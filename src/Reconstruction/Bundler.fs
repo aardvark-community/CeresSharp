@@ -28,6 +28,8 @@ module Bundler =
         state {
             let! p = prob
 
+            let! s = State.get
+
             let rec fix (prob : BundlerProblem) =
                 state {
                     let p = prob
@@ -51,7 +53,7 @@ module Bundler =
                 }
 
             let! fixedProb = fix p
-
+            
             return fixedProb
         }
         
@@ -83,10 +85,12 @@ module Bundler =
     let filterPoints pf prob = filter pf (fun _ -> true) prob
     let filterCams   cf prob = filter (fun _ -> true) cf prob
     
-    let invalidPointsCams (p : BundlerProblem) : Bundled<BundlerProblem> =
+    let initialPointsCams (p : BundlerProblem) : Bundled<BundlerProblem> =
         state {
             let edges = Tracks.toEdges p.tracks
-                                              
+            
+            Log.line "number of edges %A" edges.Length
+
             let (mst, minimumEdges) =
                 edges   |> Graph.ofEdges
                         |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
@@ -103,6 +107,9 @@ module Bundler =
             for KeyValue(pi, _) in minimumTracks do
                 do! BundlerState.setPoint pi V3d.Zero
             
+            Log.line "remaining minimum-tracks %A" minimumTracks.Count
+            Log.line "remaining minimum-measurements %A" minimumMeasurements.Count
+
             return { tracks = minimumTracks }
         } |> assertInvariants
 
@@ -231,8 +238,8 @@ module Bundler =
 
     let bundleAdjust (options : CeresOptions) (config : SolverConfig) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem> =
         state {
-            let! s = State.get
             let! p = prob
+            let! s = State.get
 
             let (cost, points, cams) = Solver.bundleAdjust options config s.points s.cameras p.tracks
 
@@ -241,23 +248,6 @@ module Bundler =
             return p
         }
         
-    let ofMeasurements (measurements : MapExt<CameraId, MapExt<TrackId, V2d>>) : BundlerProblem =
-        
-        // get all the tracks
-        let mutable tracks : MapExt<TrackId, MapExt<CameraId, V2d>> = MapExt.empty
-
-        for (ci, measurements) in MapExt.toSeq measurements do
-            for (id, m) in MapExt.toSeq measurements do
-                tracks <- 
-                    tracks |> MapExt.alter id (fun old ->
-                        let old = Option.defaultValue MapExt.empty old
-                        Some (old |> MapExt.add ci m)
-                    )
-                    
-        { tracks = tracks }
-
-
- 
 module CoolNameGoesHere =
     
     open Bundler
@@ -267,15 +257,16 @@ module CoolNameGoesHere =
         let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let solverConfig = SolverConfig.allFree
         
+        let estimateBoth = estimateCams >> estimatePoints
+
         let bundled = 
-            invalidPointsCams p
-                |> estimateCams
-                |> estimatePoints
-                |> assertInvariants
-                |> removeOffscreenPoints
-                |> removeRayOutliersObservationsOnly
-                |> bundleAdjust ceresOptions solverConfig
+            initialPointsCams p
+                |> estimateBoth
                 |> assertInvariants
                 |> bundleAdjust ceresOptions solverConfig
+                //|> removeOffscreenPoints
+                //|> removeRayOutliersObservationsOnly
+                //|> assertInvariants
+                //|> bundleAdjust ceresOptions solverConfig
         
         State.run BundlerState.empty bundled

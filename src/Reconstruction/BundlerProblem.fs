@@ -106,7 +106,7 @@ module BundlerProblem =
         }
 
     let removeTrack (id : TrackId) (sol : BundlerProblem) =
-        { tracks = MapExt.remove id sol.tracks }
+        {   tracks = MapExt.remove id sol.tracks    }
 
     let addMeasurement (tid : TrackId) (cam : CameraId) (position : V2d) (sol : BundlerProblem) =
         { 
@@ -134,4 +134,42 @@ module BundlerProblem =
                         not (track |> MapExt.isEmpty)
                        )
         }
+
+    let ofMeasurements (measurements : MapExt<CameraId, MapExt<TrackId, V2d>>) : BundlerProblem =
+        
+        // get all the tracks
+        let mutable tracks : MapExt<TrackId, MapExt<CameraId, V2d>> = MapExt.empty
+
+        for (ci, measurements) in MapExt.toSeq measurements do
+            for (id, m) in MapExt.toSeq measurements do
+                tracks <- 
+                    tracks |> MapExt.alter id (fun old ->
+                        let old = Option.defaultValue MapExt.empty old
+                        Some (old |> MapExt.add ci m)
+                    )
+                    
+        { tracks = tracks }
     
+module Bundled =
+    let removeCamera (id : CameraId) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem>=
+        state {
+            let! p = prob
+            let np = p |> BundlerProblem.removeCamera id
+
+            let! s = State.get
+            do! BundlerState.unsetCamera id
+
+            return np
+        }
+
+    let removeTrack (id : TrackId) (prob : Bundled<BundlerProblem>) : Bundled<BundlerProblem>=
+        state {
+            let! p = prob
+            let np = p |> BundlerProblem.removeTrack id
+            
+            let! s = State.get
+            do! BundlerState.unsetPoint id
+
+            return np
+        }   
+        

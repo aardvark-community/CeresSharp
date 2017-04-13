@@ -12,6 +12,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Bundler", "Bundler\Bundler.
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Reconstruction", "Reconstruction\Reconstruction.fsproj", "{17568B1B-AE62-42F9-B3E1-1E5DA4A8B1B3}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Apps", "Apps\Apps.fsproj", "{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -113,6 +115,24 @@ Global
 		{17568B1B-AE62-42F9-B3E1-1E5DA4A8B1B3}.Release|x64.Build.0 = Release|Any CPU
 		{17568B1B-AE62-42F9-B3E1-1E5DA4A8B1B3}.Release|x86.ActiveCfg = Release|Any CPU
 		{17568B1B-AE62-42F9-B3E1-1E5DA4A8B1B3}.Release|x86.Build.0 = Release|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Debug|x64.Build.0 = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Debug|x86.Build.0 = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Deploy|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Deploy|Any CPU.Build.0 = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Deploy|x64.ActiveCfg = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Deploy|x64.Build.0 = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Deploy|x86.ActiveCfg = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Deploy|x86.Build.0 = Debug|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Release|x64.ActiveCfg = Release|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Release|x64.Build.0 = Release|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Release|x86.ActiveCfg = Release|Any CPU
+		{CC9DC09A-9DB8-4990-9DF5-CFB0EADE2956}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
