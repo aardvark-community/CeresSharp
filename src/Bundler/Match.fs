@@ -210,7 +210,8 @@ module Bundle =
         Log.stop()
 
         Log.startTimed "BundlerInput generation"
-        let input = failwith "" //Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
+        
+        let input = Feature.FeatureGraph.toBundlerInput mst bundlerMinTrackLength bundlerMaxFtrsPerCam
             
 
         let problem = input |> BundlerInput.toProblem

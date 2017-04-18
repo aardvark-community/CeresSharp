@@ -77,9 +77,6 @@
     <Compile Include="Solver.fs" />
     <Compile Include="BundlerProblem.fs" />
     <Compile Include="Bundler.fs" />
-    <Content Include="App.config">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />

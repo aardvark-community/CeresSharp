@@ -106,6 +106,8 @@ module Bundler =
                 res <- (p, s |> BundlerState.setPoint tid pt)
 
         res
+    
+    let estimateBoth = estimateCams >> estimatePoints
         
     let removeOffscreenPoints (prob : Bundled) : Bundled =
         let (n,s) = prob
@@ -150,8 +152,6 @@ module CoolNameGoesHere =
     let miniCV (p : BundlerProblem) =
         let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let solverConfig = SolverConfig.allFree
-        
-        let estimateBoth = estimateCams >> estimatePoints
         
         Bundler.random p
             |> estimateBoth

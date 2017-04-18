@@ -1117,6 +1117,321 @@ module BundlerViewer =
         printfn "Done."
 
 
+       
+    open System.IO
+    let filesSuperEvilHack jpgsPath =
+        
+        use app = new OpenGlApplication()
+        use win = app.CreateSimpleRenderWindow(8)
+
+        let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+
+        
+
+        let cfg : stuffConfig = 
+            if System.IO.File.Exists (configfile()) then
+                Log.line @"Loading config from C:\blub"
+                let pickler = MBrace.FsPickler.FsPickler.CreateXmlSerializer(indent=true)
+                File.readAllText (configfile()) |> pickler.UnPickleOfString
+            else
+                {
+                    pLambda = 20.0
+                    pSigma  = 0.6
+                    pProb   = 0.5
+                    aLambda = 20.0
+                    aSigma  = 0.5
+                    aThresh = 0.01
+                }
+
+        let bruteforceThreshold = 0.9
+
+        let probabilityLambda =         cfg.pLambda
+        let probabilitySigma =          cfg.pSigma
+        let probabilityLowerThresh =    cfg.pProb
+
+        let affineLambda =      cfg.aLambda
+        let affineSigma =       cfg.aSigma
+        let affineUpperThresh = cfg.aThresh
+
+        let bruteforceMinCount = 10
+        let probableMinCount =   10
+        let affineMinCount =     10
+
+        let bundlerMinTrackLength = 2
+        let bundlerMaxFtrsPerCam = 60
+
+        let pairMatch l r =
+            
+            Log.startTimed "Bruteforce matching"
+            let bf = Match.bruteforce bruteforceThreshold l r |> Match2d.ofFeatures l r 
+            Log.stop()
+            
+            if bf.Length >= bruteforceMinCount then
+                Log.startTimed "Probability matching"
+                let probable = bf |> Match.probability probabilityLambda probabilitySigma probabilityLowerThresh
+                Log.stop ()
+
+                if probable.Length >= probableMinCount then
+                    Log.startTimed "Consistency matching"
+                    let affine = probable |> Match.affine affineLambda affineSigma affineUpperThresh
+                    Log.stop()
+
+                    if affine.Length >= affineMinCount then
+
+                        printfn "Found %A affine-consistent matches." affine.Length
+
+                        affine |> Array.map ( fun m -> m.Left, m.Right )
+                    else
+                        printfn "Not enough affine matches (less than %A, only %A)." affineMinCount affine.Length
+                        [||]
+                else
+                    printfn "Not enough probable matches (less than %A, only %A)." probableMinCount probable.Length
+                    [||]
+            else
+                printfn "Not enough bruteforce matches (less than %A, only %A)." bruteforceMinCount bf.Length
+                [||]
+
+        let matcher (d : Feature[][]) li ri = pairMatch d.[li] d.[ri]
+
+        let filenames = System.IO.Directory.GetFiles jpgsPath
+        let images = 
+            filenames
+                |> Array.map PixImage.Create
+                |> Array.map (fun pi -> pi.AsPixImage<byte>())
+
+        let data = images |> Array.map Akaze.ofImage
+
+        let graphInput = 
+            {
+                matcher = matcher
+                images = images
+                data = data
+            }
+        
+        Log.line "did copy/paste stuff, now the real fun begins"
+
+        //let graphInput = sponzaPath 
+        //                    |> File.readAllBytes 
+        //                    |> ser.UnPickle
+        //                    |> ModelSer.toGraphInput
+        
+        let graph = Feature.FeatureGraph.build graphInput
+
+        let input = Feature.FeatureGraph.toBundlerInputSiegfried graph 2
+
+        let problem = input |> BundlerInput.toProblem
+
+        let solution = Mod.init None
+
+        let renderSolution = Mod.init None
+
+        let updateVis () = transact ( fun _ ->  renderSolution.Value <- solution.Value)
+        
+        let mutable visRunning = true
+        async {
+            do! Async.SwitchToNewThread()
+            while visRunning do
+                do! Async.Sleep 250
+                updateVis()
+        } |> Async.Start
+
+        //does not work so good
+        let resizeToUnit =
+            let getBoxScale (fromBox : Box3d) (toBox : Box3d) : float =
+                let fromSize = fromBox.Size
+                let toSize = toBox.Size
+                let factor = toSize / fromSize
+
+                let mutable smallest = factor.X
+
+                if factor.Y < smallest then
+                    smallest <- factor.Y
+                if factor.Z < smallest then
+                    smallest <- factor.Z
+
+                smallest
+            let transformBox (sbox : Box3d) (tbox : Box3d) = Trafo3d.Translation(-sbox.Center) * Trafo3d.Scale(getBoxScale sbox tbox) * Trafo3d.Translation(tbox.Center)
+            
+            let sol = renderSolution |> Mod.force
+            match sol with
+            | None ->  Trafo3d.Identity |> Mod.constant
+            | Some solution ->
+                let pts = solution.points |> Map.toArray |> Array.map snd |> Array.map ( fun sp -> sp.point )
+                let bb = Box3d(pts)
+                let trafo = transformBox bb (Box3d(V3d(-1.0,-1.0,-1.0),V3d(1.0,1.0,1.0)))
+                trafo |> Mod.constant
+
+        async {
+            let cacheSolution = false
+            let mutable iterCt = -1
+            let adorner sol =
+                if iterCt = 0 then
+                    printf "Enter iterCt: "
+                    match Console.ReadLine() |> Int32.TryParse with
+                    | (true,v) -> iterCt <- -v
+                    | _ -> iterCt <- -10
+                transact ( fun _ -> Mod.change solution (sol |> Some) )
+                iterCt <- iterCt + 1
+
+            let finalSol = 
+                if not cacheSolution then 
+                    Log.line "No caching involved."
+                    Bundler.solve adorner problem
+                else
+                    let fn = @"D:\file\sponza_bun\cachedSol"
+                    let ser = MBrace.FsPickler.FsPickler.CreateBinarySerializer()
+                    if File.Exists fn then
+                        Log.warn "Reading cached solution"
+                        fn |> File.readAllBytes |> ser.UnPickle
+                    else
+                        let sol = Bundler.solve adorner problem
+                        Log.warn "Writing solution to cache"
+                        sol |> ser.Pickle |> File.writeAllBytes fn
+                        sol
+            match finalSol with
+            | None -> ()
+            | Some finalSol ->
+                adorner finalSol
+
+        } |> Async.Start
+
+        let blurg = Mod.init Bam.Oida
+        let blub = Mod.init Bam.Oida
+        
+        win.Keyboard.KeyDown(Keys.D1).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 0))
+        win.Keyboard.KeyDown(Keys.D2).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 1))
+        win.Keyboard.KeyDown(Keys.D3).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 2))
+        win.Keyboard.KeyDown(Keys.D4).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 3))
+        win.Keyboard.KeyDown(Keys.D5).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 4))
+        win.Keyboard.KeyDown(Keys.D6).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 5))
+        win.Keyboard.KeyDown(Keys.D7).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 6))
+        win.Keyboard.KeyDown(Keys.D8).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 7))
+        win.Keyboard.KeyDown(Keys.D9).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 8))
+        win.Keyboard.KeyDown(Keys.D0).Values.Add ( fun _ -> transact ( fun _ ->     blurg.Value <- Fix 9))
+        win.Keyboard.KeyDown(Keys.Space).Values.Add ( fun _ -> transact ( fun _ ->  blurg.Value <- Bam.Oida))
+
+        win.Keyboard.KeyDown(Keys.NumPad1).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 0))
+        win.Keyboard.KeyDown(Keys.NumPad2).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 1))
+        win.Keyboard.KeyDown(Keys.NumPad3).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 2))
+        win.Keyboard.KeyDown(Keys.NumPad4).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 3))
+        win.Keyboard.KeyDown(Keys.NumPad5).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 4))
+        win.Keyboard.KeyDown(Keys.NumPad6).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 5))
+        win.Keyboard.KeyDown(Keys.NumPad7).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 6))
+        win.Keyboard.KeyDown(Keys.NumPad8).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 7))
+        win.Keyboard.KeyDown(Keys.NumPad9).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 8))
+        win.Keyboard.KeyDown(Keys.NumPad0).Values.Add ( fun _ -> transact ( fun _ ->     blub.Value <- Fix 9))
+        win.Keyboard.KeyDown(Keys.C).Values.Add ( fun _ -> transact ( fun _ ->           blub.Value <- Bam.Oida))
+        win.Keyboard.KeyDown(Keys.O).Values.Add updateVis 
+        
+        let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
+                                |> Mod.map Frustum.projTrafo
+
+        let asdf = Mod.init (V3d(0.0, 50.0, 0.0))
+        let view = 
+            adaptive {
+                let! asdf = asdf
+                let! c =  CameraView.lookAt asdf V3d.Zero -V3d.OOI
+                            |> DefaultCameraController.controlWithSpeed (Mod.init 2.5) win.Mouse win.Keyboard win.Time
+                            |> Mod.map CameraView.viewTrafo
+                return c
+            }
+    
+        let far = 1000.0
+        let camview solution i = 
+            let cam = solution.cameras.[i].cam
+            let ocam = cam.Transformed( resizeToUnit |> Mod.force )
+            transact( fun _ -> Mod.change asdf ocam.Position )
+            ocam.ViewProjTrafo far
+
+        let rays solution i =
+            let ocam = solution.cameras.[i].cam.Transformed( resizeToUnit |> Mod.force )
+            [|
+                for ti in 0 .. solution.problem.input.tracks.Length-1 do
+                    let track = solution.problem.input.tracks.[ti]
+                    match track |> Array.exists (fun (ci,_) -> ci = i) with
+                    | true -> yield 
+                                Line3d(solution.points.[ti].point, ocam.Position)
+                    | false -> ()
+            |]  |> Mod.constant
+                |> Sg.lines (Mod.constant C4b.Yellow)
+                |> Sg.shader {
+                    do! DefaultSurfaces.trafo
+                    do! DefaultSurfaces.vertexColor
+                   }
+            
+
+        let vp =
+            adaptive {
+                let! b = blurg
+                match b with
+                | Oida ->
+                    let! cv = view
+                    let! f = proj
+                    return cv, f
+                | Fix i ->
+                    let! s = solution
+                    match s with
+                    | None -> return Trafo3d.Identity, Trafo3d.Identity
+                    | Some solution ->
+                        let fs = 
+                            try 
+                                camview solution i
+                            with _ -> 
+                                camview solution 0
+                        return Trafo3d.Identity, fs
+            }
+
+        let (view,proj) = vp |> Mod.map fst, vp |> Mod.map snd
+
+        let surface = Shader.surfaceApp win
+        let surfacePoints = Shader.surfacePointApp C4b.Green win
+        let surfaceBox = Shader.surfaceBoxApp C4b.Red win
+
+        let sg2 =   
+            adaptive {
+                let! s = renderSolution
+                match s with
+                | None -> return Sg.ofList []
+                | Some solution ->
+                    let! b = blub
+                    match b with
+                    | Bam.Oida -> 
+                        return Sg.ofList []
+                    | Fix i ->
+                        let isg =
+                            try 
+                                rays solution i
+                            with _ ->
+                                Sg.ofList []
+
+                        return isg
+                                
+            }   |> Sg.dynamic
+
+        let sg = 
+            adaptive {
+                let! s = renderSolution
+                match s with
+                | None -> return Sg.ofList []
+                | Some solution ->
+                     return SceneGraph.ofBundlerSolution C4b.Red 10 C4b.Green solution surface surfacePoints surfaceBox graphInput.images (Mod.constant Bam.Oida)
+                            |> Sg.trafo resizeToUnit
+            }       |> Sg.dynamic
+
+        let sg = Sg.ofList [sg; sg2]
+                    |> Sg.viewTrafo view
+                    |> Sg.projTrafo proj
+
+        let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
+        win.RenderTask <- task
+
+        win.Run()
+           
+        visRunning <- false
+        
+        printfn "Done."
+
+
 module Example =
 
     type RenderSponzaConfig = 

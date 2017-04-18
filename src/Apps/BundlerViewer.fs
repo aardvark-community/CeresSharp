@@ -108,7 +108,7 @@ module Viewer =
             
     let ofObservations (obs : MapExt<CameraId, MapExt<TrackId, V2d>>) =
         
-        let (state, prob) =
+        let (prob, state) =
             let p = BundlerProblem.ofMeasurements obs
             CoolNameGoesHere.miniCV p
         

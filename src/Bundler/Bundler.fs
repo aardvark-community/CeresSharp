@@ -267,7 +267,7 @@ module Bundler =
         let options = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let measurementCount = p.cameras |> Seq.sumBy (fun ci -> p.input.measurements.[ci].Count)
 
-        if p.cameras.Count < 3 then 
+        if p.cameras.Count < 2 then 
             Log.error "Less than 3 cams (only %A), no stable solution possible" p.cameras.Count
             None
         else

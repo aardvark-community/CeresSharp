@@ -192,8 +192,8 @@ let main argv =
     
     //let path = @"C:\blub\yolo"
 
-    //PairViewer.app path
-    //BundlerViewer.folder path
+//    PairViewer.app @"C:\blub\yolo"
+    BundlerViewer.folder @"C:\blub\yolo1"
 
     let sponzacfg =
         {
@@ -202,8 +202,10 @@ let main argv =
             Example.PercentFalse        = 0.4
         }
 
-    Example.renderSponza sponzacfg @"D:\file\sponza_bun\sponzaVertices" 10 (Some 1000)
-    BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
+    //Example.renderSponza sponzacfg @"D:\file\sponza_bun\sponzaVertices" 10 (Some 1000)
+    //BundlerViewer.sponza @"D:\file\sponza_bun\sponzaVertices"
+
+//    BundlerViewer.filesSuperEvilHack @"C:\blub\yolo"
 //    BundlerViewer.sponzaWithoutRender @"D:\file\sponza_bun\sponzaVertices" |> ignore
 
 //    Example.testManySponzas()

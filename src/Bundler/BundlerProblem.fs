@@ -791,6 +791,7 @@ module BundlerSolution =
                         let projection = cam.cam.Project estimatedPoint.point
                         let diff = projection - observedPoint
                         yield diff, (Vec.length (0.5*diff))
+                            
             |] 
 
             //s.problem.cameras
@@ -1020,10 +1021,14 @@ module BundlerSolution =
             p.input.tracks
                 |> Array.mapi 
                     ( fun i t ->
-                        i, (t |> Array.map ( fun (ci,pi) -> cameras.[ci].cam.GetRay p.input.measurements.[ci].[pi]  ) 
-                              |> Array.toList
-                              |> avg
-                              |> Option.defaultValue (crap.[i],[]))
+                        i, 
+                            try 
+                                (t |> Array.map ( fun (ci,pi) -> cameras.[ci].cam.GetRay p.input.measurements.[ci].[pi]  ) 
+                                   |> Array.toList
+                                   |> avg
+                                   |> Option.defaultValue (crap.[i],[]))
+                            with
+                                | _ -> crap.[i],[]
                     )
                 |> Map.ofArray
                 |> Map.map ( fun _ (pt, ds) -> { point = pt; isFixed = false } )

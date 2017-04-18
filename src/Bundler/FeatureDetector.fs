@@ -648,7 +648,7 @@ module Feature =
                 )
 
             let debugoutput2() =
-                let colors = result |> Seq.concat |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
+                let colors = [0..99999] |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float result.Length, 1.0, 1.0).ToC4b()) |> Seq.toArray
                 for i in 0 .. g.images.Length - 1 do
                     let file = g.images.[i].ToPixImage<byte>()
                     for fn in result |> List.map ( fun fs -> fs |> List.filter ( fun f -> f.image = i ) ) |> List.concat do
@@ -674,4 +674,97 @@ module Feature =
             let tracks = result |> List.map ( fun nodes -> nodes |> List.map ( fun fn -> fn.image, fn.featureIndex ) |> List.sortBy fst |> List.toArray ) |> List.toArray
 
             { graph = g; measurements = flat; tracks = tracks }
+                  
+                  
+        
+        let toBundlerInput (g : FeatureGraph) (minTrackLength : int) (maxFeaturesPerCam : int) =
+
+            let features = g.features
+            
+            let takeNode() =
+                let (KeyValue(image, fs)) = features |> Seq.head
+                let f = fs |> Seq.head
+                fs.Remove f |> ignore
+                if fs.Count = 0 then features.Remove image |> ignore
+                f
+                
+            let mutable pathCounter = 0
+            let paths = List<Set<int> * array<FeatureNode>>()
+            while features.Count > 0 do
+                let list = List<FeatureNode>()
+                let start = takeNode()
+                list.Add start
+
+                let rec traverse (visitedImages : Set<int>) (path : list<FeatureNode>) (start : FeatureNode) =
+
+                    let next = 
+                        start.corresponding |> Dict.toSeq |> Seq.tryPick (fun (ii,other) -> 
+                           if other.Count >= 1 then Some (ii, Seq.head other)
+                           else None
+                        )
                         
+                    match next with
+                        | Some(dstImg, dstNode) ->
+                            // kill the connection
+                            dstNode.Remove(start.image, start)
+                            start.Remove(dstImg, dstNode)
+
+                            traverse (Set.add dstImg visitedImages) (dstNode :: path) dstNode
+
+                        | None ->
+                            visitedImages, path
+
+                let usedImages, path = traverse (Set.singleton start.image) [start] start
+                let path = List.toArray path
+
+                if path.Length >= minTrackLength then
+                    pathCounter <- pathCounter + 1
+                    paths.Add(usedImages, path)
+                    let str = path |> Array.map (fun f -> sprintf "(%d,  %d)" f.image f.featureIndex) |> String.concat " -> "
+                    Log.warn "%A: found path: %s" pathCounter str
+
+            let measurements = Array.create g.data.Length Map.empty
+            let ff = Array.create g.data.Length Map.empty
+
+            let targetCounts = Array.create g.data.Length maxFeaturesPerCam
+
+            paths.QuickSortDescending(fun (_,p) -> p.Length)
+
+            for pi in 0 .. paths.Count - 1 do
+                let (used, path) = paths.[pi]
+                let usePath = used |> Set.exists (fun u -> targetCounts.[u] > 0)
+                if usePath then
+                    for node in path do
+                        let image = node.image
+                        let pos = node.feature.ndc
+                        measurements.[image] <- Map.add pi pos measurements.[image]
+                        ff.[image] <- Map.add pi node.feature ff.[image]
+
+                    for u in used do
+                        targetCounts.[u] <- targetCounts.[u] - 1 
+                        
+            let rand = RandomSystem()
+            let colors = paths |> Seq.mapi (fun i _ -> rgbaFromHsva(6.0 * float i / float paths.Count, 1.0, 1.0).ToC4b()) |> Seq.toArray
+
+            for i in 0 .. g.images.Length - 1 do
+                let file = g.images.[i].ToPixImage<byte>()
+                let ff = ff.[i]
+                
+                for (pi,f) in Map.toSeq ff do
+                    let p = f.ndc
+                    let pp = V2i (V2d.Half + V2d(0.5 * p.X + 0.5, 0.5 - 0.5 * p.Y) * V2d file.Size)
+                    let size = clamp 15 30 (ceil (f.size) |> int)
+
+                    file.GetMatrix<C4b>().SetCross(pp, size, colors.[pi])
+                    file.GetMatrix<C4b>().SetCircle(pp, size, colors.[pi])
+                    
+                let path = sprintf @"C:\blub\yolo\out\mtl%A" minTrackLength
+
+                if Directory.Exists path |> not then Directory.CreateDirectory path |> ignore
+
+                file.SaveAsImage (Path.combine [path; sprintf "image%d.jpg" i])
+            
+            failwith "use older version"
+            //let tracks = result |> List.map ( fun nodes -> nodes |> List.map ( fun fn -> fn.image, fn.featureIndex ) |> List.sortBy fst |> List.toArray ) |> List.toArray
+            
+            //{ measurements = measurements |> Array.mapi ( fun i x -> i,x) |> Map.ofArray; tracks = tracks; graph = g }
