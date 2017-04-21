@@ -106,19 +106,14 @@ module Viewer =
             |> Sg.pass blurb
             |> Sg.blendMode (Mod.constant BlendMode.Blend)
             
-    let ofObservations (obs : MapExt<CameraId, MapExt<TrackId, V2d>>) =
-        
-        let (prob, state) =
-            let p = BundlerProblem.ofMeasurements obs
-            CoolNameGoesHere.miniCV p
+    let bundleViewer ((prob,state) : Bundled) =
         
         Ag.initialize()
         Aardvark.Init()
 
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
-
-
+        
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
                                 |> Mod.map Frustum.projTrafo
 

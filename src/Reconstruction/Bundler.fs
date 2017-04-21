@@ -45,8 +45,8 @@ module Bundler =
                 fix res
         fix prob
 
-    let random (prob : BundlerProblem) : Bundled =
-        Bundled.withRandom prob |> assertInvariants
+    let initial (prob : BundlerProblem) : Bundled =
+        Bundled.initial prob |> assertInvariants
 
     let estimateCams (prob : Bundled) : Bundled =
         let initialCameras (mst : RoseTree<_>) (minimumEdges : list<Edge<_>>) = 
@@ -149,14 +149,16 @@ module CoolNameGoesHere =
     open Bundler
     open CeresSharp
     
-    let miniCV (p : BundlerProblem) =
+    let miniCV (p : BundlerProblem) : Bundled =
         let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let solverConfig = SolverConfig.allFree
         
-        Bundler.random p
-            |> estimateBoth
-            |> assertInvariants
-            |> bundleAdjust ceresOptions solverConfig
+        let p = Bundler.initial p
+        let p = estimateCams p
+        let p = estimatePoints p
+        let p = assertInvariants p
+        let p = bundleAdjust ceresOptions solverConfig p
+        p
             //|> removeOffscreenPoints
             //|> removeRayOutliersObservationsOnly
             //|> assertInvariants

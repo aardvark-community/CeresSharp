@@ -240,7 +240,7 @@ module Bundled =
 
         (np,ns)
     
-    let withRandom (p : BundlerProblem) : Bundled =
+    let initial (p : BundlerProblem) : Bundled =
 
         let mutable initial = BundlerState.empty
         
