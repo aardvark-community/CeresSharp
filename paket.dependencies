@@ -11,6 +11,7 @@ nuget MiniCV ~> 0.0.2
 nuget Aardvark.Application.WinForms.GL ~> 3.1.0
 nuget Aardvark.SceneGraph ~> 3.1.0
 nuget Aardvark.SceneGraph.IO ~> 3.1.0
+nuget Aardvark.Base.Rendering ~> 3.1.0
 nuget Aardvark.Rendering.Text ~> 3.1.0
 
 nuget Aardvark.OpenCvSharp ~> 2.4.0

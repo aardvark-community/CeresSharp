@@ -153,12 +153,12 @@ module CoolNameGoesHere =
         let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let solverConfig = SolverConfig.allFree
         
-        let p = Bundler.initial p
-        let p = estimateCams p
-        let p = estimatePoints p
-        let p = assertInvariants p
-        let p = bundleAdjust ceresOptions solverConfig p
-        p
+        Bundler.initial p
+            |> estimateCams 
+            |> estimatePoints 
+            |> assertInvariants 
+            |> bundleAdjust ceresOptions solverConfig 
+        
             //|> removeOffscreenPoints
             //|> removeRayOutliersObservationsOnly
             //|> assertInvariants
