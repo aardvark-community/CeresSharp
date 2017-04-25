@@ -19,12 +19,13 @@ type Fixing =
 
 type SolverConfig =
     {
+        Adorn : MapExt<TrackId, V3d> -> MapExt<CameraId, Camera3d> -> unit
         ParameterFixing : Fixing
     }
 
 module SolverConfig =
     
-    let allFree = { ParameterFixing = EverythingFree }
+    let allFree = { Adorn = () |> constF |> constF; ParameterFixing = EverythingFree }
 
 module Solver =
     open System.Runtime.InteropServices
@@ -50,6 +51,19 @@ module Solver =
                 | FixationMap f -> f.fixedCams.[cid]
                 | _ -> true
 
+            
+            let getResult intermediary (pointBlocks : MapExt<TrackId, IParameterBlock<V3d,V3s>>) (camBlocks : MapExt<CameraId, IParameterBlock<Camera3d,Camera3s>>) =
+
+                let points = 
+                    pointBlocks |> MapExt.map ( fun _ pb -> pb.GetResult(intermediary).[0] )
+                                |> MapExt.union ( points |> MapExt.filter ( fun tid _ -> pointIsFixed tid ) )
+
+                let cameras =
+                    camBlocks |> MapExt.map ( fun _ cb -> cb.GetResult(intermediary).[0] )
+                              |> MapExt.union ( cameras |> MapExt.filter ( fun cid _ -> cameraIsFixed cid ) ) 
+                
+                points, cameras
+
             use problem = new Problem()
 
             let pointBlocks = 
@@ -61,7 +75,7 @@ module Solver =
                  cameras |> MapExt.choose ( fun cid c ->
                             if not (cameraIsFixed cid) then Some (problem.AddParameterBlock<Camera3d,Camera3s> [| c |]) else None
                           )
-                      
+             
             let costFunction (real : V2d) (obs : V2s) =
                 let diff = real - obs
                 [|
@@ -71,22 +85,44 @@ module Solver =
 
             let numResiduals = costFunction V2d.OO V2s.OO |> Array.length
 
+
+            let mutable adornCounter = 0
+            let paramCount = tracks |> MapExt.toSeq |> Seq.map snd |> Seq.sumBy (fun o -> o.Count)
+            let readAndAdorn () =
+                adornCounter <- adornCounter + 1
+                if adornCounter > paramCount then
+                    let (points,cameras) = getResult true pointBlocks camBlocks
+                    config.Adorn points cameras
+                    adornCounter <- 0
+
             let costFunctionCamPoint (real : V2d) (pb : IParameterBlock<V3d,V3s>) (cb : IParameterBlock<Camera3d,Camera3s>) =
                 problem.AddCostFunction(numResiduals, pb, cb, fun point cam ->
                     let obs = cam.[0].Project point.[0]
-                    costFunction real obs
+                    let res = costFunction real obs
+                    
+                    readAndAdorn ()
+
+                    res
                 )
 
             let costFunctionCamOnly (real : V2d) (point : V3d) (cb : IParameterBlock<Camera3d,Camera3s>) =
                 problem.AddCostFunction(numResiduals, cb, fun cam ->
                     let obs = cam.[0].Project (V3s point)
-                    costFunction real obs
+                    let res = costFunction real obs
+                    
+                    readAndAdorn ()
+
+                    res
                 )
 
             let costFunctionPointOnly (real : V2d) (pb : IParameterBlock<V3d,V3s>) (cam : Camera3d) =
                 problem.AddCostFunction(numResiduals, pb, fun point ->
                     let obs = point.[0] |> V3s.getProjectedBy cam
-                    costFunction real obs
+                    let res = costFunction real obs
+                    
+                    readAndAdorn ()
+
+                    res
                 )
 
             for KeyValue(tid, track) in tracks do
@@ -101,12 +137,6 @@ module Solver =
 
             let cost = problem.Solve(options)
         
-            let points = 
-                pointBlocks |> MapExt.map ( fun _ pb -> pb.Result.[0] )
-                            |> MapExt.union ( points |> MapExt.filter ( fun tid _ -> pointIsFixed tid ) )
-
-            let cameras =
-                camBlocks |> MapExt.map ( fun _ cb -> cb.Result.[0] )
-                          |> MapExt.union ( cameras |> MapExt.filter ( fun cid _ -> cameraIsFixed cid ) ) 
+            let (points,cameras) = getResult false pointBlocks camBlocks
 
             cost, points, cameras

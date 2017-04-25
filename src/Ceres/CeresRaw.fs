@@ -112,6 +112,7 @@ type IParameterBlock<'a, 'b> =
     inherit IParameterBlock<'b>
     abstract member Result : 'a[]
     abstract member IntermediaryResult : 'a[]
+    abstract member GetResult : bool -> 'a[]
 
 type ParameterBlock<'a, 'b when 'a : unmanaged>(data : 'a[], read : int -> 'a -> 'b) =
     static let doubles = TypeInfo.doubles<'a>
@@ -135,6 +136,11 @@ type ParameterBlock<'a, 'b when 'a : unmanaged>(data : 'a[], read : int -> 'a ->
 
     member x.Result = data
 
+    member x.GetResult intermediate = 
+        match intermediate with
+        | true -> x.IntermediaryResult
+        | false -> x.Result
+
     member x.Pointer = gc.AddrOfPinnedObject() |> NativePtr.ofNativeInt<float>
 
     member x.Dispose() = gc.Free()
@@ -146,6 +152,7 @@ type ParameterBlock<'a, 'b when 'a : unmanaged>(data : 'a[], read : int -> 'a ->
         member x.IntermediaryResult = x.IntermediaryResult
         member x.Result = data
         member x.Dispose() = x.Dispose()
+        member x.GetResult(b) = x.GetResult b
 
 
 type Problem() =
