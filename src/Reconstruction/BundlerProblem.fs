@@ -61,9 +61,23 @@ module Tracks =
                 |> List.choose ( fun ((ci, cj),m) -> 
                     Some { i0 = ci.Id; i1 = cj.Id; weight = !m } 
                 )
-                    
 
+module Measurements =
     
+    let toTracks ( ms : MapExt<CameraId, MapExt<TrackId, V2d>> ) : MapExt<TrackId, MapExt<CameraId, V2d>> =
+        
+        let mutable ts : MapExt<TrackId, MapExt<CameraId, V2d>> = MapExt.empty
+
+        for (cid, os) in ms |> MapExt.toSeq do
+            for (tid, m) in os |> MapExt.toSeq do 
+                ts <- ts |> MapExt.alter tid ( fun old ->
+                        let old = Option.defaultValue MapExt.empty old
+                        Some (old |> MapExt.add cid m)
+                      )
+
+        ts
+            
+
 type BundlerState =
     {
         cameras     : MapExt<CameraId, Camera3d>
@@ -193,7 +207,27 @@ module BundlerProblem =
                     
         { tracks = tracks }
     
+type ReprojectionError =
+    {
+        cost        : float
+        max         : float
+        min         : float
+        average     : float
+        stdev       : float
+    }
+
+module ReprojectionError = 
+    let nothing =
+        {
+            cost        = 0.0
+            max         = 0.0
+            min         = 0.0
+            average     = 0.0
+            stdev       = 0.0
+        }
+
 type Bundled = BundlerProblem * BundlerState
+
 
 module Bundled =
     
@@ -264,4 +298,35 @@ module Bundled =
 
         (p,initial)
 
+    open System
+
+    let reprojectionError ( (prob,state) : Bundled ) : ReprojectionError =
+        let errors =
+            [|
+                for KeyValue(tid, t) in prob.tracks do
+                    for KeyValue(cid, obs) in t do
+                        let diff = (state.cameras.[cid].Project state.points.[tid]) - obs
+                        yield diff, (Vec.length (0.5*diff))
+            |] 
+
+        let mutable sumSq = 0.0
+        let mutable sum = 0.0
+        let mutable emin = Double.PositiveInfinity
+        let mutable emax = Double.NegativeInfinity
+        for (v,l) in errors do
+            sumSq <- sumSq + v.X * v.X + v.Y * v.Y
+            sum <- sum + l
+            emin <- min emin l
+            emax <- max emax l
+            
+        let average = sum / float errors.Length
+        let variance = Array.sumBy (fun (_,e) -> (e - average) * (e - average)) errors / float (errors.Length - 1)
+        
+        {
+            cost        = 0.5 * sumSq
+            max         = emax
+            min         = emin
+            average     = average
+            stdev       = sqrt variance
+        }
         

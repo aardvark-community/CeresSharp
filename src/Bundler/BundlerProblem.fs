@@ -752,6 +752,26 @@ type BundlerSolution =
         cameras     : Map<int, SolverCamera>
     }
 
+
+type ReprojectionError =
+    {
+        cost        : float
+        max         : float
+        min         : float
+        average     : float
+        stdev       : float
+    }
+
+module ReprojectionError =
+    let nothing =
+        {
+            cost        = 0.0
+            max         = 0.0
+            min         = 0.0
+            average     = 0.0
+            stdev       = 0.0
+        }
+
 type BundlerError =
     {
         cost        : float

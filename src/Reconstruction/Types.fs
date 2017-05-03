@@ -25,12 +25,16 @@ module Geometry =
 
                 ndc
 
-            member x.ViewProjTrafo (far : float) =
+            member x.ViewAndProjTrafo (far : float) =
                 let frustum = { left = -1.0; right = 1.0; top = 1.0; bottom = -1.0; near = 1.0; far = far }
 
                 Trafo3d.Translation(-x.Position) *
-                AngleAxis.Trafo(x.AngleAxis) *
+                AngleAxis.Trafo(x.AngleAxis),
                 Frustum.projTrafo frustum
+
+            member x.ViewProjTrafo (far : float) =
+                let (v,p) = x.ViewAndProjTrafo far
+                v * p
 
             member x.Transformed (t : Trafo3d) =
                 let up = AngleAxis.RotatePoint(-x.AngleAxis, V3d.OIO)
