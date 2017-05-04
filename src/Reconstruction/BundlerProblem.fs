@@ -246,7 +246,28 @@ module Bundled =
         let (prob,state) = b
         (prob |> BundlerProblem.filter ft, state |> BundlerState.filter fc fp)
 
-    let filterPointsAndObservations (f : TrackId -> CameraId -> V2d -> V3d -> bool) (b : Bundled) : Bundled =
+    let filterObservations (ft : TrackId -> CameraId -> V2d -> bool) (b : Bundled) : Bundled =
+        filter 
+            ft
+            (constF (constF true))
+            (constF (constF true))
+            b
+       
+    let filterCameras (fc : CameraId -> Camera3d -> bool) (b : Bundled) : Bundled =
+        filter 
+            (constF (constF (constF true)))
+            fc
+            (constF (constF true))
+            b
+    
+    let filterPoints (fp : TrackId -> V3d -> bool) (b : Bundled) : Bundled =
+        filter 
+            (constF (constF (constF true)))
+            (constF (constF true))
+            fp
+            b
+
+    let filterPointsAndObservationsAggressive (f : TrackId -> CameraId -> V2d -> V3d -> bool) (b : Bundled) : Bundled =
         let (n,p) = b
         let ft tid cid o = f tid cid o p.points.[tid]
         let fp tid p =

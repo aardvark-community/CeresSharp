@@ -5,6 +5,36 @@ open System.Collections.Generic
 open Aardvark.Base
 open Aardvark.Base.Monads.State
 
+type CameraPoseConfig =
+    {
+        Config : RecoverPoseConfig
+        IsInlierAdorner : Bundled -> MapExt<TrackId, MapExt<CameraId, bool>> -> Bundled
+    }
+
+module Adorner =
+    
+    let res b _ = b
+
+    let getOutliers (out : ref<MapExt<TrackId, MapExt<CameraId, bool>>>) (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId, bool>>) =
+        out := o
+        res b o
+
+    let removeOutliers (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId, bool>>) =
+        b |> Bundled.filterObservations (fun tid cid _ -> o.[tid].[cid])
+        
+module CameraPoseConfig =
+    let ok =
+        {
+            Config = RecoverPoseConfig(1.0, V2d.Zero, 0.999, 0.001) 
+            IsInlierAdorner = Adorner.res
+        }
+
+    let ofPrecision p t =
+        {
+            ok with
+                Config = RecoverPoseConfig(1.0, V2d.Zero, p, t) 
+        }
+    
 module Bundler =
     open CeresSharp
     open Aardvark.Base.MultimethodTest
@@ -48,7 +78,7 @@ module Bundler =
     let initial (prob : BundlerProblem) : Bundled =
         Bundled.initial prob |> assertInvariants
 
-    let estimateCams (prob : Bundled) : Bundled =
+    let estimateCams (cfg : CameraPoseConfig) (prob : Bundled) : Bundled =
         let initialCameras (mst : RoseTree<_>) (minimumEdges : list<Edge<_>>) = 
             let getMatches l r =
                 let i = minimumEdges
@@ -70,7 +100,7 @@ module Bundler =
                     | Some (ps) -> yield ps
                 |] |> Seq.head
 
-            Estimate.camsFromMatches mst getMatches
+            Estimate.camsFromMatches cfg.Config mst getMatches
                     |> List.map ( fun (ci, t) -> CameraId(ci), t )
 
         let (p,s) = prob
@@ -111,7 +141,7 @@ module Bundler =
         
     let removeOffscreenPoints (prob : Bundled) : Bundled =
         let (n,s) = prob
-        prob |> Bundled.filterPointsAndObservations ( fun _ cid _ p -> 
+        prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid _ p -> 
                     let (_,d) = s.cameras.[cid].ProjectWithDepth p 
                     d > 0.0
                 )
@@ -120,7 +150,7 @@ module Bundler =
     let maxRayDist = 100.0
     let removeRayOutliers (prob : Bundled) : Bundled =
         let (n,s) = prob
-        prob |> Bundled.filterPointsAndObservations ( fun _ cid o p -> 
+        prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid o p -> 
                     let ray = s.cameras.[cid].GetRay o
                     ray.GetMinimalDistanceTo p < maxRayDist
                 )

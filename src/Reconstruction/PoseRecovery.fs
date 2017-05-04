@@ -2,20 +2,20 @@
 
 open System
 open Aardvark.Base
+open Aardvark.Base.MiniCV
 
 module Estimate = 
-    let LtoRTrafo (l : V2d[]) (r : V2d[]) =
-        let cfg = RecoverPoseConfig(1.0, V2d.Zero, 0.9999999, 0.001) 
+    let LtoRTrafo (cfg : RecoverPoseConfig) (l : V2d[]) (r : V2d[]) =
             
         let (i,R,t) = MiniCV.recoverPose cfg l r
 
         Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
    
-    let camsFromMatches (cameraTree : RoseTree<int>) (getMatches : int -> int -> (V2d * V2d)[] ) =
+    let camsFromMatches (cfg : RecoverPoseConfig) (cameraTree : RoseTree<int>) (getMatches : int -> int -> (V2d * V2d)[] ) =
         
         let register ci parent =
             let (a, b) = getMatches parent ci |> Array.unzip
-            LtoRTrafo a b
+            LtoRTrafo cfg a b
 
         let rec traverse (cur : Trafo3d) (parent : int) (remaining : RoseTree<_>) =
             match remaining with
