@@ -14,7 +14,10 @@ module App =
                     5
                     (Some 500)
 
-            Sponza.tracks config
+            Sponza.tracks
+             { config with
+                 JitterNDC = 0.25
+             }
 
         let bundlation = 
             

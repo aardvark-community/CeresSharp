@@ -8,24 +8,37 @@ open Aardvark.Base.Monads.State
 type CameraPoseConfig =
     {
         Config : RecoverPoseConfig
-        IsInlierAdorner : Bundled -> MapExt<TrackId, MapExt<CameraId, bool>> -> Bundled
+        IsInlierAdorner : Bundled -> MapExt<TrackId, MapExt<CameraId * CameraId, bool>> -> Bundled
     }
 
 module Adorner =
     
     let res b _ = b
 
-    let getOutliers (out : ref<MapExt<TrackId, MapExt<CameraId, bool>>>) (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId, bool>>) =
+    let getInliers (out : ref<MapExt<TrackId, MapExt<CameraId * CameraId, bool>>>) (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) =
         out := o
         res b o
 
-    let removeOutliers (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId, bool>>) =
+    let getCombinedInlier (out : ref<MapExt<TrackId, MapExt<CameraId, bool>>>) (comb : bool -> bool -> bool) (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) =
+        out := 
+            o |> MapExt.map ( fun _ inl ->
+                  let l = inl |> MapExt.toList |> List.map ( fun ((c,_),v) -> c,v ) |> MapExt.ofList
+                  let r = inl |> MapExt.toList |> List.map ( fun ((_,c),v) -> c,v ) |> MapExt.ofList
+                  l |> MapExt.unionWith comb r
+                 )
+
+        res b o
+
+    let removeOutliers (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) =
+        let res = ref MapExt.empty
+        getCombinedInlier res (&&) b o |> ignore
+        let o = !res
         b |> Bundled.filterObservations (fun tid cid _ -> o.[tid].[cid])
         
 module CameraPoseConfig =
     let ok =
         {
-            Config = RecoverPoseConfig(1.0, V2d.Zero, 0.999, 0.001) 
+            Config = RecoverPoseConfig(1.0, V2d.Zero, 0.99, 0.01) 
             IsInlierAdorner = Adorner.res
         }
 
@@ -83,12 +96,12 @@ module Bundler =
             let getMatches l r =
                 let i = minimumEdges
                             |> List.tryFind ( fun e -> e.i0 = l && e.i1 = r )
-                let o1 = i  |> Option.map   ( fun i -> i.weight |> MapExt.toArray |> Array.map snd )
+                let o1 = i  |> Option.map   ( fun i -> i.weight )
 
                 let i = minimumEdges
                             |> List.tryFind ( fun e -> e.i0 = r && e.i1 = l )
 
-                let o2 = i |> Option.map ( fun i -> i.weight |> MapExt.toArray |> Array.map snd |> Array.map tupleSwap )
+                let o2 = i |> Option.map ( fun i -> i.weight |> MapExt.map ( fun _ v -> tupleSwap v ) )
 
                 [|
                     match o1 with
@@ -100,8 +113,10 @@ module Bundler =
                     | Some (ps) -> yield ps
                 |] |> Seq.head
 
-            Estimate.camsFromMatches cfg.Config mst getMatches
-                    |> List.map ( fun (ci, t) -> CameraId(ci), t )
+            let (inliers, res) = Estimate.camsFromMatches cfg.Config mst getMatches
+                    
+            inliers,
+            res |> List.map ( fun (ci, t) -> CameraId(ci), t )
 
         let (p,s) = prob
 
@@ -113,13 +128,13 @@ module Bundler =
 
         let minimumEdges = minimumEdges |> Array.toList   
 
-        let cams = initialCameras mst minimumEdges
+        let (inliers, cams) = initialCameras mst minimumEdges
          
         let mutable ns = s
         for (ci, c3d) in cams do
             ns <- ns |> BundlerState.setCamera ci c3d
 
-        (p,ns)
+        cfg.IsInlierAdorner (p,ns) inliers 
         
     let estimatePoints (prob : Bundled) : Bundled =
         let (p,s) = prob
@@ -137,8 +152,6 @@ module Bundler =
 
         res
     
-    let estimateBoth = estimateCams >> estimatePoints
-        
     let removeOffscreenPoints (prob : Bundled) : Bundled =
         let (n,s) = prob
         prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid _ p -> 
@@ -184,7 +197,7 @@ module CoolNameGoesHere =
         let solverConfig = SolverConfig.allFree
         
         Bundler.initial p
-            |> estimateCams 
+            |> estimateCams CameraPoseConfig.ok
             |> estimatePoints 
             |> assertInvariants 
             |> bundleAdjust ceresOptions solverConfig 

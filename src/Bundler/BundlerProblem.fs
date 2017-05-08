@@ -972,7 +972,7 @@ module BundlerSolution =
 
             let cfg = RecoverPoseConfig(1.0, V2d.Zero, 0.9999999, 0.001) 
             
-            let (i,R,t) = MiniCV.recoverPose cfg a b
+            let (i,R,t,_) = MiniCV.recoverPose cfg a b
             Log.line "(parent:%A-child:%A) have POINTS %A; INLIERS:%A" parent ci a.Length i
 
             Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
