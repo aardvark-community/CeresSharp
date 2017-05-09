@@ -97,17 +97,18 @@ module Bundler =
                                               
         let (mst, minimumEdges) =
             edges |> Graph.ofEdges
-                    |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
+                  |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
 
         let minimumEdges = minimumEdges |> Array.toList   
 
         let (inliers, cams) = initialCameras mst minimumEdges
-         
+        
         let mutable ns = s
         for (ci, c3d) in cams do
             ns <- ns |> BundlerState.setCamera ci c3d
 
-        handleInliers (p,ns) inliers 
+        let minimumTracks = Edges.toTracks minimumEdges
+        handleInliers ({ p with tracks = minimumTracks },ns) inliers 
         
     let estimatePoints (prob : Bundled) : Bundled =
         let (p,s) = prob
@@ -122,19 +123,17 @@ module Bundler =
             | Some pt ->
                 let (p,s) = res
                 res <- (p, s |> BundlerState.setPoint tid pt)
-
         res
     
-    let removeOffscreenPoints (prob : Bundled) : Bundled =
+    let removeBehindPoints (prob : Bundled) : Bundled =
         let (n,s) = prob
         prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid _ p -> 
                     let (_,d) = s.cameras.[cid].ProjectWithDepth p 
                     d > 0.0
                 )
              |> assertInvariants
-
-    let maxRayDist = 100.0
-    let removeRayOutliers (prob : Bundled) : Bundled =
+             
+    let removeRayOutliers (maxRayDist : float) (prob : Bundled) : Bundled =
         let (n,s) = prob
         prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid o p -> 
                     let ray = s.cameras.[cid].GetRay o
@@ -142,7 +141,7 @@ module Bundler =
                 )
              |> assertInvariants
              
-    let removeRayOutliersObservationsOnly (prob : Bundled) : Bundled =
+    let removeRayOutliersObservationsOnly (maxRayDist : float) (prob : Bundled) : Bundled =
         let (n,s) = prob
         let nn = n |> BundlerProblem.filter ( fun tid cid o ->
                         let ray = s.cameras.[cid].GetRay o

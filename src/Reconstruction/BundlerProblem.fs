@@ -250,36 +250,41 @@ module Bundled =
     let minTrackLength = 2
     let minObsCount = 5
     
-    let unstableCameras (state : BundlerProblem) : list<CameraId> =
-        state.tracks
-            |> Tracks.toMeasurements
-            |> MapExt.toList 
-            |> List.filter ( fun (ci,ms) -> ms.Count < minObsCount ) 
-            |> List.map fst
+    let unstableCameras ((prob,state) : Bundled) : list<CameraId> =
+        let ms = prob.tracks |> Tracks.toMeasurements
 
-    let unstablePoints (prob : BundlerProblem) : list<TrackId> =
-        prob.tracks
+        state.cameras
             |> MapExt.toList
-            |> List.filter ( fun (ti, t) -> t.Count < minTrackLength )
-            |> List.map fst
+            |> List.choose ( fun (cid,_) ->
+                ms  |> MapExt.tryFind cid 
+                    |> Option.map (fun obs -> if obs.Count < minObsCount then Some cid else None) 
+                    |> Option.defaultValue (Some cid)
+               )
+
+    let unstablePoints ((prob,state) : Bundled) : list<TrackId> =
+        state.points
+            |> MapExt.toList
+            |> List.choose ( fun (tid,_) ->
+                prob.tracks  
+                    |> MapExt.tryFind tid 
+                    |> Option.map (fun obs -> if obs.Count < minTrackLength then Some tid else None) 
+                    |> Option.defaultValue (Some tid)
+               )
+
+    let swap f a b = f b a
 
     let assertInvariants (prob : Bundled) : Bundled =
         let rec fix (prob : Bundled) =
-            let (p,s) = prob
-            match unstableCameras p with
+            match unstableCameras prob with
             | [] ->
-                match unstablePoints p with
-                | [] -> (p,s)
+                match unstablePoints prob with
+                | [] -> prob
                 | badTracks ->
-                    let mutable res = (p,s)
-                    for tid in badTracks do 
-                        res <- res |> removeTrack tid
-                    fix res
+                    badTracks |> List.fold (swap removeTrack) prob
+                              |> fix
             | badCams ->
-                let mutable res = (p,s)
-                for cid in badCams do
-                    res <- res |> removeCamera cid
-                fix res
+                badCams |> List.fold (swap removeCamera) prob
+                        |> fix
         fix prob
     
     let map (ft : TrackId -> CameraId -> V2d -> V2d) (fc : CameraId -> Camera3d -> Camera3d) (fp : TrackId -> V3d -> V3d) (b : Bundled) : Bundled =
@@ -366,8 +371,8 @@ module Bundled =
 
         for KeyValue(pi, _) in minimumTracks do
             initial <- initial |> BundlerState.setPoint pi V3d.Zero
-
-        (p,initial)
+            
+        ( { p with tracks = minimumTracks } ,initial)
 
     open System
 
