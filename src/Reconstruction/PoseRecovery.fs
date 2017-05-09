@@ -47,13 +47,13 @@ module Estimate =
                 super
                 
             match remaining with
-            | Empty -> MapExt.empty,Empty
-            | Leaf ci ->
+            | RoseTree.Empty -> MapExt.empty,RoseTree.Empty
+            | RoseTree.Leaf ci ->
                 let (inl, trafo) = register ci parent
                 let trafo = cur * trafo
                 let inliers = mkInliers inl
-                inliers, Leaf(ci, trafo)
-            | Node (ci, children) ->
+                inliers, RoseTree.Leaf(ci, trafo)
+            | RoseTree.Node (ci, children) ->
                 let (inl, trafo) = register ci parent
                 let inliers = mkInliers inl
                 let trafo = cur * trafo
@@ -62,21 +62,21 @@ module Estimate =
                     (oo |> List.map fst 
                         |> List.fold (MapExt.unionWith (fun l r -> l |> MapExt.unionWith (fun a b -> Log.warn "&& occurred ..... this is bad"; a && b) r)) MapExt.empty),
                      oo |> List.map snd
-                inliers, Node((ci, trafo), children )
+                inliers, RoseTree.Node((ci, trafo), children )
 
         let (inliers, trafoTree) = 
             match cameraTree with
-            | Empty -> MapExt.empty, Empty
-            | Leaf i ->
-                MapExt.empty, Leaf(i, Trafo3d.Identity)
-            | Node(i, children) ->
+            | RoseTree.Empty -> MapExt.empty, RoseTree.Empty
+            | RoseTree.Leaf i ->
+                MapExt.empty, RoseTree.Leaf(i, Trafo3d.Identity)
+            | RoseTree.Node(i, children) ->
                 let trafo = Trafo3d.Identity
                 let (inliers, children) = 
                     let oo = children |> List.map (traverse trafo MapExt.empty i)
                     (oo |> List.map fst 
                         |> List.fold (MapExt.unionWith (fun l r -> l |> MapExt.unionWith (&&) r)) MapExt.empty), 
                      oo |> List.map snd
-                inliers, Node((i, trafo), children)
+                inliers, RoseTree.Node((i, trafo), children)
             
         inliers,
         trafoTree 

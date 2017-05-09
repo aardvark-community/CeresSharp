@@ -981,22 +981,22 @@ module BundlerSolution =
             
             let rec traverse (cur : Trafo3d) (parent : int) (remaining : RoseTree<_>) =
                 match remaining with
-                | Empty -> Empty
-                | Leaf ci ->
+                | RoseTree.Empty -> RoseTree.Empty
+                | RoseTree.Leaf ci ->
                     let trafo = cur * register ci parent
-                    Leaf(ci, trafo)
-                | Node (ci, children) ->
+                    RoseTree.Leaf(ci, trafo)
+                | RoseTree.Node (ci, children) ->
                     let trafo = cur * register ci parent
-                    Node((ci, trafo), children |> List.map (traverse trafo ci) )
+                    RoseTree.Node((ci, trafo), children |> List.map (traverse trafo ci) )
             
             let tree = 
                 match p.input.graph.tree with
-                | Empty -> Empty
-                | Leaf i ->
-                    Leaf(i, Trafo3d.Identity)
-                | Node(i, children) ->
+                | RoseTree.Empty -> RoseTree.Empty
+                | RoseTree.Leaf i ->
+                    RoseTree.Leaf(i, Trafo3d.Identity)
+                | RoseTree.Node(i, children) ->
                     let trafo = Trafo3d.Identity
-                    Node((i, trafo), children |> List.map (traverse trafo i))
+                    RoseTree.Node((i, trafo), children |> List.map (traverse trafo i))
                 
             let cams = p.cameras |> Seq.toArray
 
