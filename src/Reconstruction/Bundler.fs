@@ -5,41 +5,47 @@ open System.Collections.Generic
 open Aardvark.Base
 open Aardvark.Base.Monads.State
 
+type Inliers =
+    | Pairwise of MapExt<TrackId, MapExt<CameraId * CameraId, bool>>
+    | Combined of MapExt<TrackId, MapExt<CameraId, bool>>
+    | Nothing
+
+module Inliers =
+
+    module Adorner =
+    
+        let noInliers b _ = b, Inliers.Nothing
+
+        let getInliers (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) = b, Inliers.Pairwise o
+
+        let getCombinedInlier (comb : bool -> bool -> bool) (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) =
+            let blub =
+                o |> MapExt.map ( fun _ inl ->
+                      let l = inl |> MapExt.toList |> List.map ( fun ((c,_),v) -> c,v ) |> MapExt.ofList
+                      let r = inl |> MapExt.toList |> List.map ( fun ((_,c),v) -> c,v ) |> MapExt.ofList
+                      l |> MapExt.unionWith comb r
+                     )
+
+            b, Inliers.Combined blub
+    
+    type Adorner = Bundled -> MapExt<TrackId, MapExt<CameraId * CameraId, bool>> -> Bundled * Inliers
+
+    let ignore (b : Bundled,_) = b
+
+    let removeOutliers (b : Bundled, i : Inliers) =
+        match i with
+        | Combined o -> b |> Bundled.filterPointsAndObservationsAggressive (fun tid cid _ _ -> o.[tid].[cid])
+        | _ -> b
+        
 type CameraPoseConfig =
     {
         Config : RecoverPoseConfig
-        IsInlierAdorner : Bundled -> MapExt<TrackId, MapExt<CameraId * CameraId, bool>> -> Bundled
     }
-
-module Adorner =
-    
-    let res b _ = b
-
-    let getInliers (out : ref<MapExt<TrackId, MapExt<CameraId * CameraId, bool>>>) (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) =
-        out := o
-        res b o
-
-    let getCombinedInlier (out : ref<MapExt<TrackId, MapExt<CameraId, bool>>>) (comb : bool -> bool -> bool) (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) =
-        out := 
-            o |> MapExt.map ( fun _ inl ->
-                  let l = inl |> MapExt.toList |> List.map ( fun ((c,_),v) -> c,v ) |> MapExt.ofList
-                  let r = inl |> MapExt.toList |> List.map ( fun ((_,c),v) -> c,v ) |> MapExt.ofList
-                  l |> MapExt.unionWith comb r
-                 )
-
-        res b o
-
-    let removeOutliers (b : Bundled) (o : MapExt<TrackId, MapExt<CameraId * CameraId, bool>>) =
-        let res = ref MapExt.empty
-        getCombinedInlier res (&&) b o |> ignore
-        let o = !res
-        b |> Bundled.filterObservations (fun tid cid _ -> o.[tid].[cid])
         
 module CameraPoseConfig =
     let ok =
         {
             Config = RecoverPoseConfig(1.0, V2d.Zero, 0.99, 0.01) 
-            IsInlierAdorner = Adorner.res
         }
 
     let ofPrecision p t =
@@ -52,46 +58,13 @@ module Bundler =
     open CeresSharp
     open Aardvark.Base.MultimethodTest
     open Aardvark.Base.ASM
-    
-    let minTrackLength = 2
-    let minObsCount = 5
-    
-    let unstableCameras (state : BundlerProblem) : list<CameraId> =
-        state.tracks
-            |> Tracks.toMeasurements
-            |> MapExt.toList 
-            |> List.filter ( fun (ci,ms) -> ms.Count < minObsCount ) 
-            |> List.map fst
 
-    let unstablePoints (prob : BundlerProblem) : list<TrackId> =
-        prob.tracks
-            |> MapExt.toList
-            |> List.filter ( fun (ti, t) -> t.Count < minTrackLength )
-            |> List.map fst
-
-    let assertInvariants (prob : Bundled) : Bundled =
-        let rec fix (prob : Bundled) =
-            let (p,s) = prob
-            match unstableCameras p with
-            | [] ->
-                match unstablePoints p with
-                | [] -> (p,s)
-                | badTracks ->
-                    let mutable res = (p,s)
-                    for tid in badTracks do 
-                        res <- res |> Bundled.removeTrack tid
-                    fix res
-            | badCams ->
-                let mutable res = (p,s)
-                for cid in badCams do
-                    res <- res |> Bundled.removeCamera cid
-                fix res
-        fix prob
+    open Bundled
 
     let initial (prob : BundlerProblem) : Bundled =
         Bundled.initial prob |> assertInvariants
 
-    let estimateCams (cfg : CameraPoseConfig) (prob : Bundled) : Bundled =
+    let estimateCams (cfg : CameraPoseConfig) (handleInliers : Inliers.Adorner) (prob : Bundled) : Bundled * Inliers =
         let initialCameras (mst : RoseTree<_>) (minimumEdges : list<Edge<_>>) = 
             let getMatches l r =
                 let i = minimumEdges
@@ -134,7 +107,7 @@ module Bundler =
         for (ci, c3d) in cams do
             ns <- ns |> BundlerState.setCamera ci c3d
 
-        cfg.IsInlierAdorner (p,ns) inliers 
+        handleInliers (p,ns) inliers 
         
     let estimatePoints (prob : Bundled) : Bundled =
         let (p,s) = prob
@@ -197,9 +170,10 @@ module CoolNameGoesHere =
         let solverConfig = SolverConfig.allFree
         
         Bundler.initial p
-            |> estimateCams CameraPoseConfig.ok
+            |> estimateCams CameraPoseConfig.ok Inliers.Adorner.noInliers
+            |> Inliers.ignore
             |> estimatePoints 
-            |> assertInvariants 
+            |> Bundled.assertInvariants 
             |> bundleAdjust ceresOptions solverConfig 
         
             //|> removeOffscreenPoints

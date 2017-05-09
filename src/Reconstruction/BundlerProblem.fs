@@ -141,7 +141,7 @@ module BundlerProblem =
             tracks = 
                 prob.tracks |> MapExt.choose ( fun tid track ->
                                 let newTrack = track |> MapExt.choose ( fun cid obs -> f tid cid obs )
-                                if newTrack.Count > 0 then Some newTrack else None
+                                if newTrack.Count > 3 then Some newTrack else None
                                )
         }
         
@@ -230,54 +230,6 @@ type Bundled = BundlerProblem * BundlerState
 
 
 module Bundled =
-    
-    let map (ft : TrackId -> CameraId -> V2d -> V2d) (fc : CameraId -> Camera3d -> Camera3d) (fp : TrackId -> V3d -> V3d) (b : Bundled) : Bundled =
-        
-        let (prob,state) = b
-        (prob |> BundlerProblem.map ft, state |> BundlerState.map fc fp)
-
-    let choose (ft : TrackId -> CameraId -> V2d -> Option<V2d>) (fc : CameraId -> Camera3d -> Option<Camera3d>) (fp : TrackId -> V3d -> Option<V3d>) (b : Bundled) : Bundled =
-        
-        let (prob,state) = b
-        (prob |> BundlerProblem.choose ft, state |> BundlerState.choose fc fp)
-
-    let filter (ft : TrackId -> CameraId -> V2d -> bool) (fc : CameraId -> Camera3d -> bool) (fp : TrackId -> V3d -> bool) (b : Bundled) : Bundled =
-        
-        let (prob,state) = b
-        (prob |> BundlerProblem.filter ft, state |> BundlerState.filter fc fp)
-
-    let filterObservations (ft : TrackId -> CameraId -> V2d -> bool) (b : Bundled) : Bundled =
-        filter 
-            ft
-            (constF (constF true))
-            (constF (constF true))
-            b
-       
-    let filterCameras (fc : CameraId -> Camera3d -> bool) (b : Bundled) : Bundled =
-        filter 
-            (constF (constF (constF true)))
-            fc
-            (constF (constF true))
-            b
-    
-    let filterPoints (fp : TrackId -> V3d -> bool) (b : Bundled) : Bundled =
-        filter 
-            (constF (constF (constF true)))
-            (constF (constF true))
-            fp
-            b
-
-    let filterPointsAndObservationsAggressive (f : TrackId -> CameraId -> V2d -> V3d -> bool) (b : Bundled) : Bundled =
-        let (n,p) = b
-        let ft tid cid o = f tid cid o p.points.[tid]
-        let fp tid p =
-            [
-                for KeyValue(cid, o) in n.tracks.[tid] do
-                    yield f tid cid o p
-            ] |> List.fold (&&) true
-
-        filter ft (fun _ _ -> true) fp b
-     
 
     let removeCamera (id : CameraId) (prob : Bundled) : Bundled =
 
@@ -294,6 +246,104 @@ module Bundled =
         let ns = s |> BundlerState.unsetPoint id
 
         (np,ns)
+    
+    let minTrackLength = 2
+    let minObsCount = 5
+    
+    let unstableCameras (state : BundlerProblem) : list<CameraId> =
+        state.tracks
+            |> Tracks.toMeasurements
+            |> MapExt.toList 
+            |> List.filter ( fun (ci,ms) -> ms.Count < minObsCount ) 
+            |> List.map fst
+
+    let unstablePoints (prob : BundlerProblem) : list<TrackId> =
+        prob.tracks
+            |> MapExt.toList
+            |> List.filter ( fun (ti, t) -> t.Count < minTrackLength )
+            |> List.map fst
+
+    let assertInvariants (prob : Bundled) : Bundled =
+        let rec fix (prob : Bundled) =
+            let (p,s) = prob
+            match unstableCameras p with
+            | [] ->
+                match unstablePoints p with
+                | [] -> (p,s)
+                | badTracks ->
+                    let mutable res = (p,s)
+                    for tid in badTracks do 
+                        res <- res |> removeTrack tid
+                    fix res
+            | badCams ->
+                let mutable res = (p,s)
+                for cid in badCams do
+                    res <- res |> removeCamera cid
+                fix res
+        fix prob
+    
+    let map (ft : TrackId -> CameraId -> V2d -> V2d) (fc : CameraId -> Camera3d -> Camera3d) (fp : TrackId -> V3d -> V3d) (b : Bundled) : Bundled =
+        
+        let (prob,state) = b
+        (prob |> BundlerProblem.map ft, state |> BundlerState.map fc fp)
+
+    let choose (ft : TrackId -> CameraId -> V2d -> Option<V2d>) (fc : CameraId -> Camera3d -> Option<Camera3d>) (fp : TrackId -> V3d -> Option<V3d>) (b : Bundled) : Bundled =
+        
+        let (prob,state) = b
+        (prob |> BundlerProblem.choose ft, state |> BundlerState.choose fc fp)
+
+    let private filter (ft : TrackId -> CameraId -> V2d -> bool) (fc : CameraId -> Camera3d -> bool) (fp : TrackId -> V3d -> bool) (b : Bundled) : Bundled =
+        
+        let (prob,state) = b
+        (prob |> BundlerProblem.filter ft, state |> BundlerState.filter fc fp)
+
+    let filterObservations (ft : TrackId -> CameraId -> V2d -> bool) (b : Bundled) : Bundled =
+        filter 
+            ft
+            (constF (constF true))
+            (constF (constF true))
+            b
+        |> assertInvariants
+       
+    let filterCameras (fc : CameraId -> Camera3d -> bool) (b : Bundled) : Bundled =
+        filter 
+            (constF (constF (constF true)))
+            fc
+            (constF (constF true))
+            b
+        |> assertInvariants
+    
+    let filterPoints (fp : TrackId -> V3d -> bool) (b : Bundled) : Bundled =
+        filter 
+            (constF (constF (constF true)))
+            (constF (constF true))
+            fp
+            b
+        |> assertInvariants
+
+    let filterPointsAndObservationsAggressive (f : TrackId -> CameraId -> V2d -> V3d -> bool) (b : Bundled) : Bundled =
+        let (n,p) = b
+        let somethingGotRemoved = HashSet<_>()
+
+        let fp tid p =
+            [
+                for KeyValue(cid, o) in n.tracks.[tid] do
+                    yield f tid cid o p, (cid,tid)
+            ] |> List.fold ( fun anyrem (rem, (cid,tid)) ->
+                             let passt = anyrem && rem
+                             if not passt then somethingGotRemoved.Add(tid) |> ignore
+                             passt
+                           ) true
+        
+        let ft tid _ _ = 
+            let res = somethingGotRemoved.Contains(tid) |> not
+            res
+        
+        let np = BundlerState.filter (constF (constF true)) fp p
+        let nn = BundlerProblem.filter ft n
+
+        (nn, np)
+
     
     let initial (p : BundlerProblem) : Bundled =
 

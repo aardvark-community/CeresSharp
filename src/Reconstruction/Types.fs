@@ -129,6 +129,7 @@ type CameraId(id : int) =
 
     member x.Id = id
 
+    override x.ToString() = sprintf "C%A" id
     override x.GetHashCode() = id
     override x.Equals o =
         match o with
@@ -148,6 +149,7 @@ type TrackId(id : int) =
 
     member x.Id = id
 
+    override x.ToString() = sprintf "T%A" id
     override x.GetHashCode() = id
     override x.Equals o =
         match o with

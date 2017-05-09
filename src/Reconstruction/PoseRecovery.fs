@@ -60,7 +60,7 @@ module Estimate =
                 let (inliers, children) = 
                     let oo = children |> List.map (traverse trafo inliers ci)
                     (oo |> List.map fst 
-                        |> List.fold (MapExt.unionWith (fun l r -> l |> MapExt.unionWith (fun a b -> Log.warn "&& occurred ..... this is bad "; a && b) r)) MapExt.empty), //this && should never occur 
+                        |> List.fold (MapExt.unionWith (fun l r -> l |> MapExt.unionWith (fun a b -> Log.warn "&& occurred ..... this is bad"; a && b) r)) MapExt.empty),
                      oo |> List.map snd
                 inliers, Node((ci, trafo), children )
 
