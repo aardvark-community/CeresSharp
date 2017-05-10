@@ -8,7 +8,11 @@ module Estimate =
     open Aardvark.Base.MultimethodTest
 
     let LtoRTrafo (cfg : RecoverPoseConfig) (l : V2d[]) (r : V2d[]) =
-            
+        
+        Log.line "match count: %A" l.Length
+
+        if l.Length < 20 then Log.warn "Low match count: %A %A" l.Length r.Length
+
         let (i,R,t,mask) = MiniCV.recoverPose cfg l r
 
         printfn "inliers: %A (of %A)" (mask |> Array.sumBy int) (l |> Array.length)

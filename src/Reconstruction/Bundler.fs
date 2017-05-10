@@ -92,8 +92,6 @@ module Bundler =
             res |> List.map ( fun (ci, t) -> CameraId(ci), t )
 
         let (p,s) = prob
-        
-        Log.warn "before: %A" p.tracks.Count
 
         let (mst,minimumEdges) = cameraTree
         
@@ -103,14 +101,8 @@ module Bundler =
         let minimumMeasures = minimumEdges |> Edges.toTracks |> Tracks.toMeasurements
 
         let ns = s |> BundlerState.withCameras minimumMeasures (fun cid -> cams.[cid])
-        
-        Log.warn "resulting: %A %A" (minimumEdges |> Edges.toTracks).Count ns.points.Count
 
         let (res,i) = handleInliers (p,ns) inliers 
-
-        let (g,r) = res
-
-        Log.warn "after adorner: %A %A" g.tracks.Count r.points.Count
 
         (res,i)
         
@@ -133,7 +125,7 @@ module Bundler =
         let (n,s) = prob
         prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid _ p -> 
                     let (_,d) = s.cameras.[cid].ProjectWithDepth p 
-                    d > 0.0
+                    d < 0.0
                 )
              |> assertInvariants
              

@@ -344,8 +344,6 @@ module Bundled =
 
         let (nn,np) = assertInvariants (nn,np)
 
-        Log.warn "filterAggro: %A %A" np.points.Count nn.tracks.Count
-
         (nn, np)
 
     
@@ -353,16 +351,18 @@ module Bundled =
 
         let mutable initial = BundlerState.empty
         
-        let edges = Tracks.toEdges p.tracks
+        let edges = 
+            Tracks.toEdges p.tracks
+             |> List.filter (fun e -> e.weight.Count >= 8)
         
-        let (mst, minimumEdges) =
+        let (mst, maximumEdges) =
             edges   |> Graph.ofEdges
-                    |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
+                    |> Graph.minimumSpanningTree ( fun e1 e2 -> - compare e1.Count e2.Count ) 
         
 
-        let minimumEdges = minimumEdges |> Array.toList 
+        let maximumEdges = maximumEdges |> Array.toList 
              
-        let minimumTracks = Edges.toTracks minimumEdges
+        let minimumTracks = Edges.toTracks maximumEdges
         
         let minimumMeasurements = Tracks.toMeasurements minimumTracks
                    
@@ -372,7 +372,7 @@ module Bundled =
         for KeyValue(pi, _) in minimumTracks do
             initial <- initial |> BundlerState.setPoint pi V3d.Zero
             
-        ( { p with tracks = minimumTracks } ,initial), (mst, minimumEdges)
+        ( { p with tracks = minimumTracks } ,initial), (mst, maximumEdges)
 
     open System
 
