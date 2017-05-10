@@ -93,21 +93,33 @@ module Bundler =
 
         let (p,s) = prob
 
+        Log.warn "[estimate] PROBLEM: %A" p.tracks.Count
+
         let edges = Tracks.toEdges p.tracks
-                                              
+        
+        Log.warn "[estimate] EDGES: %A" (Edges.toTracks edges).Count
+
         let (mst, minimumEdges) =
             edges |> Graph.ofEdges
                   |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
 
+
         let minimumEdges = minimumEdges |> Array.toList   
 
+
+
         let (inliers, cams) = initialCameras mst minimumEdges
-        
-        let mutable ns = s
-        for (ci, c3d) in cams do
-            ns <- ns |> BundlerState.setCamera ci c3d
+        let cams = cams |> MapExt.ofList
 
         let minimumTracks = Edges.toTracks minimumEdges
+        Log.warn "[estimate] MINIMUM: %A" minimumTracks.Count
+        let minimumMeasures = Tracks.toMeasurements minimumTracks
+
+        let ns = s |> BundlerState.withCameras minimumMeasures (fun cid -> cams.[cid])
+                   |> BundlerState.withPoints minimumTracks (fun tid -> match s.points |> MapExt.tryFind tid with | None -> V3d.OOO | Some p -> p)
+
+
+
         handleInliers ({ p with tracks = minimumTracks },ns) inliers 
         
     let estimatePoints (prob : Bundled) : Bundled =

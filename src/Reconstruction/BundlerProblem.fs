@@ -58,8 +58,8 @@ module Tracks =
                         m := !m |> MapExt.add tid (pi,pj)
             
         edges   |> Dict.toList 
-                |> List.choose ( fun ((ci, cj),m) -> 
-                    Some { i0 = ci.Id; i1 = cj.Id; weight = !m } 
+                |> List.map ( fun ((ci, cj),m) -> 
+                    { i0 = ci.Id; i1 = cj.Id; weight = !m } 
                 )
 
 module Measurements =
@@ -116,6 +116,17 @@ module BundlerState =
 
     let unsetCamera (c : CameraId) (s : BundlerState) =
         { s with cameras = s.cameras |> MapExt.remove c }
+
+
+    let withPoints (tracks : MapExt<TrackId, MapExt<CameraId,V2d>>) (getPoint : TrackId -> V3d) (s : BundlerState) =
+        {
+            s with points = tracks |> MapExt.map ( fun tid _ -> getPoint tid ) 
+        }
+
+    let withCameras (measures : MapExt<CameraId, MapExt<TrackId,V2d>>) (getCam : CameraId -> Camera3d) (s : BundlerState) =
+        {
+            s with cameras = measures |> MapExt.map ( fun cid _ -> getCam cid ) 
+        }
 
 
         
@@ -354,15 +365,22 @@ module Bundled =
 
         let mutable initial = BundlerState.empty
         
+        Log.warn "[initial] PROBLEM: %A" p.tracks.Count
+
         let edges = Tracks.toEdges p.tracks
+
+        Log.warn "[initial] EDGES: %A" (Edges.toTracks edges).Count
 
         let (mst, minimumEdges) =
             edges   |> Graph.ofEdges
                     |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
+        
 
         let minimumEdges = minimumEdges |> Array.toList 
              
         let minimumTracks = Edges.toTracks minimumEdges
+
+        Log.warn "[initial] MINIMUM: %A" minimumTracks.Count
 
         let minimumMeasurements = Tracks.toMeasurements minimumTracks
                    
