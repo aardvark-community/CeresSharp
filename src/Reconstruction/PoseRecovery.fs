@@ -15,8 +15,6 @@ module Estimate =
 
         mask, Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
    
-    
-
     let camsFromMatches (cfg : RecoverPoseConfig) (cameraTree : RoseTree<int>) (getMatches : int -> int -> MapExt<TrackId, (V2d * V2d)> ) =
         
         let register ci parent =
@@ -60,7 +58,7 @@ module Estimate =
                 let (inliers, children) = 
                     let oo = children |> List.map (traverse trafo inliers ci)
                     (oo |> List.map fst 
-                        |> List.fold (MapExt.unionWith (fun l r -> l |> MapExt.unionWith (fun a b -> Log.warn "&& occurred ..... this is bad"; a && b) r)) MapExt.empty),
+                        |> List.fold (MapExt.unionWith (fun l r -> l |> MapExt.unionWith (fun a b -> a && b) r)) MapExt.empty),
                      oo |> List.map snd
                 inliers, RoseTree.Node((ci, trafo), children )
 

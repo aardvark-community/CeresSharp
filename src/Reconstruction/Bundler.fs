@@ -61,10 +61,10 @@ module Bundler =
 
     open Bundled
 
-    let initial (prob : BundlerProblem) : Bundled =
-        Bundled.initial prob |> assertInvariants
+    let initial (prob : BundlerProblem) : Bundled * Edges =
+        Bundled.initial prob
 
-    let estimateCams (cfg : CameraPoseConfig) (handleInliers : Inliers.Adorner) (prob : Bundled) : Bundled * Inliers =
+    let estimateCams (cameraTree : Edges) (cfg : CameraPoseConfig) (handleInliers : Inliers.Adorner) (prob : Bundled) : Bundled * Inliers =
         let initialCameras (mst : RoseTree<_>) (minimumEdges : list<Edge<_>>) = 
             let getMatches l r =
                 let i = minimumEdges
@@ -92,35 +92,27 @@ module Bundler =
             res |> List.map ( fun (ci, t) -> CameraId(ci), t )
 
         let (p,s) = prob
-
-        Log.warn "[estimate] PROBLEM: %A" p.tracks.Count
-
-        let edges = Tracks.toEdges p.tracks
         
-        Log.warn "[estimate] EDGES: %A" (Edges.toTracks edges).Count
+        Log.warn "before: %A" p.tracks.Count
 
-        let (mst, minimumEdges) =
-            edges |> Graph.ofEdges
-                  |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
-
-
-        let minimumEdges = minimumEdges |> Array.toList   
-
-
-
+        let (mst,minimumEdges) = cameraTree
+        
         let (inliers, cams) = initialCameras mst minimumEdges
         let cams = cams |> MapExt.ofList
 
-        let minimumTracks = Edges.toTracks minimumEdges
-        Log.warn "[estimate] MINIMUM: %A" minimumTracks.Count
-        let minimumMeasures = Tracks.toMeasurements minimumTracks
+        let minimumMeasures = minimumEdges |> Edges.toTracks |> Tracks.toMeasurements
 
         let ns = s |> BundlerState.withCameras minimumMeasures (fun cid -> cams.[cid])
-                   |> BundlerState.withPoints minimumTracks (fun tid -> match s.points |> MapExt.tryFind tid with | None -> V3d.OOO | Some p -> p)
+        
+        Log.warn "resulting: %A %A" (minimumEdges |> Edges.toTracks).Count ns.points.Count
 
+        let (res,i) = handleInliers (p,ns) inliers 
 
+        let (g,r) = res
 
-        handleInliers ({ p with tracks = minimumTracks },ns) inliers 
+        Log.warn "after adorner: %A %A" g.tracks.Count r.points.Count
+
+        (res,i)
         
     let estimatePoints (prob : Bundled) : Bundled =
         let (p,s) = prob
@@ -180,8 +172,11 @@ module CoolNameGoesHere =
         let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
         let solverConfig = SolverConfig.allFree
         
+        let e = ref Unchecked.defaultof<_>
+
         Bundler.initial p
-            |> estimateCams CameraPoseConfig.ok Inliers.Adorner.noInliers
+            |> Edges.get e
+            |> estimateCams !e CameraPoseConfig.ok Inliers.Adorner.noInliers
             |> Inliers.ignore
             |> estimatePoints 
             |> Bundled.assertInvariants 

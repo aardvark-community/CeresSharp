@@ -161,5 +161,19 @@ type TrackId(id : int) =
             match o with
                 | :? TrackId as o -> compare id o.Id
                 | _ -> failwith ""
-                
 
+
+
+        
+type BundlerProblem =
+    {
+        tracks : MapExt<TrackId, MapExt<CameraId, V2d>>
+    }
+
+type BundlerState =
+    {
+        cameras     : MapExt<CameraId, Camera3d>
+        points      : MapExt<TrackId,  V3d>
+    }
+
+type Bundled = BundlerProblem * BundlerState

@@ -7,9 +7,16 @@ open System.Collections.Generic
 open Aardvark.Base.Monads.State
 
 
+type Edges = RoseTree<int>*list<Edge<MapExt<TrackId,V2d*V2d>>>
         
 module Edges =
 
+    let ignore ((b,_) : Bundled * Edges) = b
+
+    let get (res : ref<Edges>) ((b,e) : Bundled * Edges) =
+        res := e
+        b
+    
     let toTracks (edges : list<Edge<MapExt<TrackId,V2d*V2d>>>) : MapExt<TrackId, MapExt<CameraId, V2d>> =
         
         let mutable res = MapExt.empty
@@ -77,14 +84,7 @@ module Measurements =
 
         ts
             
-
-type BundlerState =
-    {
-        cameras     : MapExt<CameraId, Camera3d>
-        points      : MapExt<TrackId,  V3d>
-    }
-
-
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BundlerState =
 
     let empty : BundlerState = { cameras = MapExt.empty; points = MapExt.empty }
@@ -129,12 +129,7 @@ module BundlerState =
         }
 
 
-        
-type BundlerProblem =
-    {
-        tracks : MapExt<TrackId, MapExt<CameraId, V2d>>
-    }
-
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BundlerProblem =
     
     let empty : BundlerProblem = { tracks = MapExt.empty }
@@ -150,26 +145,19 @@ module BundlerProblem =
     let choose (f : TrackId -> CameraId -> V2d -> Option<V2d>) (prob : BundlerProblem) : BundlerProblem =
         { 
             tracks = 
-                prob.tracks |> MapExt.choose ( fun tid track ->
-                                let newTrack = track |> MapExt.choose ( fun cid obs -> f tid cid obs )
-                                if newTrack.Count > 3 then Some newTrack else None
+                prob.tracks |> MapExt.map ( fun tid track ->
+                                track |> MapExt.choose ( fun cid obs -> f tid cid obs )
                                )
         }
         
     let filter (f : TrackId -> CameraId -> V2d -> bool) (prob : BundlerProblem) : BundlerProblem =
         prob |> choose ( fun tid cid o -> if f tid cid o then Some o else None )
         
-        
-
     let removeCamera (id : CameraId) (sol : BundlerProblem) =
         { 
             tracks =
-                sol.tracks |> MapExt.choose (fun k pt ->
-                    let r = MapExt.remove id pt
-                    if MapExt.count r > 1 then
-                        Some r
-                    else
-                        None
+                sol.tracks |> MapExt.map (fun k pt ->
+                    MapExt.remove id pt
                 )
         }
 
@@ -197,9 +185,6 @@ module BundlerProblem =
                         match pt with
                             | None -> None
                             | Some pt -> Some ( MapExt.remove cid pt )
-                       )
-                    |> MapExt.filter ( fun _ track ->
-                        not (track |> MapExt.isEmpty)
                        )
         }
 
@@ -234,12 +219,10 @@ module ReprojectionError =
             max         = 0.0
             min         = 0.0
             average     = 0.0
-            stdev       = 0.0
+            stdev       = 0.0 
         }
 
-type Bundled = BundlerProblem * BundlerState
-
-
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Bundled =
 
     let removeCamera (id : CameraId) (prob : Bundled) : Bundled =
@@ -275,7 +258,10 @@ module Bundled =
     let unstablePoints ((prob,state) : Bundled) : list<TrackId> =
         state.points
             |> MapExt.toList
-            |> List.choose ( fun (tid,_) ->
+            |> List.map fst
+            |> List.append (prob.tracks |> MapExt.toList |> List.map fst)
+            |> List.distinct
+            |> List.choose ( fun tid ->
                 prob.tracks  
                     |> MapExt.tryFind tid 
                     |> Option.map (fun obs -> if obs.Count < minTrackLength then Some tid else None) 
@@ -339,38 +325,36 @@ module Bundled =
 
     let filterPointsAndObservationsAggressive (f : TrackId -> CameraId -> V2d -> V3d -> bool) (b : Bundled) : Bundled =
         let (n,p) = b
-        let somethingGotRemoved = HashSet<_>()
+        let evil = HashSet<_>()
 
         let fp tid p =
             [
                 for KeyValue(cid, o) in n.tracks.[tid] do
-                    yield f tid cid o p, (cid,tid)
-            ] |> List.fold ( fun anyrem (rem, (cid,tid)) ->
+                    yield f tid cid o p, (tid)
+            ] |> List.fold ( fun anyrem (rem, (tid)) ->
                              let passt = anyrem && rem
-                             if not passt then somethingGotRemoved.Add(tid) |> ignore
+                             if not passt then evil.Add(tid) |> ignore
                              passt
                            ) true
         
-        let ft tid _ _ = 
-            let res = somethingGotRemoved.Contains(tid) |> not
-            res
+        let ft tid _ _ = evil.Contains(tid) |> not
         
         let np = BundlerState.filter (constF (constF true)) fp p
         let nn = BundlerProblem.filter ft n
 
+        let (nn,np) = assertInvariants (nn,np)
+
+        Log.warn "filterAggro: %A %A" np.points.Count nn.tracks.Count
+
         (nn, np)
 
     
-    let initial (p : BundlerProblem) : Bundled =
+    let initial (p : BundlerProblem) : Bundled * Edges =
 
         let mutable initial = BundlerState.empty
         
-        Log.warn "[initial] PROBLEM: %A" p.tracks.Count
-
         let edges = Tracks.toEdges p.tracks
-
-        Log.warn "[initial] EDGES: %A" (Edges.toTracks edges).Count
-
+        
         let (mst, minimumEdges) =
             edges   |> Graph.ofEdges
                     |> Graph.minimumSpanningTree ( fun e1 e2 -> compare e1.Count e2.Count ) 
@@ -379,9 +363,7 @@ module Bundled =
         let minimumEdges = minimumEdges |> Array.toList 
              
         let minimumTracks = Edges.toTracks minimumEdges
-
-        Log.warn "[initial] MINIMUM: %A" minimumTracks.Count
-
+        
         let minimumMeasurements = Tracks.toMeasurements minimumTracks
                    
         for KeyValue(ci, _) in minimumMeasurements do
@@ -390,7 +372,7 @@ module Bundled =
         for KeyValue(pi, _) in minimumTracks do
             initial <- initial |> BundlerState.setPoint pi V3d.Zero
             
-        ( { p with tracks = minimumTracks } ,initial)
+        ( { p with tracks = minimumTracks } ,initial), (mst, minimumEdges)
 
     open System
 
