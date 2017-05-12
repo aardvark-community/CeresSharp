@@ -7,6 +7,16 @@ module App =
     [<EntryPoint>]
     let main argv = 
     
+        let config = 
+            RenderSponzaConfig.subsampled 
+                @"D:\file\sponza\sponza3.obj" 
+                5
+                (Some 500)
+
+        Sponza.fotos config
+
+        System.Environment.Exit 0 
+
         let sponza = 
             let config = 
                 RenderSponzaConfig.subsampled 

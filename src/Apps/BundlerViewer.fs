@@ -114,6 +114,7 @@ module Viewer =
         use app = new OpenGlApplication()
         use win = app.CreateSimpleRenderWindow(8)
         
+
         let proj = win.Sizes    |> Mod.map (fun s -> Frustum.perspective 60.0 0.1 10000.0 (float s.X / float s.Y))
                                 |> Mod.map Frustum.projTrafo
 
@@ -126,6 +127,7 @@ module Viewer =
                     |> Sg.projTrafo proj
 
         let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
+
         win.RenderTask <- task
 
         win.Run()
