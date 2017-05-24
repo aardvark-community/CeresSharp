@@ -67,6 +67,8 @@
   <ItemGroup>
     <Compile Include="Utilities.fs" />
     <Compile Include="Types.fs" />
+    <Compile Include="Features.fs" />
+    <Compile Include="Matching.fs" />
     <Compile Include="PoseRecovery.fs" />
     <Compile Include="Solver.fs" />
     <Compile Include="BundlerProblem.fs" />

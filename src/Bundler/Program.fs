@@ -181,7 +181,33 @@ let gen (places : int) =
     
 open Aardvark.Reconstruction
 
+type Value() =
+    member x.GetSomething i = 1
+
+type Bla< ^a, ^b when ^a : (member GetSomething : int -> ^b) > =
+    {
+        s : ^a
+    }
+
+    static member inline get< ^a,^b when ^a : (member GetSomething : int -> ^b)> ( bla : Bla< ^a,^b > ) ( i : int ) =
+        let y = ( ^a : (member GetSomething : int -> ^b ) bla.s,i )
+        y
+
+let x = Value()
+
+let bla = { s = x }
+
+let y = Bla.get<Value,int> bla 123
+
+
+
+//let x = [1.0;2.0;3.0;4.0]
+
+//let y = { s = x }
    
+//let z = 
+//    y.s
+
 [<EntryPoint>]
 let main argv =
     Ag.initialize()

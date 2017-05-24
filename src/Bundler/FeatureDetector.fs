@@ -556,6 +556,7 @@ module Feature =
                                     
                     if not used.[ci,f] then
                         setUsed ci f
+                        // =================== das ding hier kann man verwenden um TrackIds zu generieren. ======================
                         let path = traverseNeighboursAndFindPath [f] (neighboursOf f)
                         if path |> List.length >= minTrackLength then
                             
@@ -626,7 +627,7 @@ module Feature =
                 for fn in result |> List.map ( fun fs -> fs |> List.filter ( fun f -> f.image = ci ) ) |> List.concat do
                     let pi = fn.featureIndex
                     let p = fn.feature.ndc
-                    measurements.[ci].Add(pi,p)
+                    measurements.[ci].Add(pi,p)         //<- hier ist der springende punkt, pi ist der lokale index in der kamera ci, und nicht eine TrackId.
                     
             let measurements =
                 [|
