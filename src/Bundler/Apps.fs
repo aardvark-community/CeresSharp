@@ -165,14 +165,9 @@ module PairViewer =
         let aSigma          = Mod.init cfg.aSigma
         let aThreshold      = Mod.init cfg.aThresh
         let useA            = Mod.init true
+        
+        let bfThresh  = Mod.init 0.9
 
-        let config =
-            {
-                threshold = 0.9
-                guidedThreshold = 0.3
-                minTrackLength = 2
-                distanceThreshold = 0.008
-            }
         let result = Mod.custom ( fun a ->
 
                 let (lImg,rImg) = currentImgs.GetValue a
@@ -184,8 +179,10 @@ module PairViewer =
                     | Orb ->    lImg |> Orb.ofImage,   rImg |> Orb.ofImage
                     | Brisk ->  lImg |> Brisk.ofImage, rImg |> Brisk.ofImage
 
+                let bft = bfThresh.GetValue a
+
                 let mc = 
-                    Feature.bruteforceMatch config.threshold lFtr rFtr
+                    Feature.bruteforceMatch bft lFtr rFtr
 
                 let m2d =
                     mc |> Array.map ( fun (li,ri) ->
@@ -334,11 +331,13 @@ module PairViewer =
                 let! x = c
                 let! p = probability
                 let! ta = aThreshold
+                let! bft = bfThresh
                 return 
                     sprintf "\n
                         pProbability = %A\n
                         aThreshold = %A\n
                         \n
+                        bfThreshold = %A\n
                         bfMatches = %A\n
                         afterPrediction = %A\n
                         afterAffinity = %A\n
@@ -346,7 +345,7 @@ module PairViewer =
                         Ex,Ey = %A    \n
                         average = %A  \n
                         variance = %A \n\n
-                    "p ta x.startCount x.predCount x.superCount x.superWeightSum x.superAvg x.superWeightSum
+                    "p ta bft x.startCount x.predCount x.superCount x.superWeightSum x.superAvg x.superWeightSum
             }
 
         let statsSg = Mod.map (fst'>>trd') result 
@@ -417,6 +416,7 @@ module PairViewer =
             "
                 \n
                 Commands: \n
+                bf 0.9   - bruteforce significance
                 l 30.0   - prediction lambda
                 s 0.5    - prediction sigma
                 p 0.5    - prediction > this probability
@@ -452,6 +452,7 @@ module PairViewer =
                             | "p" -> transact(fun () -> probability.Value <- value)
                             | "ta" -> transact(fun () -> aThreshold.Value <- value)
                             | "u" -> transact(fun () -> useA.Value <- (value > 0.5))
+                            | "bf" -> transact(fun () -> bfThresh.Value <- value)
                             | _ -> Log.warn "Invalid numeric input: %A" line
 
                         else

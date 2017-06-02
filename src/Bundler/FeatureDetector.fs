@@ -175,9 +175,11 @@ module Orb =
     open OpenCvSharp.XFeatures2D
     open Microsoft.FSharp.NativeInterop
     
-    let orb = ORB.Create()
-
     let private ofMat (input : Mat) =
+        
+        let orb = ORB.Create( nFeatures = 5000 )
+
+
         let features = orb.Detect(input)
         
 

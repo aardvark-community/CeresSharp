@@ -218,8 +218,8 @@ let main argv =
     
     //let path = @"C:\blub\yolo"
 
-//    PairViewer.app @"C:\blub\yolo"
-    BundlerViewer.folder @"C:\blub\yolo1"
+    PairViewer.app @"D:\bla2\sponza1"
+//    BundlerViewer.folder @"C:\blub\yolo1"
 
     let sponzacfg =
         {
