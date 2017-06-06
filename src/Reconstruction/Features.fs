@@ -6,7 +6,7 @@ open Aardvark.Base
 open System.Collections.Generic
 
 
-
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Feature =
     
     module Akaze =
@@ -139,7 +139,11 @@ module Feature =
             |> Array.map FeatureNode.ofFeature
             |> Array.toList
 
-        let cams = imgs |> List.mapi ( fun cid img -> CameraId(cid), img, getFeatures img ) 
+        let cams = imgs |> List.mapi ( fun cid img -> 
+            let ftr = getFeatures img 
+            printfn "[FeatureExtract] img %A of %A: #%A features" cid ((imgs |> List.length) - 1) ftr.Length
+            CameraId(cid), img, ftr 
+            ) 
 
         (cams |> List.map ( fun (cid,_,ftr) -> cid,ftr ) |> MapExt.ofList ),
         (cams |> List.map ( fun (cid,img,_) -> cid,img ) |> MapExt.ofList )

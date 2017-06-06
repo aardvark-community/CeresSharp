@@ -353,7 +353,6 @@ module Bundled =
         
         let edges = 
             Tracks.toEdges p.tracks
-             |> List.filter (fun e -> e.weight.Count >= 8)
         
         let (mst, maximumEdges) =
             edges   |> Graph.ofEdges

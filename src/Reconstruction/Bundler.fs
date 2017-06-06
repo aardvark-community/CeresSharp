@@ -160,22 +160,39 @@ module CoolNameGoesHere =
     open Bundler
     open CeresSharp
     
-    let miniCV (p : BundlerProblem) : Bundled =
-        let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
-        let solverConfig = SolverConfig.allFree
+    //let miniCV (p : BundlerProblem) : Bundled =
+    //    let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
+    //    let solverConfig = SolverConfig.allFree
         
-        let e = ref Unchecked.defaultof<_>
+    //    let e = ref Unchecked.defaultof<_>
 
-        Bundler.initial p
-            |> Edges.get e
-            |> estimateCams !e CameraPoseConfig.ok Inliers.Adorner.noInliers
-            |> Inliers.ignore
-            |> estimatePoints 
-            |> Bundled.assertInvariants 
-            |> bundleAdjust ceresOptions solverConfig 
+
+    //    Bundler.initial p
+    //        |> Edges.get e
+    //        |> estimateCams !e CameraPoseConfig.ok Inliers.Adorner.noInliers
+    //        |> Inliers.removeOutliers
+    //        |> estimatePoints 
+    //        |> Bundled.assertInvariants 
+    //        |> bundleAdjust ceresOptions solverConfig 
         
             //|> removeOffscreenPoints
             //|> removeRayOutliersObservationsOnly
             //|> assertInvariants
             //|> bundleAdjust ceresOptions solverConfig
         
+    let miniCV (p : BundlerProblem) : Bundled =
+        let ceresOptions = CeresOptions(2500, CeresSolverType.SparseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)
+        let solverConfig = SolverConfig.allFree
+        
+        let e = ref Unchecked.defaultof<_>
+
+
+        let p1 = Bundler.initial p
+        let r1 = Edges.get e p1
+        let r2 = estimateCams !e CameraPoseConfig.ok Inliers.Adorner.noInliers r1
+        let r3 = Inliers.removeOutliers r2
+        let r4 = estimatePoints r3
+        let r5 = Bundled.assertInvariants r4
+        let r6 = bundleAdjust ceresOptions solverConfig r5
+
+        r6

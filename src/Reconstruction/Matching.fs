@@ -96,8 +96,9 @@ module Match =
             ]
         
         let allEdges =
-            allPairs |> List.map ( fun (lcid, rcid) ->
+            allPairs |> List.mapi ( fun nr (lcid, rcid) ->
                 let matches = getMatches cameras.[lcid] cameras.[rcid]
+                printfn "[MkTracks] matching pair %A of %A: (%A-%A) #%A Matches" nr (allPairs.Length - 1) lcid.Id rcid.Id matches.Length
                 { i0 = lcid.Id; i1 = rcid.Id; weight = matches }
             )
         
