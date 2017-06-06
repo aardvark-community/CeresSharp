@@ -56,12 +56,14 @@ module Match =
         //unsafe because FeatureNodes write their state
         let fillInCorrespondences (edges : list<Edge<list<FeatureNode * FeatureNode>>>) : unit =
 
-            let (tree,bestEdges) = 
+            let (tree,maximumEdges) = 
                 Graph.ofEdges edges
-                    |> Graph.minimumSpanningTree ( fun lWeight rWeight -> compare lWeight.Length rWeight.Length )
-        
+                    |> Graph.minimumSpanningTree ( fun lWeight rWeight -> - compare lWeight.Length rWeight.Length )
+            
+            //printfn "[FillIn] bestEdges# = %A" (bestEdges |> Seq.length)
+
             //fill in correspondences
-            for e in bestEdges do
+            for e in maximumEdges do
                 for (lNode, rNode) in e.weight do
                     lNode.Add(CameraId(e.i1), rNode)
                     rNode.Add(CameraId(e.i0), lNode)
@@ -98,7 +100,7 @@ module Match =
         let allEdges =
             allPairs |> List.mapi ( fun nr (lcid, rcid) ->
                 let matches = getMatches cameras.[lcid] cameras.[rcid]
-                printfn "[MkTracks] matching pair %A of %A: (%A-%A) #%A Matches" nr (allPairs.Length - 1) lcid.Id rcid.Id matches.Length
+                //printfn "[MkTracks] matching pair %A of %A: (%A-%A) #%A Matches" nr (allPairs.Length - 1) lcid.Id rcid.Id matches.Length
                 { i0 = lcid.Id; i1 = rcid.Id; weight = matches }
             )
         
@@ -108,6 +110,14 @@ module Match =
         //then this
         let paths = Stateful.mkTracksFromCorrespondences cameras
         
+        //printfn "[Paths] paths# = %A;; longerThanOne# = %A" paths.Length (paths |> List.filter ( fun p -> p.Length > 1 ) |> List.length)
+        
+        //let cts = paths |> List.groupBy List.length
+        //                |> MapExt.ofList
+        //                |> MapExt.map ( fun _ v -> List.length v ) 
+
+        //printfn "[Paths] distribution (length,count) \n %A" cts
+
         //invent TrackIds
         let paths = paths |> List.mapi ( fun idx path -> TrackId(idx),path )
         
