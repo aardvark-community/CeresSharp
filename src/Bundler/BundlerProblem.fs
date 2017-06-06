@@ -160,8 +160,7 @@ module MatchProblem =
         for i in 0 .. n - 1 do
             res <- res + f i
         res
-
-
+        
     let m2v (m : Match2d) = V4d(m.Pos.X, m.Pos.Y, m.Vel.X, m.Vel.Y)
 
     let pred_d ( d : int -> float ) (sigma : float)(ps : V2d[]) =
@@ -411,7 +410,7 @@ module MatchProblem =
         for i in 0 .. n - 1 do
             res <- res + f i
         res
-
+        
     let o (rotation : float) =
         V4d(0.0, sin(rotation), 0.0, cos(rotation))
 

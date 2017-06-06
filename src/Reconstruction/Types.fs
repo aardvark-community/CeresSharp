@@ -2,7 +2,240 @@
 
 open System
 open Aardvark.Base
+open System.Collections.Generic
 
+[<AutoOpen>]
+module private CVHelpers =
+    open OpenCvSharp
+    open OpenCvSharp.XFeatures2D
+    open Microsoft.FSharp.NativeInterop
+
+    [<AbstractClass>]
+    type PixImageVisitor<'r>() =
+        static let table =
+            LookupTable.lookupTable [
+                typeof<int8>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<int8>(unbox img, 127y))
+                typeof<uint8>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<uint8>(unbox img, 255uy))
+                typeof<int16>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<int16>(unbox img, Int16.MaxValue))
+                typeof<uint16>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<uint16>(unbox img, UInt16.MaxValue))
+                typeof<int32>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<int32>(unbox img, Int32.MaxValue))
+                typeof<uint32>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<uint32>(unbox img, UInt32.MaxValue))
+                typeof<int64>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<int64>(unbox img, Int64.MaxValue))
+                typeof<uint64>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<uint64>(unbox img, UInt64.MaxValue))
+                typeof<float16>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<float16>(unbox img, float16(Float32 = 1.0f)))
+                typeof<float32>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<float32>(unbox img, 1.0f))
+                typeof<float>, (fun (self : PixImageVisitor<'r>, img : PixImage) -> self.Visit<float>(unbox img, 1.0))
+            ]
+        abstract member Visit<'a when 'a : unmanaged> : PixImage<'a> * 'a -> 'r
+
+        
+
+
+        interface IPixImageVisitor<'r> with
+            member x.Visit<'a>(img : PixImage<'a>) =
+                table (typeof<'a>) (x, img)
+
+    let matTypes =
+        LookupTable.lookupTable [
+            PixFormat.ByteBGR, MatType.CV_8UC3
+            PixFormat.ByteBGRA, MatType.CV_8UC4
+            PixFormat.ByteBGRP, MatType.CV_8UC4
+            PixFormat.ByteBW, MatType.CV_8UC1
+            PixFormat.ByteGray, MatType.CV_8UC1
+            PixFormat.ByteRGB, MatType.CV_8UC3
+            PixFormat.ByteRGBA, MatType.CV_8UC4
+            PixFormat.ByteRGBP, MatType.CV_8UC4
+
+            PixFormat.UShortBGR, MatType.CV_16UC3
+            PixFormat.UShortBGRA, MatType.CV_16UC4
+            PixFormat.UShortBGRP, MatType.CV_16UC4
+            PixFormat.UShortGray, MatType.CV_16UC1
+            PixFormat.UShortRGB, MatType.CV_16UC3
+            PixFormat.UShortRGBA, MatType.CV_16UC4
+            PixFormat.UShortRGBP, MatType.CV_16UC4
+
+            PixFormat.FloatBGR, MatType.CV_32FC3
+            PixFormat.FloatBGRA, MatType.CV_32FC4
+            PixFormat.FloatBGRP, MatType.CV_32FC4
+            PixFormat.FloatGray, MatType.CV_32FC1
+            PixFormat.FloatRGB, MatType.CV_32FC3
+            PixFormat.FloatRGBA, MatType.CV_32FC4
+            PixFormat.FloatRGBP, MatType.CV_32FC4
+        ]
+
+    type VolumeInfo with
+        member x.Transformed(t : ImageTrafo) =
+            let sx = x.SX
+            let sy = x.SY
+            let sz = x.SZ
+            let dx = x.DX
+            let dy = x.DY
+            let dz = x.DZ
+            match t with
+                | ImageTrafo.Rot0 -> x
+                | ImageTrafo.Rot90 -> x.SubVolume(sx - 1L, 0L, 0L, sy, sx, sz, dy, -dx, dz)
+                | ImageTrafo.Rot180 -> x.SubVolume(sx - 1L, sy - 1L, 0L, sx, sy, sz, -dx, -dy, dz)
+                | ImageTrafo.Rot270 -> x.SubVolume(0L, sy - 1L, 0L, sy, sx, sz, -dy, dx, dz)
+                | ImageTrafo.MirrorX -> x.SubVolume(sx - 1L, 0L, 0L, sx, sy, sz, -dx, dy, dz)
+                | ImageTrafo.Transpose -> x.SubVolume(0L, 0L, 0L, sy, sx, sz, dy, dx, dz)
+                | ImageTrafo.MirrorY -> x.SubVolume(0L, sy - 1L, 0L, sx, sy, sz, dx, -dy, dz)
+                | ImageTrafo.Transverse -> x.SubVolume(sx - 1L, sy - 1L, 0L, sy, sx, sz, -dy, -dx, dz)
+                | _ -> failwithf "invalid ImageTrafo"
+
+    type PixImage with
+        member x.ToMat(trafo : ImageTrafo) =
+            let x = x.Transformed(trafo)
+            let input = new Mat(x.Size.Y, x.Size.X, matTypes x.PixFormat)
+
+            x.Visit 
+                { new PixImageVisitor<int>() with
+                    member x.Visit(img : PixImage<'a>, emptyVal : 'a) =
+                        let img = 
+                            match img.Format with
+                                | Col.Format.RGB -> img.ToFormat(Col.Format.BGR)
+                                | Col.Format.RGBA -> img.ToFormat(Col.Format.BGRA)
+                                | Col.Format.RGBP -> img.ToFormat(Col.Format.BGRP)
+                                | _ -> img
+
+
+                        let srcInfo = img.Volume.Info
+                            
+
+                        let dstInfo =
+                            VolumeInfo(
+                                0L,
+                                V3l(srcInfo.SX, srcInfo.SY, srcInfo.SZ),
+                                V3l(srcInfo.SZ, srcInfo.SX * srcInfo.SZ, 1L)
+                            )
+
+                        let dst = NativeVolume<'a>(NativePtr.ofNativeInt input.Data, dstInfo)
+                        NativeVolume.using img.Volume (fun src ->
+                            NativeVolume.copy src dst
+                        )   
+                        0
+                } |> ignore
+
+            input
+
+        member x.ToMat() =
+            x.ToMat(ImageTrafo.Rot0)
+            
+    let o (rotation : float) =
+        V4d(0.0, sin(rotation), 0.0, cos(rotation))
+
+[<Struct; CustomComparison; CustomEquality>]
+type CameraId(id : int) =
+    static let mutable current = 0
+    static member New = CameraId(System.Threading.Interlocked.Increment(&current))
+
+    member x.Id = id
+
+    override x.ToString() = sprintf "C%A" id
+    override x.GetHashCode() = id
+    override x.Equals o =
+        match o with
+            | :? CameraId as o -> id = o.Id
+            | _ -> false
+
+    interface System.IComparable with
+        member x.CompareTo o =
+            match o with
+                | :? CameraId as o -> compare id o.Id
+                | _ -> failwith ""
+
+[<Struct; CustomComparison; CustomEquality>]
+type TrackId(id : int) =
+    static let mutable current = 0
+    static member New = TrackId(System.Threading.Interlocked.Increment(&current))
+
+    member x.Id = id
+
+    override x.ToString() = sprintf "T%A" id
+    override x.GetHashCode() = id
+    override x.Equals o =
+        match o with
+            | :? TrackId as o -> id = o.Id
+            | _ -> false
+
+    interface System.IComparable with
+        member x.CompareTo o =
+            match o with
+                | :? TrackId as o -> compare id o.Id
+                | _ -> failwith ""
+
+type FeatureDescriptor internal(raw : float[]) =
+    let dim = raw.Length
+    let scale = sqrt (float dim)
+    let vector = raw |> Array.map (fun v -> v / scale)
+
+    member x.Dimension = dim
+    member x.Data = vector
+    member x.RawData = raw
+
+    static member Distance(l : FeatureDescriptor, r : FeatureDescriptor) =
+        if l.Dimension <> r.Dimension then
+            failwithf "cannot compare features with different dimensions: %A vs %A" l.Dimension r.Dimension
+
+        let l = l.Data
+        let r = r.Data
+        let mutable res = 0.0
+        for i in 0 .. l.Length - 1 do
+            let v = l.[i] - r.[i]
+            res <- res + v * v
+        sqrt res
+        
+type Feature =
+    {
+        ndc         : V2d
+        angle       : float
+        size        : float
+        response    : float
+        descriptor  : FeatureDescriptor
+    }
+
+[<CustomEquality; NoComparison>]
+type FeatureNode =
+    {
+        feature         : Feature
+        corresponding   : Dict<CameraId, HashSet<FeatureNode>>
+    }
+    override x.GetHashCode() = x.feature.GetHashCode()
+    override x.Equals o =
+        match o with
+            | :? FeatureNode as o -> x.feature = o.feature
+            | _ -> false
+
+    member x.Add(image : CameraId, f : FeatureNode) =
+        let set = x.corresponding.GetOrCreate(image, fun _ -> HashSet())
+        set.Add f |> ignore
+
+    static member ofFeature ( ftr : Feature ) =
+        {
+            feature = ftr
+            corresponding = Dict()
+        }
+        
+
+[<Struct>]
+type Match2d(pos : V2d, vel : V2d, o : V4d) =
+    member x.LengthSquared =
+        pos.LengthSquared + vel.LengthSquared + o.LengthSquared
+
+    member x.Length = 
+        sqrt x.LengthSquared
+
+    member x.Pos = pos
+    member x.Vel = vel
+    member x.O = o
+
+    static member (-)(l : Match2d,r : Match2d) =
+        Match2d( l.Pos-r.Pos, l.Vel-r.Vel, l.O-r.O )
+
+    static member Dot(l : Match2d,r : Match2d) =
+        Vec.dot l.Pos r.Pos + Vec.dot l.Vel r.Vel + Vec.dot l.O r.O
+
+    static member ofFeatures ( l : FeatureNode, r : FeatureNode ) =
+        Match2d( l.feature.ndc, r.feature.ndc - l.feature.ndc, o (r.feature.angle - l.feature.angle) ) 
 
 
 [<AutoOpen>]
@@ -120,50 +353,6 @@ module V3s =
         let ndc = view.XY / view.Z
 
         ndc, view.Z
-
-
-[<Struct; CustomComparison; CustomEquality>]
-type CameraId(id : int) =
-    static let mutable current = 0
-    static member New = CameraId(System.Threading.Interlocked.Increment(&current))
-
-    member x.Id = id
-
-    override x.ToString() = sprintf "C%A" id
-    override x.GetHashCode() = id
-    override x.Equals o =
-        match o with
-            | :? CameraId as o -> id = o.Id
-            | _ -> false
-
-    interface System.IComparable with
-        member x.CompareTo o =
-            match o with
-                | :? CameraId as o -> compare id o.Id
-                | _ -> failwith ""
-
-[<Struct; CustomComparison; CustomEquality>]
-type TrackId(id : int) =
-    static let mutable current = 0
-    static member New = TrackId(System.Threading.Interlocked.Increment(&current))
-
-    member x.Id = id
-
-    override x.ToString() = sprintf "T%A" id
-    override x.GetHashCode() = id
-    override x.Equals o =
-        match o with
-            | :? TrackId as o -> id = o.Id
-            | _ -> false
-
-    interface System.IComparable with
-        member x.CompareTo o =
-            match o with
-                | :? TrackId as o -> compare id o.Id
-                | _ -> failwith ""
-
-
-
         
 type BundlerProblem =
     {

@@ -5,15 +5,12 @@ open Aardvark.Base
 
 open System.Collections.Generic
 module Match =
-    
-    let featureSets (l : list<FeatureNode>) (r : list<FeatureNode>) : list<FeatureNode*FeatureNode> =
-        failwith ""
-    
+
     module internal Stateful =
 
         //unsafe because FeatureNodes have to have the correct state.
         //todo: make FeatureNode stateless
-        let mkTracksFromCorrespondencies (cameras : MapExt<CameraId, list<FeatureNode>>) =
+        let mkTracksFromCorrespondences (cameras : MapExt<CameraId, list<FeatureNode>>) =
             
             let used = Dict<CameraId*FeatureNode, bool>()
             let isUsed ci (f : FeatureNode) = used.[ci,f]
@@ -57,7 +54,7 @@ module Match =
             result |> Seq.toList
             
         //unsafe because FeatureNodes write their state
-        let fillInCorrespondencies (edges : list<Edge<list<FeatureNode * FeatureNode>>>) : unit =
+        let fillInCorrespondences (edges : list<Edge<list<FeatureNode * FeatureNode>>>) : unit =
 
             let (tree,bestEdges) = 
                 Graph.ofEdges edges
@@ -71,6 +68,18 @@ module Match =
 
             ()
 
+    module GetMatches =
+        
+        let probabilityOnly bruteforceThresh lambda sigma probability l r =
+            MatchProcs.bruteforce bruteforceThresh l r
+            |> MatchProcs.probability lambda sigma probability
+            |> List.map MatchProcs.FeatureMatch.toFeatureNodePair
+
+        let probabilityAndAffine bruteforceThresh lambda sigma probability affineLambda affineSigma ndcMaxDiff l r =
+            MatchProcs.bruteforce bruteforceThresh l r
+            |> MatchProcs.probability lambda sigma probability
+            |> MatchProcs.affine affineLambda affineSigma ndcMaxDiff
+            |> List.map MatchProcs.FeatureMatch.toFeatureNodePair
 
     let mkTracks (cameras : MapExt<CameraId, list<FeatureNode>>) 
                  (getMatches : list<FeatureNode> -> list<FeatureNode> -> list<FeatureNode * FeatureNode>)
@@ -93,10 +102,10 @@ module Match =
             )
         
         //first this
-        do Stateful.fillInCorrespondencies allEdges
+        do Stateful.fillInCorrespondences allEdges
 
         //then this
-        let paths = Stateful.mkTracksFromCorrespondencies cameras
+        let paths = Stateful.mkTracksFromCorrespondences cameras
         
         //invent TrackIds
         let paths = paths |> List.mapi ( fun idx path -> TrackId(idx),path )

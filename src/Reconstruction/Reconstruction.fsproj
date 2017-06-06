@@ -68,9 +68,11 @@
     <Compile Include="Utilities.fs" />
     <Compile Include="Types.fs" />
     <Compile Include="Features.fs" />
+    <Compile Include="MatchProcs.fs" />
     <Compile Include="Matching.fs" />
     <Compile Include="PoseRecovery.fs" />
     <Compile Include="Solver.fs" />
+    <Compile Include="BundlerInput.fs" />
     <Compile Include="BundlerProblem.fs" />
     <Compile Include="Bundler.fs" />
   </ItemGroup>
