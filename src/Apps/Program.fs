@@ -47,7 +47,7 @@ module App =
 
             let matcher = Match.GetMatches.probabilityOnly 0.9 20.0 0.6 0.5
 
-            let (input,_) = BundlerInput.mk featureType matcher fotos
+            let ((input,_),_) = BundlerInput.mk featureType matcher fotos
 
             input |> Tracks.toMeasurements
 

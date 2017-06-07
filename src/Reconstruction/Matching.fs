@@ -5,6 +5,7 @@ open Aardvark.Base
 
 open System.Collections.Generic
 module Match =
+    open Aardvark.Base.Tree
 
     module internal Stateful =
 
@@ -54,7 +55,7 @@ module Match =
             result |> Seq.toList
             
         //unsafe because FeatureNodes write their state
-        let fillInCorrespondences (edges : list<Edge<list<FeatureNode * FeatureNode>>>) : unit =
+        let fillInCorrespondences (edges : list<Edge<list<FeatureNode * FeatureNode>>>) =
 
             let (tree,maximumEdges) = 
                 Graph.ofEdges edges
@@ -68,7 +69,7 @@ module Match =
                     lNode.Add(CameraId(e.i1), rNode)
                     rNode.Add(CameraId(e.i0), lNode)
 
-            ()
+            (tree,maximumEdges)
 
     module GetMatches =
         
@@ -85,7 +86,7 @@ module Match =
 
     let mkTracks (cameras : MapExt<CameraId, list<FeatureNode>>) 
                  (getMatches : list<FeatureNode> -> list<FeatureNode> -> list<FeatureNode * FeatureNode>)
-                 : MapExt<TrackId, MapExt<CameraId, V2d>> =
+                 : MapExt<TrackId, MapExt<CameraId, V2d>> * Edges =
 
         let cids = cameras |> MapExt.toSeq |> Seq.map fst
         
@@ -100,30 +101,82 @@ module Match =
         let allEdges =
             allPairs |> List.mapi ( fun nr (lcid, rcid) ->
                 let matches = getMatches cameras.[lcid] cameras.[rcid]
-                //printfn "[MkTracks] matching pair %A of %A: (%A-%A) #%A Matches" nr (allPairs.Length - 1) lcid.Id rcid.Id matches.Length
+                printfn "[MkTracks] matching pair %A of %A: (%A-%A) #%A Matches" nr (allPairs.Length - 1) lcid.Id rcid.Id matches.Length
                 { i0 = lcid.Id; i1 = rcid.Id; weight = matches }
             )
         
         //first this
-        do Stateful.fillInCorrespondences allEdges
+        let (tree,es) = Stateful.fillInCorrespondences allEdges
 
         //then this
         let paths = Stateful.mkTracksFromCorrespondences cameras
         
-        //printfn "[Paths] paths# = %A;; longerThanOne# = %A" paths.Length (paths |> List.filter ( fun p -> p.Length > 1 ) |> List.length)
+        printfn "[MkTracks] paths# = %A;; longerThanOne# = %A" paths.Length (paths |> List.filter ( fun p -> p.Length > 1 ) |> List.length)
         
-        //let cts = paths |> List.groupBy List.length
-        //                |> MapExt.ofList
-        //                |> MapExt.map ( fun _ v -> List.length v ) 
+        let cts = paths |> List.groupBy List.length
+                        |> MapExt.ofList
+                        |> MapExt.map ( fun _ v -> List.length v ) 
 
-        //printfn "[Paths] distribution (length,count) \n %A" cts
+        printfn "[MkTracks] distribution (length,count) \n %A" cts
 
         //invent TrackIds
         let paths = paths |> List.mapi ( fun idx path -> TrackId(idx),path )
         
-        paths |> List.map ( fun (tid, path) -> 
-                             tid, path 
-                                   |> List.map ( fun (cid,fn) -> cid,fn.feature.ndc )
-                                   |> MapExt.ofList )
-              |> MapExt.ofList
+        let tids : Dict<FeatureNode * FeatureNode, HashSet<TrackId>> = Dict()
+
+        Log.line "[MkTracks] Collecting edges ..."
+        for (tid,path) in paths do
+            for (lc,l) in path do
+                for (rc,r) in path do
+                    let k1 = (l,r)
+                    let f = tids.GetOrCreate(k1,(fun _ -> HashSet<TrackId>()))
+                    if f.Add(tid) && f.Count > 1 then Log.warn "[MkTracks] FeatureNodePair appears in different TrackIds! candidates=%A: %A" f.Count (f |> Seq.toList)
+                    
+                    let k2 = (r,l)
+                    let f = tids.GetOrCreate(k2,(fun _ -> HashSet<TrackId>()))
+                    if f.Add(tid) && f.Count > 1 then Log.warn "[MkTracks] FeatureNodePair appears in different TrackIds! candidates=%A: %A" f.Count (f |> Seq.toList)
+
+        Log.line "[MkTracks] Collected edges, found# %A" tids.Count
+
+        let p2 = paths |> List.toArray
+        Log.line "[MkTracks] Overall Paths FeatureNodeCt# %A" (paths |> Seq.sumBy ( fun (_,path) -> path |> List.length))
+
+        //for (tid,path) in paths do
+        //    Log.line "Path %A - Count %A" tid path.Length
+        
+        Log.line "[MkTracks] Overall Edges Pairs count# %A" (es |> Array.sumBy (fun e -> e.weight.Length) )
+
+        for e in es do
+            Log.line "[MkTracks] Edge %A:%A - Pairs %A" e.i0 e.i1 e.weight.Length
+        
+
+        let edges = 
+            es |> Array.toList
+               |> List.map ( fun e -> 
+                let weights = e.weight |> List.choose ( fun (l,r) ->
+                                 tids |> Dict.tryFind (l,r) 
+                                      |> Option.map ( fun tid ->
+                                        tid |> Seq.head,(l.feature.ndc,r.feature.ndc)
+                                      )
+                                )        |> MapExt.ofList 
+                { 
+                   i0 = e.i0
+                   i1 = e.i1
+                   weight = weights
+                }
+               )
+               
+        Log.line "[MkTracks] Overall Edges with TrackId associated# %A" (edges |> List.sumBy (fun e -> e.weight.Count) )
+
+        for e in edges do
+            Log.line "[MkTracks] TrackIdEdge %A:%A - Pairs %A" e.i0 e.i1 e.weight.Count
+
+        let tracks = 
+            paths |> List.map ( fun (tid, path) -> 
+                                 tid, path 
+                                       |> List.map ( fun (cid,fn) -> cid,fn.feature.ndc )
+                                       |> MapExt.ofList )
+                  |> MapExt.ofList
+         
+        tracks, (tree,edges)
         

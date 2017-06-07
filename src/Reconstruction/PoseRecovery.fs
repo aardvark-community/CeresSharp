@@ -13,11 +13,17 @@ module Estimate =
 
         if l.Length < 20 then Log.warn "Low match count: %A %A" l.Length r.Length
 
-        let (i,R,t,mask) = MiniCV.recoverPose cfg l r
+        // v- this is a hack, since cameraTree edges with so few matches should actually be removed.
+        // cameraTree would fall apart into multiple trees. TODO: Think about this.
+        if l.Length > 5 && r.Length > 5 then
+            let (i,R,t,mask) = MiniCV.recoverPose cfg l r
 
-        printfn "inliers: %A (of %A)" (mask |> Array.sumBy int) (l |> Array.length)
+            printfn "inliers: %A (of %A)" (mask |> Array.sumBy int) (l |> Array.length)
 
-        mask, Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
+            mask, Trafo3d.FromBasis(R.C0, R.C1, R.C2, t)
+
+        else
+            l |> Array.map ( fun _ -> 0uy ), Trafo3d.Identity
    
     let camsFromMatches (cfg : RecoverPoseConfig) (cameraTree : RoseTree<int>) (getMatches : int -> int -> MapExt<TrackId, (V2d * V2d)> ) =
         

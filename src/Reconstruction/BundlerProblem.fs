@@ -6,40 +6,6 @@ open Aardvark.Base.Monads.State
 open System.Collections.Generic
 open Aardvark.Base.Monads.State
 
-
-type Edges = RoseTree<int>*list<Edge<MapExt<TrackId,V2d*V2d>>>
-        
-module Edges =
-
-    let ignore ((b,_) : Bundled * Edges) = b
-
-    let get (res : ref<Edges>) ((b,e) : Bundled * Edges) =
-        res := e
-        b
-    
-    let toTracks (edges : list<Edge<MapExt<TrackId,V2d*V2d>>>) : MapExt<TrackId, MapExt<CameraId, V2d>> =
-        
-        let mutable res = MapExt.empty
-
-        for e in edges do
-            let l = CameraId(e.i0)
-            let r = CameraId(e.i1)
-            
-            for KeyValue(tid, (lo, ro)) in e.weight do
-
-                let addBoth (m : MapExt<_,_>) =
-                    let mutable obs = m
-                    obs <- obs.Add (l,lo)
-                    obs <- obs.Add (r,ro)
-                    obs
-
-                res <- res |> MapExt.alter tid ( fun m ->
-                            match m with
-                            | None -> addBoth MapExt.empty |> Some
-                            | Some obs -> addBoth obs |> Some
-                       )
-        res
-
 module Tracks =
 
     let toMeasurements (tracks : MapExt<TrackId, MapExt<CameraId, V2d>>) : MapExt<CameraId, MapExt<TrackId, V2d>> =
@@ -54,7 +20,7 @@ module Tracks =
                             )
         measures
             
-    let toEdges (tracks : MapExt<TrackId, MapExt<CameraId, V2d>>) : list<Edge<MapExt<TrackId,V2d*V2d>>> =
+    let toEdgesAllWithAll (tracks : MapExt<TrackId, MapExt<CameraId, V2d>>) : list<Edge<MapExt<TrackId,V2d*V2d>>> =
         let edges = Dict<CameraId * CameraId, ref<MapExt<TrackId,V2d * V2d>>>()
             
         for KeyValue(tid, track) in tracks do
@@ -189,19 +155,8 @@ module BundlerProblem =
         }
 
     let ofMeasurements (measurements : MapExt<CameraId, MapExt<TrackId, V2d>>) : BundlerProblem =
-        
-        // get all the tracks
-        let mutable tracks : MapExt<TrackId, MapExt<CameraId, V2d>> = MapExt.empty
 
-        for (ci, measurements) in MapExt.toSeq measurements do
-            for (id, m) in MapExt.toSeq measurements do
-                tracks <- 
-                    tracks |> MapExt.alter id (fun old ->
-                        let old = Option.defaultValue MapExt.empty old
-                        Some (old |> MapExt.add ci m)
-                    )
-                    
-        { tracks = tracks }
+        { tracks = Measurements.toTracks measurements }
     
 type ReprojectionError =
     {
@@ -347,31 +302,35 @@ module Bundled =
         (nn, np)
 
     
-    let initial (p : BundlerProblem) : Bundled * Edges =
+    let initial (p : BundlerProblem) (es : Option<Edges>) : Bundled * Edges =
 
         let mutable initial = BundlerState.empty
-        
-        let edges = 
-            Tracks.toEdges p.tracks
-        
         let (mst, maximumEdges) =
-            edges   |> Graph.ofEdges
-                    |> Graph.minimumSpanningTree ( fun e1 e2 -> - compare e1.Count e2.Count ) 
+            match es with 
+            | None -> 
+                let (mst, maximumEdges) =
+                    p.tracks
+                            |> Tracks.toEdgesAllWithAll
+                            |> Graph.ofEdges
+                            |> Graph.minimumSpanningTree ( fun e1 e2 -> - compare e1.Count e2.Count ) 
         
+                let maximumEdges = maximumEdges |> Array.toList 
+                
+                (mst, maximumEdges)
 
-        let maximumEdges = maximumEdges |> Array.toList 
+            | Some v -> v
              
-        let minimumTracks = Edges.toTracks maximumEdges
+        let maximumTracks = Edges.toTracks maximumEdges
         
-        let minimumMeasurements = Tracks.toMeasurements minimumTracks
+        let maximumMeasurements = Tracks.toMeasurements maximumTracks
                    
-        for KeyValue(ci, _) in minimumMeasurements do
+        for KeyValue(ci, _) in maximumMeasurements do
             initial <- initial |> BundlerState.setCamera ci (Camera3d())
 
-        for KeyValue(pi, _) in minimumTracks do
+        for KeyValue(pi, _) in maximumTracks do
             initial <- initial |> BundlerState.setPoint pi V3d.Zero
             
-        ( { p with tracks = minimumTracks } ,initial), (mst, maximumEdges)
+        ( { p with tracks = maximumTracks } ,initial), (mst, maximumEdges)
 
     open System
 

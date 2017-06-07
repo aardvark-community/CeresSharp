@@ -183,7 +183,7 @@ type FeatureDescriptor internal(raw : float[]) =
             let v = l.[i] - r.[i]
             res <- res + v * v
         sqrt res
-        
+   
 type Feature =
     {
         ndc         : V2d
@@ -204,6 +204,7 @@ type FeatureNode =
         match o with
             | :? FeatureNode as o -> x.feature = o.feature
             | _ -> false
+    
 
     member x.Add(image : CameraId, f : FeatureNode) =
         let set = x.corresponding.GetOrCreate(image, fun _ -> HashSet())
@@ -214,7 +215,6 @@ type FeatureNode =
             feature = ftr
             corresponding = Dict()
         }
-        
 
 [<Struct>]
 type Match2d(pos : V2d, vel : V2d, o : V4d) =
@@ -366,3 +366,36 @@ type BundlerState =
     }
 
 type Bundled = BundlerProblem * BundlerState
+        
+type Edges = RoseTree<int>*list<Edge<MapExt<TrackId,V2d*V2d>>>
+
+module Edges =
+
+    let ignore ((b,_) : Bundled * Edges) = b
+
+    let get (res : ref<Edges>) ((b,e) : Bundled * Edges) =
+        res := e
+        b
+    
+    let toTracks (edges : list<Edge<MapExt<TrackId,V2d*V2d>>>) : MapExt<TrackId, MapExt<CameraId, V2d>> =
+        
+        let mutable res = MapExt.empty
+
+        for e in edges do
+            let l = CameraId(e.i0)
+            let r = CameraId(e.i1)
+            
+            for KeyValue(tid, (lo, ro)) in e.weight do
+
+                let addBoth (m : MapExt<_,_>) =
+                    let mutable obs = m
+                    obs <- obs.Add (l,lo)
+                    obs <- obs.Add (r,ro)
+                    obs
+
+                res <- res |> MapExt.alter tid ( fun m ->
+                            match m with
+                            | None -> addBoth MapExt.empty |> Some
+                            | Some obs -> addBoth obs |> Some
+                       )
+        res

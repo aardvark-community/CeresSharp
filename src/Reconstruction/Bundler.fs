@@ -61,8 +61,8 @@ module Bundler =
 
     open Bundled
 
-    let initial (prob : BundlerProblem) : Bundled * Edges =
-        Bundled.initial prob
+    let initial (es : Option<Edges>) (prob : BundlerProblem): Bundled * Edges =
+        Bundled.initial prob es
 
     let estimateCams (cameraTree : Edges) (cfg : CameraPoseConfig) (handleInliers : Inliers.Adorner) (prob : Bundled) : Bundled * Inliers =
         let initialCameras (mst : RoseTree<_>) (minimumEdges : list<Edge<_>>) = 
@@ -128,7 +128,16 @@ module Bundler =
                     d < 0.0
                 )
              |> assertInvariants
+    
+    let removeTooClosePoints (minDepth : float) (prob : Bundled) : Bundled =
+        let (n,s) = prob
+        prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid _ p -> 
+                    let (p,d) = s.cameras.[cid].ProjectWithDepth p 
+                    abs d > minDepth
+                )
+             |> assertInvariants
              
+
     let removeRayOutliers (maxRayDist : float) (prob : Bundled) : Bundled =
         let (n,s) = prob
         prob |> Bundled.filterPointsAndObservationsAggressive ( fun _ cid o p -> 
@@ -185,9 +194,8 @@ module CoolNameGoesHere =
         let solverConfig = SolverConfig.allFree
         
         let e = ref Unchecked.defaultof<_>
-
-
-        let p1 = Bundler.initial p
+        
+        let p1 = Bundler.initial None p
         let r1 = Edges.get e p1
         let r2 = estimateCams !e CameraPoseConfig.ok Inliers.Adorner.noInliers r1
         let r3 = Inliers.removeOutliers r2
