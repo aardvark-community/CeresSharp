@@ -65,7 +65,7 @@ module Bundler =
         Bundled.initial prob es
 
     let estimateCams (cameraTree : Edges) (cfg : CameraPoseConfig) (handleInliers : Inliers.Adorner) (prob : Bundled) : Bundled * Inliers =
-        let initialCameras (mst : RoseTree<_>) (minimumEdges : list<Edge<_>>) = 
+        let initialCameras (mst : RoseTree<_>) (minimumEdges : list<Edge<_>>) measures = 
             let getMatches l r =
                 let i = minimumEdges
                             |> List.tryFind ( fun e -> e.i0 = l && e.i1 = r )
@@ -86,7 +86,7 @@ module Bundler =
                     | Some (ps) -> yield ps
                 |] |> Seq.head
 
-            let (inliers, res) = Estimate.camsFromMatches cfg.Config mst getMatches
+            let (inliers, res) = Estimate.camsFromMatches cfg.Config mst getMatches measures
                     
             inliers,
             res |> List.map ( fun (ci, t) -> CameraId(ci), t )
@@ -95,10 +95,11 @@ module Bundler =
 
         let (mst,minimumEdges) = cameraTree
         
-        let (inliers, cams) = initialCameras mst minimumEdges
-        let cams = cams |> MapExt.ofList
-
         let minimumMeasures = minimumEdges |> Edges.toTracks |> Tracks.toMeasurements
+
+        let (inliers, cams) = initialCameras mst minimumEdges minimumMeasures
+
+        let cams = cams |> MapExt.ofList
 
         let ns = s |> BundlerState.withCameras minimumMeasures (fun cid -> cams.[cid])
 

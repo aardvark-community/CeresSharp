@@ -55,7 +55,7 @@ module Match =
             result |> Seq.toList
             
         //unsafe because FeatureNodes write their state
-        let fillInCorrespondences (edges : list<Edge<list<FeatureNode * FeatureNode>>>) =
+        let spanningTree (edges : list<Edge<list<FeatureNode * FeatureNode>>>) =
 
             let (tree,maximumEdges) = 
                 Graph.ofEdges edges
@@ -73,6 +73,10 @@ module Match =
 
     module GetMatches =
         
+        let bruteForce bruteforceThresh l r =
+            MatchProcs.bruteforce bruteforceThresh l r
+            |> List.map MatchProcs.FeatureMatch.toFeatureNodePair
+
         let probabilityOnly bruteforceThresh lambda sigma probability l r =
             MatchProcs.bruteforce bruteforceThresh l r
             |> MatchProcs.probability lambda sigma probability
@@ -83,6 +87,56 @@ module Match =
             |> MatchProcs.probability lambda sigma probability
             |> MatchProcs.affine affineLambda affineSigma ndcMaxDiff
             |> List.map MatchProcs.FeatureMatch.toFeatureNodePair
+
+    let associateEdgesWithTids (es : array<Edge<list<(FeatureNode * FeatureNode)>>>) (paths : list<TrackId * list<CameraId * FeatureNode>>) =
+        let tids : Dict<FeatureNode * FeatureNode, HashSet<TrackId>> = Dict()
+
+        Log.line "[MkTracks] Collecting edges ..."
+        for (tid,path) in paths do
+            for (lc,l) in path do
+                for (rc,r) in path do
+                    let k1 = (l,r)
+                    let f = tids.GetOrCreate(k1,(fun _ -> HashSet<TrackId>()))
+                    if f.Add(tid) && f.Count > 1 then Log.warn "[MkTracks] FeatureNodePair appears in different TrackIds! candidates=%A: %A" f.Count (f |> Seq.toList)
+                    
+                    let k2 = (r,l)
+                    let f = tids.GetOrCreate(k2,(fun _ -> HashSet<TrackId>()))
+                    if f.Add(tid) && f.Count > 1 then Log.warn "[MkTracks] FeatureNodePair appears in different TrackIds! candidates=%A: %A" f.Count (f |> Seq.toList)
+
+        Log.line "[MkTracks] Collected edges, found# %A" tids.Count
+        
+        Log.line "[MkTracks] Overall Paths FeatureNodeCt# %A" (paths |> Seq.sumBy ( fun (_,path) -> path |> List.length))
+
+        Log.line "[MkTracks] Overall Edges Pairs count# %A" (es |> Array.sumBy (fun e -> e.weight.Length) )
+
+        for e in es do
+            Log.line "[MkTracks] Edge %A:%A - Pairs %A" e.i0 e.i1 e.weight.Length
+        
+        let edges = 
+            es |> Array.toList
+               |> List.map ( fun e -> 
+                let weights = 
+                    e.weight |> List.choose ( fun (l,r) ->
+                            tids 
+                                |> Dict.tryFind (l,r) 
+                                |> Option.map ( fun tid ->
+                                    tid |> Seq.head,(l.feature.ndc,r.feature.ndc)
+                                )
+                    )
+                    |> MapExt.ofList 
+                { 
+                   i0 = e.i0
+                   i1 = e.i1
+                   weight = weights
+                }
+               )
+
+        Log.line "[MkTracks] Overall Edges with TrackId associated# %A" (edges |> List.sumBy (fun e -> e.weight.Count) )
+
+        for e in edges do
+            Log.line "[MkTracks] TrackIdEdge %A:%A - Pairs %A" e.i0 e.i1 e.weight.Count
+            
+        edges
 
     let mkTracks (cameras : MapExt<CameraId, list<FeatureNode>>) 
                  (getMatches : list<FeatureNode> -> list<FeatureNode> -> list<FeatureNode * FeatureNode>)
@@ -105,10 +159,8 @@ module Match =
                 { i0 = lcid.Id; i1 = rcid.Id; weight = matches }
             )
         
-        //first this
-        let (tree,es) = Stateful.fillInCorrespondences allEdges
-
-        //then this
+        let (tree,es) = Stateful.spanningTree allEdges
+        
         let paths = Stateful.mkTracksFromCorrespondences cameras
         
         printfn "[MkTracks] paths# = %A;; longerThanOne# = %A" paths.Length (paths |> List.filter ( fun p -> p.Length > 1 ) |> List.length)
@@ -122,55 +174,8 @@ module Match =
         //invent TrackIds
         let paths = paths |> List.mapi ( fun idx path -> TrackId(idx),path )
         
-        let tids : Dict<FeatureNode * FeatureNode, HashSet<TrackId>> = Dict()
-
-        Log.line "[MkTracks] Collecting edges ..."
-        for (tid,path) in paths do
-            for (lc,l) in path do
-                for (rc,r) in path do
-                    let k1 = (l,r)
-                    let f = tids.GetOrCreate(k1,(fun _ -> HashSet<TrackId>()))
-                    if f.Add(tid) && f.Count > 1 then Log.warn "[MkTracks] FeatureNodePair appears in different TrackIds! candidates=%A: %A" f.Count (f |> Seq.toList)
-                    
-                    let k2 = (r,l)
-                    let f = tids.GetOrCreate(k2,(fun _ -> HashSet<TrackId>()))
-                    if f.Add(tid) && f.Count > 1 then Log.warn "[MkTracks] FeatureNodePair appears in different TrackIds! candidates=%A: %A" f.Count (f |> Seq.toList)
-
-        Log.line "[MkTracks] Collected edges, found# %A" tids.Count
-
-        let p2 = paths |> List.toArray
-        Log.line "[MkTracks] Overall Paths FeatureNodeCt# %A" (paths |> Seq.sumBy ( fun (_,path) -> path |> List.length))
-
-        //for (tid,path) in paths do
-        //    Log.line "Path %A - Count %A" tid path.Length
-        
-        Log.line "[MkTracks] Overall Edges Pairs count# %A" (es |> Array.sumBy (fun e -> e.weight.Length) )
-
-        for e in es do
-            Log.line "[MkTracks] Edge %A:%A - Pairs %A" e.i0 e.i1 e.weight.Length
-        
-
-        let edges = 
-            es |> Array.toList
-               |> List.map ( fun e -> 
-                let weights = e.weight |> List.choose ( fun (l,r) ->
-                                 tids |> Dict.tryFind (l,r) 
-                                      |> Option.map ( fun tid ->
-                                        tid |> Seq.head,(l.feature.ndc,r.feature.ndc)
-                                      )
-                                )        |> MapExt.ofList 
-                { 
-                   i0 = e.i0
-                   i1 = e.i1
-                   weight = weights
-                }
-               )
+        let edges = associateEdgesWithTids es paths
                
-        Log.line "[MkTracks] Overall Edges with TrackId associated# %A" (edges |> List.sumBy (fun e -> e.weight.Count) )
-
-        for e in edges do
-            Log.line "[MkTracks] TrackIdEdge %A:%A - Pairs %A" e.i0 e.i1 e.weight.Count
-
         let tracks = 
             paths |> List.map ( fun (tid, path) -> 
                                  tid, path 

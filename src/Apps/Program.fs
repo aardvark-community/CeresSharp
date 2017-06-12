@@ -12,15 +12,16 @@ module App =
     [<EntryPoint>]
     let main argv = 
     
-        //let config = 
-        //    RenderSponzaConfig.subsampled 
-        //        @"D:\file\sponza\sponza3.obj" 
-        //        5
-        //        (Some 500)
+        let config = 
+            RenderSponzaConfig.subsampled 
+                @"D:\file\sponza\sponza3.obj" 
+                5
+                (Some 500)
+        
+        // PRESS P !!!!!!!!!
+        Sponza.fotos config
 
-        //Sponza.fotos config
-
-        //System.Environment.Exit 0 
+        System.Environment.Exit 0 
 
         //let input = 
         //    let config = 

@@ -211,8 +211,9 @@ type FeatureNode =
         set.Add f |> ignore
 
     static member ofFeature ( ftr : Feature ) =
+        if ftr.ndc.X > 1.0 || ftr.ndc.Y > 1.0 || ftr.ndc.X < -1.0 || ftr.ndc.Y < -1.0 then Log.error "[Features] Found a feature that is outside of image boundaries: ndc=%A" ftr.ndc
         {
-            feature = ftr
+            feature = ftr //{ ftr with ndc = ftr.ndc.YX * (V2d(1.0,-1.0)) }
             corresponding = Dict()
         }
 
@@ -399,3 +400,47 @@ module Edges =
                             | Some obs -> addBoth obs |> Some
                        )
         res
+
+module Tracks =
+
+    let toMeasurements (tracks : MapExt<TrackId, MapExt<CameraId, V2d>>) : MapExt<CameraId, MapExt<TrackId, V2d>> =
+        
+        let mutable measures : MapExt<CameraId, MapExt<TrackId, V2d>> = MapExt.empty
+
+        for (id, m) in MapExt.toSeq tracks do
+            for (ci, measure) in MapExt.toSeq m do
+                measures <- measures |> MapExt.alter ci ( fun old ->
+                                let old = Option.defaultValue MapExt.empty old
+                                Some (old |> MapExt.add id measure)
+                            )
+        measures
+            
+    let toEdgesAllWithAll (tracks : MapExt<TrackId, MapExt<CameraId, V2d>>) : list<Edge<MapExt<TrackId,V2d*V2d>>> =
+        let edges = Dict<CameraId * CameraId, ref<MapExt<TrackId,V2d * V2d>>>()
+            
+        for KeyValue(tid, track) in tracks do
+            for KeyValue(ci,pi) in track do
+                for KeyValue(cj,pj) in track do
+                    if ci < cj then
+                        let m = edges.GetOrCreate((ci,cj), (fun _ -> ref MapExt.empty))
+                        m := !m |> MapExt.add tid (pi,pj)
+            
+        edges   |> Dict.toList 
+                |> List.map ( fun ((ci, cj),m) -> 
+                    { i0 = ci.Id; i1 = cj.Id; weight = !m } 
+                )
+
+module Measurements =
+    
+    let toTracks ( ms : MapExt<CameraId, MapExt<TrackId, V2d>> ) : MapExt<TrackId, MapExt<CameraId, V2d>> =
+        
+        let mutable ts : MapExt<TrackId, MapExt<CameraId, V2d>> = MapExt.empty
+
+        for (cid, os) in ms |> MapExt.toSeq do
+            for (tid, m) in os |> MapExt.toSeq do 
+                ts <- ts |> MapExt.alter tid ( fun old ->
+                        let old = Option.defaultValue MapExt.empty old
+                        Some (old |> MapExt.add cid m)
+                      )
+
+        ts

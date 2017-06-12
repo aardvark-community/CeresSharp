@@ -69,9 +69,9 @@ module Feature =
 
                 let x = float f.Pt.X / float input.Cols
                 let y = float f.Pt.Y / float input.Rows
-
+                
                 {
-                    ndc = V2d(2.0 * x - 1.0, 1.0 - 2.0 * y)
+                    ndc = V2d(2.0 * x - 1.0,  1.0 - 2.0 * y )
                     angle = float f.Angle
                     size = float f.Size
                     response = float f.Response
