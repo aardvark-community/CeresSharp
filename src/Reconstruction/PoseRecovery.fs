@@ -93,16 +93,20 @@ module Estimate =
                         pointsFromCams currentTracks (fun cid -> solved.[cid].GetRay)
 
                     let visiblePoints =
-                        measurements.[dst] 
+                        measurements 
+                         |> MapExt.tryFind dst 
+                         |> Option.map ( fun dp ->
+                            dp
                             |> MapExt.choose (fun k pp -> 
-                                MapExt.tryFind k estimatePoints 
-                                    |> Option.defaultValue None 
-                                    |> Option.map (fun p3 -> pp, p3)
+                               MapExt.tryFind k estimatePoints 
+                                   |> Option.defaultValue None 
+                                   |> Option.map (fun p3 -> pp, p3)
                             )
                             |> MapExt.filter ( fun tid _ ->
                                 let (_,_,inl) = inliers.[tid]
                                 inl
                             )
+                        )
 
                     // fw = V3d.OOI
                     
@@ -120,21 +124,28 @@ module Estimate =
                     let dstCam = srcCam.Transformed deltaTrafo
                     let r = (dstCam.AngleAxis |> AngleAxis.Trafo).Forward
                     let t = dstCam.Position
-
-                    let piscis = visiblePoints |> MapExt.toList |> List.map (snd)
-
+                    
                     let sX pi (ci : V2d) : float =
                         (ci.X * (r.TransformPos pi).Z - (r.TransformPos pi).X) / (t.X * ci.X * t.Z)
                         
                     let sY pi (ci : V2d) : float =
                         (ci.Y * (r.TransformPos pi).Z - (r.TransformPos pi).Y) / (t.Y * ci.Y * t.Z)
+ 
+                    let scale = 
+                        match visiblePoints with
+                        | None -> 
+                            Log.warn "Camera pair %A-%A has no visible points with previous pairs." src.Id dst.Id
+                            1.0 
+                        | Some visiblePoints ->
+                            
+                            let piscis = visiblePoints |> MapExt.toList |> List.map (snd)
 
-                    let scaleRaw = piscis |> List.map ( fun (ci,pi) -> (sX pi ci, sY pi ci) ) |> List.toArray
-                                       
-                    let scale = scaleRaw |> Array.toList |> List.collect ( fun (x,y) -> [x;y] ) |> List.average
+                            let scaleRaw = piscis |> List.map ( fun (ci,pi) -> (sX pi ci, sY pi ci) ) |> List.toArray
 
-                    let r = M44d.op_Explicit (deltaTrafo.Forward.UpperLeftM33())
-                    let t = deltaTrafo.Forward.C3 * scale
+                            scaleRaw |> Array.toList |> List.collect ( fun (x,y) -> [x;y] ) |> List.average
+
+                    let r = (M44d.op_Explicit (deltaTrafo.Forward.UpperLeftM33())).Inverse
+                    let t = -deltaTrafo.Forward.C3 * scale
                     
                     Log.line "[Trafo] Distance between Cam %A and %A: %A" src.Id dst.Id scale
 
