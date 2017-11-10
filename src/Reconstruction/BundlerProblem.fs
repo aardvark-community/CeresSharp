@@ -198,21 +198,27 @@ module Bundled =
                         |> fix
         fix prob
     
-    let map (ft : TrackId -> CameraId -> V2d -> V2d) (fc : CameraId -> Camera3d -> Camera3d) (fp : TrackId -> V3d -> V3d) (b : Bundled) : Bundled =
+    let map (ft : TrackId -> CameraId -> V2d -> V2d) 
+            (fc : CameraId -> Camera3d -> Camera3d) 
+            (fp : TrackId -> V3d -> V3d) (b : Bundled) : Bundled =
         
         let (prob,state) = b
         (prob |> BundlerProblem.map ft, state |> BundlerState.map fc fp)
 
-    let choose (ft : TrackId -> CameraId -> V2d -> Option<V2d>) (fc : CameraId -> Camera3d -> Option<Camera3d>) (fp : TrackId -> V3d -> Option<V3d>) (b : Bundled) : Bundled =
-        
-        let (prob,state) = b
-        (prob |> BundlerProblem.choose ft, state |> BundlerState.choose fc fp)
-
-    let private filter (ft : TrackId -> CameraId -> V2d -> bool) (fc : CameraId -> Camera3d -> bool) (fp : TrackId -> V3d -> bool) (b : Bundled) : Bundled =
+    let filter (ft : TrackId -> CameraId -> V2d -> bool) 
+               (fc : CameraId -> Camera3d -> bool) 
+               (fp : TrackId -> V3d -> bool) (b : Bundled) : Bundled =
         
         let (prob,state) = b
         (prob |> BundlerProblem.filter ft, state |> BundlerState.filter fc fp)
 
+    let choose (ft : TrackId -> CameraId -> V2d -> Option<V2d>) 
+               (fc : CameraId -> Camera3d -> Option<Camera3d>) 
+               (fp : TrackId -> V3d -> Option<V3d>) (b : Bundled) : Bundled =
+        
+        let (prob,state) = b
+        (prob |> BundlerProblem.choose ft, state |> BundlerState.choose fc fp)
+        
     let filterObservations (ft : TrackId -> CameraId -> V2d -> bool) (b : Bundled) : Bundled =
         filter 
             ft

@@ -196,12 +196,15 @@ module CoolNameGoesHere =
         
         let e = ref Unchecked.defaultof<_>
         
-        let p1 = Bundler.initial None p
-        let r1 = Edges.get e p1
-        let r2 = estimateCams !e CameraPoseConfig.ok Inliers.Adorner.noInliers r1
-        let r3 = Inliers.removeOutliers r2
-        let r4 = estimatePoints r3
-        let r5 = Bundled.assertInvariants r4
-        let r6 = bundleAdjust ceresOptions solverConfig r5
+        Bundler.initial None p
+            |> Edges.get e 
+            |> estimateCams !e CameraPoseConfig.ok Inliers.Adorner.noInliers
+            |> Inliers.removeOutliers 
+            |> Bundled.assertInvariants
+            |> estimatePoints
+            |> Bundled.assertInvariants
+            |> bundleAdjust ceresOptions solverConfig
+            |> Bundled.assertInvariants
+            
 
-        r6
+

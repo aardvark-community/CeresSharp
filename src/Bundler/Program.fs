@@ -218,7 +218,7 @@ let main argv =
     
     //let path = @"C:\blub\yolo"
 
-    PairViewer.app @"D:\bla2\sponza1"
+    PairViewer.app @"D:\bla2\d_sponza2" //@"D:\bla2\kermit\test" //@"D:\bla2\haus4\small\smaller"
 //    BundlerViewer.folder @"C:\blub\yolo1"
 
     let sponzacfg =
