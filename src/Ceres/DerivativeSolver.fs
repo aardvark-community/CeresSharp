@@ -29,7 +29,18 @@ module DerivativeSolverExtensions =
                 V4s(scalar.Variable(offset, v.X), scalar.Variable(offset + 1, v.Y), scalar.Variable(offset + 2, v.Z), scalar.Variable(offset + 3, v.W))
             let block = new ParameterBlock<V4d, V4s>(data, read)
             block :> IParameterBlock<_, _>   
-            
+        
+        member x.AddParameterBlock(data : M44d[]) =
+            let read (offset : int) (v : M44d) =
+                M44s(
+                    scalar.Variable(offset + 0 , v.M00), scalar.Variable(offset + 1 , v.M01), scalar.Variable(offset + 2 , v.M02), scalar.Variable(offset + 3 , v.M03), 
+                    scalar.Variable(offset + 4 , v.M10), scalar.Variable(offset + 5 , v.M11), scalar.Variable(offset + 6 , v.M12), scalar.Variable(offset + 7 , v.M13), 
+                    scalar.Variable(offset + 8 , v.M20), scalar.Variable(offset + 9 , v.M21), scalar.Variable(offset + 10, v.M22), scalar.Variable(offset + 11, v.M23),
+                    scalar.Variable(offset + 12, v.M30), scalar.Variable(offset + 13, v.M31), scalar.Variable(offset + 14, v.M32), scalar.Variable(offset + 15, v.M33)
+                )
+            let block = new ParameterBlock<M44d, M44s>(data,read)
+            block :> IParameterBlock<_,_>
+
         member inline x.AddParameterBlock< ^a, ^b when ^a : unmanaged and ^b : (static member Read : int * ^a -> ^b) > (data : ^a[]) : IParameterBlock< ^a, ^b > =
             let read (offset : int) (v : ^a) = (^b : (static member Read : int * ^a -> ^b) (offset, v))
             let block = new ParameterBlock< ^a, ^b >(data, read)

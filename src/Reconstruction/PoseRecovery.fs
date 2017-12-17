@@ -126,26 +126,26 @@ module Estimate =
                     let t = dstCam.Position
                     
                     let sX pi (ci : V2d) : float =
-                        (ci.X * (r.TransformPos pi).Z - (r.TransformPos pi).X) / (t.X * ci.X * t.Z)
+                        (ci.X * (r.TransformPos pi).Z - (r.TransformPos pi).X) / (t.X - ci.X * t.Z)
                         
                     let sY pi (ci : V2d) : float =
-                        (ci.Y * (r.TransformPos pi).Z - (r.TransformPos pi).Y) / (t.Y * ci.Y * t.Z)
+                        (ci.Y * (r.TransformPos pi).Z - (r.TransformPos pi).Y) / (t.Y - ci.Y * t.Z)
  
-                    let scale = 
-                        match visiblePoints with
-                        | None -> 
-                            Log.warn "Camera pair %A-%A has no visible points with previous pairs." src.Id dst.Id
-                            1.0 
-                        | Some visiblePoints ->
+                    let scale = 1.0
+                        //match visiblePoints with
+                        //| None -> 
+                        //    Log.warn "Camera pair %A-%A has no visible points with previous pairs." src.Id dst.Id
+                        //    1.0 
+                        //| Some visiblePoints ->
                             
-                            let piscis = visiblePoints |> MapExt.toList |> List.map (snd)
+                        //    let piscis = visiblePoints |> MapExt.toList |> List.map (snd)
 
-                            let scaleRaw = piscis |> List.map ( fun (ci,pi) -> (sX pi ci, sY pi ci) ) |> List.toArray
+                        //    let scaleRaw = piscis |> List.map ( fun (ci,pi) -> (sX pi ci, sY pi ci) ) |> List.toArray
 
-                            scaleRaw |> Array.toList |> List.collect ( fun (x,y) -> [x;y] ) |> List.average
+                        //    scaleRaw |> Array.toList |> List.collect ( fun (x,y) -> [x;y] ) |> List.average
 
-                    let r = (M44d.op_Explicit (deltaTrafo.Forward.UpperLeftM33())).Inverse
-                    let t = -deltaTrafo.Forward.C3 * scale
+                    let r = M44d.op_Explicit (deltaTrafo.Forward.UpperLeftM33())
+                    let t = deltaTrafo.Forward.C3 * scale
                     
                     Log.line "[Trafo] Distance between Cam %A and %A: %A" src.Id dst.Id scale
 
@@ -201,22 +201,7 @@ module Estimate =
         trafoTree 
             |> RoseTree.toList
             |> List.map ( fun (ci,trafo) -> 
-                 let oc = Camera3d.LookAt(V3d.OIO * 5.0, V3d.Zero, 1.0, V3d.OOI)
-                 let forward = AngleAxis.RotatePoint(-oc.AngleAxis, -V3d.OOI)
-
-                 let trafo2 = (Trafo3d.Rotation(forward, -Math.PI)) * trafo
-                 
-                 let nc = oc.Transformed trafo2
-                 let testc = oc.Transformed trafo
-
-                 Log.line "=============="
-                 Log.line "[Trafo] Cid: %A" ci
-                 Log.line "[Trafo] Original Camera: \n%A \n%A" testc.Position testc.AngleAxis
-                 Log.line "[Trafo] Original Forward: %A" forward
-                 Log.line "[Trafo] Trafo: \n%A" trafo
-                 Log.line "[Trafo] Trafo2: \n%A" trafo2
-                 Log.line "[Trafo] New Camera: \n%A \n%A" nc.Position nc.AngleAxis
-                 Log.line "=============="
+                 let nc = rootCam.Transformed trafo
 
                  ci, nc
                 )
