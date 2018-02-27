@@ -12,13 +12,22 @@ do Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
 
 let sln = ["src/Ceres.sln"]
 DefaultSetup.install sln
-(*
-Target "Deploy" (fun () ->
-    Fake.MSBuildHelper.MSBuild "bin/Release" "build" [ "Configuration", "Deploy" ] sln |> printfn "%A"
+
+Target "UnpackCeresNative" (fun () ->
+    // todo: repack on push?
+    Console.WriteLine("Unzipping CERES static lib.")
+    
+    let unzipToIfNotExists zip target =
+        if File.Exists target |> not then
+            let dir = Path.GetDirectoryName target
+            System.IO.Compression.ZipFile.ExtractToDirectory(zip,dir)
+    
+    unzipToIfNotExists @"lib\ceres\x64\Debug\ceres_static.zip" @"lib\ceres\x64\Debug\ceres_static.lib"
+    unzipToIfNotExists @"lib\ceres\x64\Release\ceres_static.zip" @"lib\ceres\x64\Release\ceres_static.lib"
 )
 
-"Deploy" ==> "AddNativeResources" ==> "CreatePackage"
-*)
+"UnpackCeresNative" ==> "Restore" |> ignore
+
 #if DEBUG
 do System.Diagnostics.Debugger.Launch() |> ignore
 #endif
