@@ -1,8 +1,0 @@
-type project
-id Aardvark.Reconstruction
-authors VRVis Research Center
-description
-    Photogrammetry
-files
-    ..\..\bin\Release\Reconstruction.dll ==> lib\net45
-    ..\..\bin\Release\Reconstruction.pdb ==> lib\net45
