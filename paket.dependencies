@@ -1,13 +1,11 @@
-framework: net471
+framework: netstandard2.0, net471, netcoreapp2.0
 source https://api.nuget.org/v3/index.json
-source https://vrvis.myget.org/F/aardvark_public/api/v3/index.json
 
-nuget Aardvark.Base        ~> 4.2.0
-nuget Aardvark.Base.FSharp ~> 4.2.0
+nuget Aardvark.Base        ~> 4.2.2
+nuget Aardvark.Base.FSharp ~> 4.2.2
 
 group Build
 framework: net471
 content: none
 source https://api.nuget.org/v3/index.json
-source https://vrvis.myget.org/F/aardvark_public/api/v3/index.json
-github vrvis/Aardvark.Fake:standalone
+github vrvis/Aardvark.Fake:v4-temp
