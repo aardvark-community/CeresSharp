@@ -21,6 +21,25 @@ static void disableGoogleLogging()
 }
 
 
+
+DllExport(ceres::LossFunction*) cCreateLossFunction(CeresLossFunction f)
+{
+	switch (f.Kind)
+	{
+		case Trivial: return new ceres::TrivialLoss();
+		case Huber: return new ceres::HuberLoss(f.P0);
+		case SoftLOne: return new ceres::SoftLOneLoss(f.P0);
+		case Cauchy: return new ceres::CauchyLoss(f.P0);
+		case ArcTan: return new ceres::ArctanLoss(f.P0);
+		case Tolerant: return new ceres::TolerantLoss(f.P0, f.P1);
+		default: return new ceres::TrivialLoss();
+	}
+
+}DllExport(void) cReleaseLossFunction(ceres::LossFunction* f)
+{
+	delete f;
+}
+
 DllExport(Problem*) cCreateProblem()
 {
 	disableGoogleLogging();
@@ -45,32 +64,28 @@ DllExport(void) cReleaseCostFunction(CustomCostFunction* function)
 	if (function) delete function;
 }
 
-DllExport(void) cAddResidualFunction1(Problem* problem, CustomCostFunction* cost, double* p0)
+DllExport(void) cAddResidualFunction1(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0)
 {
 	disableGoogleLogging();
-	auto loss_function = new ceres::HuberLoss(1.0);
-	problem->AddResidualBlock(cost, loss_function, p0);
+	problem->AddResidualBlock(cost, loss, p0);
 }
 
-DllExport(void) cAddResidualFunction2(Problem* problem, CustomCostFunction* cost, double* p0, double* p1)
+DllExport(void) cAddResidualFunction2(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1)
 {
 	disableGoogleLogging();
-	auto loss_function = new ceres::HuberLoss(1.0);
-	problem->AddResidualBlock(cost, loss_function, p0, p1);
+	problem->AddResidualBlock(cost, loss, p0, p1);
 }
 
-DllExport(void) cAddResidualFunction3(Problem* problem, CustomCostFunction* cost, double* p0, double* p1, double* p2)
+DllExport(void) cAddResidualFunction3(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2)
 {
 	disableGoogleLogging();
-	auto loss_function = new ceres::HuberLoss(1.0);
-	problem->AddResidualBlock(cost, loss_function, p0, p1, p2);
+	problem->AddResidualBlock(cost, loss, p0, p1, p2);
 }
 
-DllExport(void) cAddResidualFunction4(Problem* problem, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3)
+DllExport(void) cAddResidualFunction4(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3)
 {
 	disableGoogleLogging();
-	auto loss_function = new ceres::HuberLoss(1.0);
-	problem->AddResidualBlock(cost, loss_function, p0, p1, p2, p3);
+	problem->AddResidualBlock(cost, loss, p0, p1, p2, p3);
 }
 
 DllExport(double) cSolve(Problem* problem, CeresOptions* options)

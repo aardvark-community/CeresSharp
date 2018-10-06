@@ -33,6 +33,23 @@ typedef struct {
 } CeresOptions;
 
 
+typedef enum {
+	Trivial = 0,
+	Huber = 1,
+	SoftLOne = 2,
+	Cauchy = 3,
+	ArcTan = 4,
+	Tolerant = 5,
+} CeresLossFunctionKind;
+
+typedef struct {
+	CeresLossFunctionKind Kind;
+	double P0;
+	double P1;
+} CeresLossFunction;
+
+
+
 class CustomCostFunction : public CostFunction
 {
 private:
@@ -69,10 +86,13 @@ DllExport(void) cReleaseProblem(Problem* problem);
 DllExport(CustomCostFunction*) cCreateCostFunction(int nParameterBlocks, int* parameterCounts, int residualCount, int(*eval)(double const * const * parameters, double * residuals, double ** jacobians));
 DllExport(void) cReleaseCostFunction(CustomCostFunction* function);
 
-DllExport(void) cAddResidualFunction1(Problem* problem, CustomCostFunction* cost, double* p0);
-DllExport(void) cAddResidualFunction2(Problem* problem, CustomCostFunction* cost, double* p0, double* p1);
-DllExport(void) cAddResidualFunction3(Problem* problem, CustomCostFunction* cost, double* p0, double* p1, double* p2);
-DllExport(void) cAddResidualFunction4(Problem* problem, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3);
+DllExport(ceres::LossFunction*) cCreateLossFunction(CeresLossFunction loss);
+DllExport(void) cReleaseLossFunction(ceres::LossFunction* loss);
+
+DllExport(void) cAddResidualFunction1(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0);
+DllExport(void) cAddResidualFunction2(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1);
+DllExport(void) cAddResidualFunction3(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2);
+DllExport(void) cAddResidualFunction4(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3);
 
 DllExport(double) cSolve(Problem* problem, CeresOptions* options);
 

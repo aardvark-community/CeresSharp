@@ -16,10 +16,11 @@
   <ItemGroup>
     <None Include="CodeGen.fsx" />
     <Compile Include="CeresRaw.fs" />
+    <Compile Include="Config.fs" />
+    <Compile Include="Problem.fs" />
     <Compile Include="Scalar.fs" />
     <Compile Include="Math.fs" />
-    <Compile Include="Derivatives.fs" />
-    <Compile Include="DerivativeSolver.fs" />
+    <Compile Include="ProblemExtensions.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />

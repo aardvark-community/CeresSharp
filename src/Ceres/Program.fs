@@ -18,7 +18,7 @@ module Entry =
         let b = p.AddParameterBlock [| 1.0 |]
         let c = p.AddParameterBlock [| 1.0 |]
 
-        p.AddCostFunction(2, b, c, fun b c ->
+        p.AddCostFunction(2, b, c, TrivialLoss, fun b c ->
             let x = b.[0]
             let y = c.[0]
 
@@ -28,7 +28,14 @@ module Entry =
             |]
         )
 
-        p.Solve(CeresOptions(50, CeresSolverType.DenseSchur, true, 1.0E-16, 1.0E-16, 1.0E-16)) |> ignore
+        p.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = true
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        } |> ignore
 
         let b = b.Result 
         let c = c.Result 

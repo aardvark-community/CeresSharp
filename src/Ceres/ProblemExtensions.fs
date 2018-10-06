@@ -1,12 +1,13 @@
-﻿namespace Aardvark.Base
+﻿namespace CeresSharp
 
+open Aardvark.Base
 open CeresSharp
 open Microsoft.FSharp.NativeInterop
 
 #nowarn "9"
 
 [<AutoOpen>]
-module DerivativeSolverExtensions =
+module ProblemExtensions =
     type Problem with   
         member x.AddParameterBlock(data : float[]) =
             let block = new ParameterBlock<float, scalar>(data, fun i v -> scalar.Variable(i,v))
@@ -35,7 +36,7 @@ module DerivativeSolverExtensions =
             let block = new ParameterBlock< ^a, ^b >(data, read)
             block :> IParameterBlock<_, _>
 
-        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, f : 'b[] -> scalar[]) =
+        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, loss : LossFunction, f : 'b[] -> scalar[]) =
             let c0 = p0.DoubleCount
             let evaluate (parameters : nativeptr<nativeptr<float>>, residuals : nativeptr<float>, jacobians : nativeptr<nativeptr<float>>) =
                 let parameters = NativePtr.read parameters
@@ -62,9 +63,9 @@ module DerivativeSolverExtensions =
                                 
                 1
 
-            x.AddCostFunction([| c0 |], residualCount, evaluate, id, [p0.Pointer])
+            x.AddCostFunction([| c0 |], residualCount, loss, evaluate, id, [p0.Pointer])
 
-        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, p1 : IParameterBlock<'c>, f : 'b[] -> 'c[] -> scalar[]) =
+        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, p1 : IParameterBlock<'c>, loss : LossFunction, f : 'b[] -> 'c[] -> scalar[]) =
             let c0 = p0.DoubleCount
             let c1 = p1.DoubleCount
             let evaluate (parameters : nativeptr<nativeptr<float>>, residuals : nativeptr<float>, jacobians : nativeptr<nativeptr<float>>) =
@@ -109,9 +110,9 @@ module DerivativeSolverExtensions =
 
                 1
 
-            x.AddCostFunction([|c0; c1|], residualCount, evaluate, id, [p0.Pointer; p1.Pointer])
+            x.AddCostFunction([|c0; c1|], residualCount, loss, evaluate, id, [p0.Pointer; p1.Pointer])
 
-        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, p1 : IParameterBlock<'c>, p2 : IParameterBlock<'d>, f : 'b[] -> 'c[] -> 'd[] -> scalar[]) =
+        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, p1 : IParameterBlock<'c>, p2 : IParameterBlock<'d>, loss : LossFunction, f : 'b[] -> 'c[] -> 'd[] -> scalar[]) =
             let c0 = p0.DoubleCount
             let c1 = p1.DoubleCount
             let c2 = p2.DoubleCount
@@ -170,5 +171,14 @@ module DerivativeSolverExtensions =
 
                 1
 
-            x.AddCostFunction([|c0; c1; c2|], residualCount, evaluate, id, [p0.Pointer; p1.Pointer; p2.Pointer])
+            x.AddCostFunction([|c0; c1; c2|], residualCount, loss, evaluate, id, [p0.Pointer; p1.Pointer; p2.Pointer])
 
+        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, f : 'b[] -> scalar[]) =
+            x.AddCostFunction(residualCount, p0, TrivialLoss, f)
+            
+        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, p1 : IParameterBlock<'c>, f : 'b[] -> 'c[] -> scalar[]) =
+            x.AddCostFunction(residualCount, p0, p1, TrivialLoss, f)
+        
+        member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, p1 : IParameterBlock<'c>, p2 : IParameterBlock<'d>, f : 'b[] -> 'c[] -> 'd[] -> scalar[]) =
+            x.AddCostFunction(residualCount, p0, p1, p2, TrivialLoss, f)
+            

@@ -32,3 +32,4 @@ UpgradeLog.htm
 lib/ceres/x64/Debug/ceres_static.lib
 lib/ceres/x64/Release/ceres_static.lib
 /.paket/*.targets
+/src/CeresNative/*.user
