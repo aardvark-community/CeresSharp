@@ -37,7 +37,7 @@ DllExport(ceres::LossFunction*) cCreateLossFunction(CeresLossFunction f)
 
 }DllExport(void) cReleaseLossFunction(ceres::LossFunction* f)
 {
-	delete f;
+	if(f) delete f;
 }
 
 DllExport(Problem*) cCreateProblem()

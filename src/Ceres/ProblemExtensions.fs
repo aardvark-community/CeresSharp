@@ -10,30 +10,31 @@ open Microsoft.FSharp.NativeInterop
 module ProblemExtensions =
     type Problem with   
         member x.AddParameterBlock(data : float[]) =
-            let block = new ParameterBlock<float, scalar>(data, fun i v -> scalar.Variable(i,v))
+            let block = new ParameterBlock<float, scalar>(data, 1, fun i v -> scalar.Variable(i,v))
             block :> IParameterBlock<float, scalar>   
 
         member x.AddParameterBlock(data : V2d[]) =
             let read (offset : int) (v : V2d) =
                 V2s(scalar.Variable(offset, v.X), scalar.Variable(offset + 1, v.Y))
-            let block = new ParameterBlock<V2d, V2s>(data, read)
+            let block = new ParameterBlock<V2d, V2s>(data, 2, read)
             block :> IParameterBlock<_, _>   
             
         member x.AddParameterBlock(data : V3d[]) =
             let read (offset : int) (v : V3d) =
                 V3s(scalar.Variable(offset, v.X), scalar.Variable(offset + 1, v.Y), scalar.Variable(offset + 2, v.Z))
-            let block = new ParameterBlock<V3d, V3s>(data, read)
+            let block = new ParameterBlock<V3d, V3s>(data, 3, read)
             block :> IParameterBlock<_, _>   
 
         member x.AddParameterBlock(data : V4d[]) =
             let read (offset : int) (v : V4d) =
                 V4s(scalar.Variable(offset, v.X), scalar.Variable(offset + 1, v.Y), scalar.Variable(offset + 2, v.Z), scalar.Variable(offset + 3, v.W))
-            let block = new ParameterBlock<V4d, V4s>(data, read)
+            let block = new ParameterBlock<V4d, V4s>(data, 4, read)
             block :> IParameterBlock<_, _>   
             
-        member inline x.AddParameterBlock< ^a, ^b when ^a : unmanaged and ^b : (static member Read : int * ^a -> ^b) > (data : ^a[]) : IParameterBlock< ^a, ^b > =
+        member inline x.AddParameterBlock< ^a, ^b when ^a : unmanaged and ^b : (static member Read : int * ^a -> ^b) and ^b : (static member Doubles : int)> (data : ^a[]) : IParameterBlock< ^a, ^b > =
+            let doubles = (^b : (static member Doubles : int) ())
             let read (offset : int) (v : ^a) = (^b : (static member Read : int * ^a -> ^b) (offset, v))
-            let block = new ParameterBlock< ^a, ^b >(data, read)
+            let block = new ParameterBlock< ^a, ^b >(data, doubles, read)
             block :> IParameterBlock<_, _>
 
         member x.AddCostFunction(residualCount : int, p0 : IParameterBlock<'b>, loss : LossFunction, f : 'b[] -> scalar[]) =

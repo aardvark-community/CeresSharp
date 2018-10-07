@@ -41,8 +41,8 @@ type IParameterBlock<'a, 'b> =
     abstract member IntermediaryResult : 'a[]
     abstract member GetResult : bool -> 'a[]
 
-type ParameterBlock<'a, 'b when 'a : unmanaged>(data : 'a[], read : int -> 'a -> 'b) =
-    static let doubles = TypeInfo.doubles<'a>
+type ParameterBlock<'a, 'b when 'a : unmanaged>(data : 'a[], doubles : int, read : int -> 'a -> 'b) =
+    //static let doubles = TypeInfo.doubles<'a>
 
     let gc = GCHandle.Alloc(data, GCHandleType.Pinned)
 
@@ -70,7 +70,12 @@ type ParameterBlock<'a, 'b when 'a : unmanaged>(data : 'a[], read : int -> 'a ->
 
     member x.Pointer = gc.AddrOfPinnedObject() |> NativePtr.ofNativeInt<float>
 
-    member x.Dispose() = gc.Free()
+    member private x.Dispose(disposing : bool) =
+        if disposing then GC.SuppressFinalize x
+        gc.Free()
+
+    member x.Dispose() = x.Dispose(true)
+    override x.Finalize() = x.Dispose(false)
 
     interface IParameterBlock<'a, 'b> with
         member x.DoubleCount = doubles * data.Length
@@ -94,6 +99,7 @@ type Problem() =
         )
 
     member x.AddCostFunction(parameterCounts : array<int>, residualCount : int, loss : LossFunction, f : nativeptr<nativeptr<float>> * nativeptr<float> * nativeptr<nativeptr<float>> -> int, free : unit -> unit, parameters : list<nativeptr<float>>) =
+        
         let del = 
             CeresCostFunctionDelegate(fun parameters residuals jacobians ->
                 f(parameters, residuals, jacobians)
@@ -101,8 +107,7 @@ type Problem() =
 
         let gc = GCHandle.Alloc(del)
         let ptr = Marshal.GetFunctionPointerForDelegate(del)
-
-
+        
         let fhandle = CeresRaw.cCreateCostFunction(parameterCounts.Length, parameterCounts, residualCount, ptr)
         costFunctions.Add(fhandle, gc, { new IDisposable with member x.Dispose() = free() })
 
@@ -121,20 +126,20 @@ type Problem() =
         CeresRaw.cSolve(handle, pOptions)
 
     member private x.Dispose(disposing : bool) =
+        if disposing then GC.SuppressFinalize(x)
         let o = Interlocked.Exchange(&handle.Handle, 0n)
         if o <> 0n then 
-            
-            for h in loss.Values do
-                CeresRaw.cReleaseLossFunction(h)
-
+            //for h in loss.Values do
+            //    CeresRaw.cReleaseLossFunction(h)
+            loss.Clear()
 
             for (f, gc, cf) in costFunctions do
                 gc.Free()
                 cf.Dispose()
-            loss.Clear()
-
+                //CeresRaw.cReleaseCostFunction f
+            costFunctions.Clear()
+            
             CeresRaw.cReleaseProblem(CeresProblem(o))
-            if disposing then GC.SuppressFinalize(x)
 
     member x.Dispose() = x.Dispose true
     override x.Finalize() = x.Dispose false
