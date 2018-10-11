@@ -19,13 +19,17 @@ let randomSimilarity() =
     let scale = rand.UniformDouble() * 10.0 + 0.01
     Similarity3d(scale, randomEuclidean())
 
+let randomCircle() =
+    let r = rand.UniformDouble() * 10.0 + 0.01
+    let c = rand.UniformV2dDirection() * rand.UniformDouble() * 5.0
+    Circle2d(c, r)
 
 let findRot () =
     
     let trafo = randomRot()
 
     let samples =
-        Array.init 100 (fun _ ->
+        Array.init 5 (fun _ ->
             let pt = rand.UniformV3dDirection() * rand.UniformDouble() * 10.0
             pt, trafo.TransformPos pt
         )
@@ -159,7 +163,6 @@ let findSimilarity () =
     printfn "org: %A" trafo
     printfn "rec: %A" recovered
 
-
 let cosSin () =
     use p = new Problem()
     use b = p.AddParameterBlock [| 1.0 |]
@@ -189,6 +192,47 @@ let cosSin () =
     printfn "b = %A" b
     printfn "c = %A" c
 
+let findCircle () =
+    
+    let circle = randomCircle()
+
+    
+
+    let samples =
+        Array.init 15 (fun _ ->
+            let pt = rand.UniformV2dDirection() * circle.Radius + circle.Center
+            let noise = rand.UniformV2dDirection() * rand.UniformDouble() * 0.1
+            pt 
+
+        )
+
+    let guess = randomCircle()
+    use problem = new Problem()
+    use r = problem.AddParameterBlock [| guess |]
+
+        
+    problem.AddCostFunction(samples.Length, r, fun r i ->
+        let r = r.[0]
+        let pt = samples.[i]
+        r.DistanceSquared pt
+    )
+    
+    let residual =
+        problem.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = true
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        }
+    
+    let recovered = r.Result.[0]
+
+    printfn "residual %.4f" residual
+    printfn "org: %A" circle
+    printfn "rec: %A" recovered
+
 
 
 
@@ -197,7 +241,8 @@ let main argv =
     //cosSin()
     //findSimilarity()
     //findEuclidean()
-    findRot()
+    //findRot()
+    findCircle()
     
 
     0 

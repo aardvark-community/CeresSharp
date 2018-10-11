@@ -24,6 +24,7 @@
     <Compile Include="ProblemExtensions.fs" />
     <Compile Include="ProblemExtensionsGenerated.fs" />
     <Compile Include="Trafos.fs" />
+    <Compile Include="Geometry.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
