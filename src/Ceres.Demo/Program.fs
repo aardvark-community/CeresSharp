@@ -6,27 +6,92 @@ open Aardvark.Base
 
 let rand = RandomSystem()
 
-let randomRot() =
+let randomRot2d() =
+    let angle = rand.UniformDouble() * Constant.PiTimesTwo
+    Rot2d(angle)
+
+let randomRot3d() =
     let axis  = rand.UniformV3dDirection()
     let angle = rand.UniformDouble() * Constant.Pi
     Rot3d(axis, angle)
 
-let randomEuclidean() =
-    let trans = rand.UniformV3dDirection() * rand.UniformDouble() * 10.0
-    Euclidean3d(randomRot(), trans)
+let randomEuclidean2d() =
+    let trans = rand.UniformV2dDirection() * rand.UniformDouble() * 10.0
+    Euclidean2d(randomRot2d(), trans)
 
-let randomSimilarity() =
+let randomEuclidean3d() =
+    let trans = rand.UniformV3dDirection() * rand.UniformDouble() * 10.0
+    Euclidean3d(randomRot3d(), trans)
+
+let randomSimilarity2d() =
     let scale = rand.UniformDouble() * 10.0 + 0.01
-    Similarity3d(scale, randomEuclidean())
+    Similarity2d(scale, randomEuclidean2d())
+
+let randomSimilarity3d() =
+    let scale = rand.UniformDouble() * 10.0 + 0.01
+    Similarity3d(scale, randomEuclidean3d())
 
 let randomCircle() =
     let r = rand.UniformDouble() * 10.0 + 0.01
     let c = rand.UniformV2dDirection() * rand.UniformDouble() * 5.0
     Circle2d(c, r)
 
-let findRot () =
+let randomSphere() =
+    let r = rand.UniformDouble() * 10.0 + 0.01
+    let c = rand.UniformV3dDirection() * rand.UniformDouble() * 5.0
+    Sphere3d(c, r)
+
+
+let findRot2d () =
+    Log.start "Rot2d"
+    let trafo = randomRot2d()
+
+    let samples =
+        Array.init 5 (fun _ ->
+            let pt = rand.UniformV2dDirection() * rand.UniformDouble() * 10.0
+            pt, trafo.TransformPos pt
+        )
+
+    let guess = randomRot2d()
+
+    use problem = new Problem()
+    use pTrafo = problem.AddParameterBlock [| guess |]
     
-    let trafo = randomRot()
+    problem.AddCostFunctionScalar(samples.Length * 2, pTrafo, TrivialLoss, fun trafo res  ->
+        let trafo = trafo.[0]
+
+        let mutable ri = 0
+        for i in 0 .. samples.Length - 1 do
+            let (l,r) = samples.[i]
+
+            let r = trafo.TransformPos l - r
+
+            res.[ri + 0] <- r.X
+            res.[ri + 1] <- r.Y
+            ri <- ri + 2
+    )
+
+
+    let residual =
+        problem.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        }
+    
+    let recovered = pTrafo.Result.[0]
+
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" trafo
+    Log.line "rec: %A" recovered
+    Log.stop()
+
+let findRot3d () =
+    Log.start "Rot3d"
+    let trafo = randomRot3d()
 
     let samples =
         Array.init 5 (fun _ ->
@@ -34,7 +99,7 @@ let findRot () =
             pt, trafo.TransformPos pt
         )
 
-    let guess = randomRot()
+    let guess = randomRot3d()
 
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
@@ -59,7 +124,7 @@ let findRot () =
         problem.Solve {
             maxIterations = 50
             solverType = DenseSchur
-            print = true
+            print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
             parameterTolerance = 1.0E-16
@@ -67,13 +132,62 @@ let findRot () =
     
     let recovered = pTrafo.Result.[0]
 
-    printfn "residual %.4f" residual
-    printfn "org: %A" trafo
-    printfn "rec: %A" recovered
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" trafo
+    Log.line "rec: %A" recovered
+    Log.stop()
 
-let findEuclidean () =
+let findEuclidean2d () =
+    Log.start "Euclidean2d"
+    let trafo = randomEuclidean2d()
+
+    let samples =
+        Array.init 100 (fun _ ->
+            let pt = rand.UniformV2dDirection() * rand.UniformDouble() * 10.0
+            pt, trafo.TransformPos pt
+        )
+
+    let guess = randomEuclidean2d()
+
+    use problem = new Problem()
+    use pTrafo = problem.AddParameterBlock [| guess |]
     
-    let trafo = randomEuclidean()
+    
+    problem.AddCostFunctionScalar(samples.Length * 2, pTrafo, TrivialLoss, fun trafo res ->
+        let trafo = trafo.[0]
+
+        let mutable ri = 0
+        for i in 0 .. samples.Length - 1 do
+            let (l,r) = samples.[i]
+
+            let r = trafo.TransformPos l - r
+
+            res.[ri + 0] <- r.X
+            res.[ri + 1] <- r.Y
+            ri <- ri + 2
+    )
+
+
+    let residual =
+        problem.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        }
+    
+    let recovered = pTrafo.Result.[0]
+
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" trafo
+    Log.line "rec: %A" recovered
+    Log.stop()
+
+let findEuclidean3d () =
+    Log.start "Euclidean3d"
+    let trafo = randomEuclidean3d()
 
     let samples =
         Array.init 100 (fun _ ->
@@ -81,7 +195,7 @@ let findEuclidean () =
             pt, trafo.TransformPos pt
         )
 
-    let guess = randomEuclidean()
+    let guess = randomEuclidean3d()
 
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
@@ -107,7 +221,7 @@ let findEuclidean () =
         problem.Solve {
             maxIterations = 50
             solverType = DenseSchur
-            print = true
+            print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
             parameterTolerance = 1.0E-16
@@ -115,20 +229,22 @@ let findEuclidean () =
     
     let recovered = pTrafo.Result.[0]
 
-    printfn "residual %.4f" residual
-    printfn "org: %A" trafo
-    printfn "rec: %A" recovered
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" trafo
+    Log.line "rec: %A" recovered
+    Log.stop()
 
-let findSimilarity () =
-    let trafo = randomSimilarity()
+let findSimilarity2d () =
+    Log.start "Similarity2d"
+    let trafo = randomSimilarity2d()
 
     let samples =
         Array.init 100 (fun _ ->
-            let pt = rand.UniformV3dDirection() * rand.UniformDouble() * 10.0
+            let pt = rand.UniformV2dDirection() * rand.UniformDouble() * 10.0
             pt, trafo.TransformPos pt
         )
 
-    let guess = randomSimilarity()
+    let guess = randomSimilarity2d()
 
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
@@ -151,7 +267,7 @@ let findSimilarity () =
         problem.Solve {
             maxIterations = 50
             solverType = DenseSchur
-            print = true
+            print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
             parameterTolerance = 1.0E-16
@@ -159,44 +275,93 @@ let findSimilarity () =
     
     let recovered = pTrafo.Result.[0]
 
-    printfn "residual %.4f" residual
-    printfn "org: %A" trafo
-    printfn "rec: %A" recovered
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" trafo
+    Log.line "rec: %A" recovered
+    Log.stop()
+
+let findSimilarity3d () =
+    Log.start "Similarity3d"
+    let trafo = randomSimilarity3d()
+
+    let samples =
+        Array.init 100 (fun _ ->
+            let pt = rand.UniformV3dDirection() * rand.UniformDouble() * 10.0
+            pt, trafo.TransformPos pt
+        )
+
+    let guess = randomSimilarity3d()
+
+    use problem = new Problem()
+    use pTrafo = problem.AddParameterBlock [| guess |]
+    
+    //problem.AddCostFunction(samples.Length, pTrafo, fun trafo i ->
+    //    let trafo = trafo.[0]
+    //    let (l,r) = samples.[i]
+    //    trafo.TransformPos l - r
+    //)
+    
+    problem.AddCostFunction(samples.Length, pTrafo, fun trafo ->
+        let trafo = trafo.[0]
+
+        samples |> Array.map (fun (l,r) ->
+            trafo.TransformPos l - r
+        )
+    )
+
+    let residual =
+        problem.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        }
+    
+    let recovered = pTrafo.Result.[0]
+
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" trafo
+    Log.line "rec: %A" recovered
+    Log.stop()
 
 let cosSin () =
+    Log.start "{ x = y, x² + y² = 1 }"
     use p = new Problem()
-    use b = p.AddParameterBlock [| 1.0 |]
-    use c = p.AddParameterBlock [| 1.0 |]
+    use x = p.AddParameterBlock [| 1.0 |]
+    use y = p.AddParameterBlock [| -1.0 |]
 
-    p.AddCostFunction(2, b, c, TrivialLoss, fun b c ->
-        let x = b.[0]
-        let y = c.[0]
+    p.AddCostFunction(2, x, y, TrivialLoss, fun x y ->
+        let x = x.[0]
+        let y = y.[0]
 
         [|
             x - y
             x * x + y * y - 1.0
         |]
     )
-    p.Solve {
-        maxIterations = 50
-        solverType = DenseSchur
-        print = false
-        functionTolerance = 1.0E-16
-        gradientTolerance = 1.0E-16
-        parameterTolerance = 1.0E-16
-    } |> ignore
+    let res = 
+        p.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        } 
 
-    let b = b.Result 
-    let c = c.Result 
+    let x = x.Result 
+    let y = y.Result 
 
-    printfn "b = %A" b
-    printfn "c = %A" c
+    Log.line "residual: %.4f" res
+    Log.line "x = %A" x.[0]
+    Log.line "y = %A" y.[0]
+    Log.stop()
 
 let findCircle () =
-    
+    Log.start "Circle2d"
     let circle = randomCircle()
-
-    
 
     let samples =
         Array.init 15 (fun _ ->
@@ -212,16 +377,14 @@ let findCircle () =
 
         
     problem.AddCostFunction(samples.Length, r, fun r i ->
-        let r = r.[0]
-        let pt = samples.[i]
-        r.DistanceSquared pt
+        r.[0].DistanceSquared samples.[i]
     )
     
     let residual =
         problem.Solve {
             maxIterations = 50
             solverType = DenseSchur
-            print = true
+            print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
             parameterTolerance = 1.0E-16
@@ -229,20 +392,64 @@ let findCircle () =
     
     let recovered = r.Result.[0]
 
-    printfn "residual %.4f" residual
-    printfn "org: %A" circle
-    printfn "rec: %A" recovered
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" circle
+    Log.line "rec: %A" recovered
+    
+    Log.stop()
 
+let findSphere () =
+    Log.start "Sphere3d"
+    let sphere = randomSphere()
 
+    let samples =
+        Array.init 15 (fun _ ->
+            let pt = rand.UniformV3dDirection() * sphere.Radius + sphere.Center
+            let noise = rand.UniformV3dDirection() * rand.UniformDouble() * 0.1
+            pt 
 
+        )
+
+    let guess = randomSphere()
+    use problem = new Problem()
+    use r = problem.AddParameterBlock [| guess |]
+
+        
+    problem.AddCostFunction(samples.Length, r, fun r i ->
+        r.[0].DistanceSquared samples.[i]
+    )
+    
+    let residual =
+        problem.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        }
+    
+    let recovered = r.Result.[0]
+
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" sphere
+    Log.line "rec: %A" recovered
+    
+    Log.stop()
 
 [<EntryPoint>]
 let main argv =
-    //cosSin()
-    //findSimilarity()
-    //findEuclidean()
-    //findRot()
+    cosSin()
+
+    findRot2d()
+    findEuclidean2d()
+    findSimilarity2d()
     findCircle()
+
+    findRot3d()
+    findEuclidean3d()
+    findSimilarity3d()
+    findSphere()
     
 
     0 

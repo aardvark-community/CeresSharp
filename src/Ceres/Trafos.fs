@@ -450,6 +450,9 @@ type Similarity2d(scale : float, euclidean : Euclidean2d) =
     
     static member Identity = Similarity2d(1.0, Euclidean2d.Identity)
 
+    override x.ToString() =
+        System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "[{0}, {1}]", scale, euclidean)
+
     static member (*) (l : Similarity2d, r : Similarity2d) =
         Similarity2d(
             l.Scale * r.Scale,
