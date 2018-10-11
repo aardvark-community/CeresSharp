@@ -509,7 +509,10 @@ type Similarity2d(scale : float, euclidean : Euclidean2d) =
         let newr = euclidean.Inverse
         Similarity2d(news, Euclidean2d(newr.Rot, newr.Trans * news))
  
-type Similarity2s(scale : scalar, euclidean : Euclidean2s) =
+
+type Similarity2s internal(euclidean : Euclidean2s, sqrtscale : scalar) =
+    let scale = sqrtscale * sqrtscale
+
     member x.Scale = scale
     member x.Rot = euclidean.Rot
     member x.Trans = euclidean.Trans
@@ -594,10 +597,13 @@ type Similarity2s(scale : scalar, euclidean : Euclidean2s) =
         let news = scalar.One / scale
         let newr = euclidean.Inverse
         Similarity2s(news, Euclidean2s(newr.Rot, newr.Trans * news))
-
+        
+    new(scale : scalar, e : Euclidean2s) = Similarity2s(e, sqrt scale)
     new(s : Similarity2d) = Similarity2s(scalar s.Scale, Euclidean2s s.EuclideanTransformation)
 
-type Similarity3s(scale : scalar, euclidean : Euclidean3s) =
+type Similarity3s(euclidean : Euclidean3s, sqrtscale : scalar) =
+    let scale = sqrtscale * sqrtscale
+
     member x.Scale = scale
     member x.Rot = euclidean.Rot
     member x.Trans = euclidean.Trans
@@ -680,7 +686,8 @@ type Similarity3s(scale : scalar, euclidean : Euclidean3s) =
         let news = scalar.One / scale
         let newr = euclidean.Inverse
         Similarity3s(news, Euclidean3s(newr.Rot, newr.Trans * news))
-
+        
+    new(scale : scalar, e : Euclidean3s) = Similarity3s(e, sqrt scale)
     new(s : Similarity3d) = Similarity3s(scalar s.Scale, Euclidean3s s.EuclideanTransformation)
 
 
@@ -688,37 +695,48 @@ type Similarity3s(scale : scalar, euclidean : Euclidean3s) =
 module ``Similarity Extensions`` =
 
     [<Struct>]
-    type private SimilarityAdapter(scale : float, rot : V3d, trans : V3d) =
-        member x.Scale = scale
+    type private Similarity2dAdapter(sqrtScale : float, rot : float, trans : V2d) =
+        member x.SqrtScale = sqrtScale
+        member x.Angle = rot
+        member x.Trans = trans
+
+    [<Struct>]
+    type private SimilarityAdapter(sqrtScale : float, rot : V3d, trans : V3d) =
+        member x.SqrtScale = sqrtScale
         member x.AngleAxis = rot
         member x.Trans = trans
         
-    let private pickle3 (r : Similarity3d) = SimilarityAdapter(r.Scale, r.Rot.ToAngleAxis(), r.Trans)
-    let private unpickle3 (v : SimilarityAdapter) = Similarity3d(v.Scale, Euclidean3d(Rot3d.FromAngleAxis(v.AngleAxis), v.Trans))
+    let private pickle3 (r : Similarity3d) = SimilarityAdapter(sqrt r.Scale, r.Rot.ToAngleAxis(), r.Trans)
+    let private unpickle3 (v : SimilarityAdapter) = Similarity3d(v.SqrtScale * v.SqrtScale, Euclidean3d(Rot3d.FromAngleAxis(v.AngleAxis), v.Trans))
 
     let private read3 (offset : int) (v : SimilarityAdapter) = 
         if offset < 0 then
-            Similarity3s(scalar v.Scale, Euclidean3s(Rot3s(V3s v.AngleAxis), V3s v.Trans))
+            Similarity3s(Euclidean3s(Rot3s(V3s v.AngleAxis), V3s v.Trans), scalar v.SqrtScale)
         else
             Similarity3s(
-                read offset v.Scale,
                 Euclidean3s(
                     Rot3s(read (offset + 1) v.AngleAxis), 
                     read (offset + 4) v.Trans
-                )
+                ),
+                read offset v.SqrtScale
             )
-    let private read2 (offset : int) (v : Similarity2d) = 
+
+        
+    let private pickle2 (r : Similarity2d) = Similarity2dAdapter(sqrt r.Scale, r.Rot.Angle, r.Trans)
+    let private unpickle2 (v : Similarity2dAdapter) = Similarity2d(v.SqrtScale * v.SqrtScale, Euclidean2d(Rot2d(v.Angle), v.Trans))
+
+    let private read2 (offset : int) (v : Similarity2dAdapter) = 
         if offset < 0 then
-            Similarity2s(scalar v.Scale, Euclidean2s(Rot2s v.Rot, V2s v.Trans))
+            Similarity2s(Euclidean2s(Rot2s (scalar v.Angle), V2s v.Trans), scalar v.SqrtScale)
         else
             Similarity2s(
-                read offset v.Scale,
                 Euclidean2s(
-                    Rot2s(read (offset + 1) v.Rot.Angle), 
+                    Rot2s(read (offset + 1) v.Angle), 
                     read (offset + 2) v.Trans
-                )
+                ),
+                read offset v.SqrtScale
             )
 
     type Problem with
         member x.AddParameterBlock(rs : Similarity3d[]) = x.AddParameterBlock(rs, pickle3, unpickle3, read3)
-        member x.AddParameterBlock(rs : Similarity2d[]) = x.AddParameterBlock(rs, read2)
+        member x.AddParameterBlock(rs : Similarity2d[]) = x.AddParameterBlock(rs, pickle2, unpickle2, read2)
