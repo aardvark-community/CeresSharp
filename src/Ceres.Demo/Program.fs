@@ -326,39 +326,6 @@ let findSimilarity3d () =
     Log.line "rec: %A" recovered
     Log.stop()
 
-let cosSin () =
-    Log.start "{ x = y, x² + y² = 1 }"
-    use p = new Problem()
-    use x = p.AddParameterBlock [| 1.0 |]
-    use y = p.AddParameterBlock [| -1.0 |]
-
-    p.AddCostFunction(2, x, y, TrivialLoss, fun x y ->
-        let x = x.[0]
-        let y = y.[0]
-
-        [|
-            x - y
-            x * x + y * y - 1.0
-        |]
-    )
-    let res = 
-        p.Solve {
-            maxIterations = 50
-            solverType = DenseSchur
-            print = false
-            functionTolerance = 1.0E-16
-            gradientTolerance = 1.0E-16
-            parameterTolerance = 1.0E-16
-        } 
-
-    let x = x.Result 
-    let y = y.Result 
-
-    Log.line "residual: %.4f" res
-    Log.line "x = %A" x.[0]
-    Log.line "y = %A" y.[0]
-    Log.stop()
-
 let findCircle () =
     Log.start "Circle2d"
     let circle = randomCircle()
@@ -437,9 +404,72 @@ let findSphere () =
     
     Log.stop()
 
+
+let cosSin () =
+    Log.start "{ x = y, x² + y² = 1 }"
+    use p = new Problem()
+    use x = p.AddParameterBlock [| 1.0 |]
+    use y = p.AddParameterBlock [| -1.0 |]
+
+    p.AddCostFunction(2, x, y, TrivialLoss, fun x y ->
+        let x = x.[0]
+        let y = y.[0]
+
+        [|
+            x - y
+            x * x + y * y - 1.0
+        |]
+    )
+    let res = 
+        p.Solve {
+            maxIterations = 50
+            solverType = DenseSchur
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        } 
+
+    let x = x.Result 
+    let y = y.Result 
+
+    Log.line "residual: %.4f" res
+    Log.line "x = %A" x.[0]
+    Log.line "y = %A" y.[0]
+    Log.stop()
+
+let powell() =
+    Log.start "powell"
+    use problem = new Problem()
+    
+    use x = problem.AddParameterBlock [| 3.0; -1.0; 0.; 1.0 |]
+
+    problem.AddCostFunctionScalar(4, x, fun x r ->
+        r.[0] <- x.[0] + 10.0 * x.[1]
+        r.[1] <- sqrt (5.0) * (x.[2] - x.[3])
+        r.[2] <- (x.[1] - 2.0 * x.[2]) ** 2.0
+        r.[3] <- sqrt 10.0 * (x.[0] - x.[3]) ** 2.0
+    )
+
+    let res = 
+        problem.Solve {
+            maxIterations = 100
+            solverType = DenseSchur
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        } 
+
+    let x = x.Result 
+    Log.line "residual: %.4f" res
+    Log.line "x = %A" x
+    Log.stop()
+
 [<EntryPoint>]
 let main argv =
     cosSin()
+    powell()
 
     findRot2d()
     findEuclidean2d()
