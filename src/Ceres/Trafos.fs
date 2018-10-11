@@ -2,11 +2,76 @@
 
 open CeresSharp
 
-type ITrafo3s =
-    abstract member TransformDir : V3s -> V3s
-    abstract member TransformPos : V3s -> V3s
-    abstract member InvTransformDir : V3s -> V3s
-    abstract member InvTransformPos : V3s -> V3s
+type Rot2s(angle : scalar) =
+    
+    member x.Angle = angle
+
+    member x.TransformDir(d : V2s) =
+        let c = cos angle
+        let s = sin angle
+        V2s(
+            c * d.X + s * d.Y,
+            c * d.Y - s * d.X
+        )
+
+    member x.TransformDir(d : V2d) =
+        let c = cos angle
+        let s = sin angle
+        V2s(
+            c * d.X + s * d.Y,
+            c * d.Y - s * d.X
+        )
+        
+    member x.InvTransformDir(d : V2s) =
+        let c = cos angle
+        let s = sin angle
+        V2s(
+            c * d.X - s * d.Y,
+            c * d.Y + s * d.X
+        )
+        
+    member x.InvTransformDir(d : V2d) =
+        let c = cos angle
+        let s = sin angle
+        V2s(
+            c * d.X - s * d.Y,
+            c * d.Y + s * d.X
+        )
+
+    member x.TransformPos(p : V2s) = x.TransformDir p
+    member x.TransformPos(p : V2d) = x.TransformDir p
+    member x.InvTransformPos(p : V2s) = x.InvTransformDir p
+    member x.InvTransformPos(p : V2d) = x.InvTransformDir p
+
+    member x.Inverse = Rot2s(-angle)
+
+
+    static member (*) (l : Rot2s, r : Rot2s) = Rot2s(l.Angle + r.Angle)
+    static member (*) (l : Rot2s, r : Rot2d) = Rot2s(l.Angle + r.Angle)
+    static member (*) (l : Rot2d, r : Rot2s) = Rot2s(l.Angle + r.Angle)
+    
+    static member Identity = Rot2s(scalar.Zero)
+
+    member x.ToM22s() =
+        let c = cos angle
+        let s = sin angle
+        M22s(
+             c, s,
+            -s, c
+        )
+
+    member x.ToM33s() =
+        let c = cos angle
+        let s = sin angle
+        M33s(
+             c, s, scalar.Zero,
+            -s, c, scalar.Zero,
+             scalar.Zero,  scalar.Zero, scalar.One
+        )
+
+    member x.Value = Rot2d(angle.Value)
+
+    new(r : Rot2d) = Rot2s(scalar r.Angle)
 
 type Rot3s(angleAxis : V3s) =
 
@@ -169,30 +234,108 @@ type Rot3s(angleAxis : V3s) =
     override x.ToString() =
         x.Value.ToString()
 
-    interface ITrafo3s with
-        member x.TransformDir d = x.TransformDir d
-        member x.InvTransformDir d = x.InvTransformDir d
-        member x.TransformPos d = x.TransformPos d
-        member x.InvTransformPos d = x.InvTransformPos d
 
     new (r : Rot3d) = Rot3s(V3s(r.ToAngleAxis()))
 
 [<AutoOpen>]
-module ``Rot3s Extensions`` =
+module ``Rot Extensions`` =
 
-    let private pickle (r : Rot3d) = r.ToAngleAxis()
-    let private unpickle (v : V3d) = Rot3d.FromAngleAxis(v)
-    let private read (offset : int) (v : V3d) = Rot3s(read offset v)
+    let private pickle2 (r : Rot2d) = r.Angle
+    let private unpickle2 (v : float) = Rot2d(v)
+    let private read2 (offset : int) (v : float) = Rot2s(read offset v)
+      
+    let private pickle3 (r : Rot3d) = r.ToAngleAxis()
+    let private unpickle3 (v : V3d) = Rot3d.FromAngleAxis(v)
+    let private read3 (offset : int) (v : V3d) = Rot3s(read offset v)
 
     type Problem with
-        member x.AddParameterBlock(rs : Rot3d[]) = x.AddParameterBlock(rs, pickle, unpickle, read)
+        member x.AddParameterBlock(rs : Rot3d[]) = x.AddParameterBlock(rs, pickle3, unpickle3, read3)
+        member x.AddParameterBlock(rs : Rot2d[]) = x.AddParameterBlock(rs, pickle2, unpickle2, read2)
 
 
+
+type Euclidean2s(rot : Rot2s, trans : V2s) =
+    member x.Rot = rot
+    member x.Trans = trans
+    
+    static member Identity = Euclidean2s(Rot2s.Identity, V2s.Zero)
+
+    static member (*) (a : Euclidean2s, b : Euclidean2s) =
+        Euclidean2s(
+            a.Rot * b.Rot,
+            a.Trans + a.Rot.TransformDir(b.Trans)
+        )
+    
+    static member (*) (a : Euclidean2s, b : Euclidean2d) =
+        Euclidean2s(
+            a.Rot * b.Rot,
+            a.Trans + a.Rot.TransformDir(b.Trans)
+        )
+        
+    static member (*) (a : Euclidean2d, b : Euclidean2s) =
+        Euclidean2s(
+            a.Rot * b.Rot,
+            a.Trans + (Rot2s a.Rot).TransformDir(b.Trans)
+        )
+
+    static member (*) (a : Euclidean2s, b : Rot2s) =
+        Euclidean2s(
+            a.Rot * b,
+            a.Trans
+        )
+
+    static member (*) (a : Euclidean2s, b : Rot2d) =
+        Euclidean2s(
+            a.Rot * b,
+            a.Trans
+        )
+
+    static member (*) (a : Rot2s, b : Euclidean2s) =
+        Euclidean2s(
+            a * b.Rot,
+            a.TransformDir(b.Trans)
+        )
+
+    static member (*) (a : Rot2d, b : Euclidean2s) =
+        Euclidean2s(
+            a * b.Rot,
+            (Rot2s a).TransformDir(b.Trans)
+        )
+
+    member x.TransformDir (d : V2s) = rot.TransformDir d
+    member x.TransformDir (d : V2d) = rot.TransformDir d
+    member x.InvTransformDir (d : V2s) = rot.InvTransformDir d
+    member x.InvTransformDir (d : V2d) = rot.InvTransformDir d
+    
+    member x.TransformPos (p : V2s) = rot.TransformDir p + trans
+    member x.TransformPos (p : V2d) = rot.TransformDir p + trans
+    member x.InvTransformPos (p : V2s) = rot.InvTransformDir (p - trans)
+    member x.InvTransformPos (p : V2d) = rot.InvTransformDir (p - trans)
+
+    member x.Value =
+        Euclidean2d(rot.Value, trans.Value)
+
+    member x.Inverse =
+        let newr = rot.Inverse
+        Euclidean2s(newr, -newr.TransformDir(trans))
+
+    member x.ToM33s() =
+        let r = rot.ToM22s()
+        M33s(
+            r.M00, r.M01, trans.X,
+            r.M10, r.M11, trans.Y,
+            scalar.Zero, scalar.Zero, scalar.One
+        )
+
+        
+    new (e : Euclidean2d) = Euclidean2s(Rot2s e.Rot, V2s e.Trans)
 
 type Euclidean3s(rot : Rot3s, trans : V3s) =
     member x.Rot = rot
     member x.Trans = trans
     
+    static member Identity = Euclidean3s(Rot3s.Identity, V3s.Zero)
+
     static member (*) (a : Euclidean3s, b : Euclidean3s) =
         Euclidean3s(
             a.Rot * b.Rot,
@@ -261,26 +404,20 @@ type Euclidean3s(rot : Rot3s, trans : V3s) =
             scalar.Zero, scalar.Zero, scalar.Zero, scalar.One
         )
 
-
-    interface ITrafo3s with
-        member x.TransformDir d = x.TransformDir d
-        member x.InvTransformDir d = x.InvTransformDir d
-        member x.TransformPos d = x.TransformPos d
-        member x.InvTransformPos d = x.InvTransformPos d
-
+        
     new (e : Euclidean3d) = Euclidean3s(Rot3s e.Rot, V3s e.Trans)
 
 [<AutoOpen>]
-module ``Euclidean3s Extensions`` =
+module ``Euclidean Extensions`` =
 
     [<Struct>]
     type private EuclideanAdapter(rot : V3d, trans : V3d) =
         member x.AngleAxis = rot
         member x.Trans = trans
         
-    let private pickle (r : Euclidean3d) = EuclideanAdapter(r.Rot.ToAngleAxis(), r.Trans)
-    let private unpickle (v : EuclideanAdapter) = Euclidean3d(Rot3d.FromAngleAxis(v.AngleAxis), v.Trans)
-    let private read (offset : int) (v : EuclideanAdapter) = 
+    let private pickle3 (r : Euclidean3d) = EuclideanAdapter(r.Rot.ToAngleAxis(), r.Trans)
+    let private unpickle3 (v : EuclideanAdapter) = Euclidean3d(Rot3d.FromAngleAxis(v.AngleAxis), v.Trans)
+    let private read3 (offset : int) (v : EuclideanAdapter) = 
         if offset < 0 then
             Euclidean3s(Rot3s(V3s v.AngleAxis), V3s v.Trans)
         else
@@ -289,10 +426,173 @@ module ``Euclidean3s Extensions`` =
                 read (offset + 3) v.Trans
             )
 
+    let private read2 (offset : int) (v : Euclidean2d) = 
+        if offset < 0 then
+            Euclidean2s(Rot2s(scalar v.Rot.Angle), V2s v.Trans)
+        else
+            Euclidean2s(
+                Rot2s(read offset v.Rot.Angle), 
+                read (offset + 1) v.Trans
+            )
+
     type Problem with
-        member x.AddParameterBlock(rs : Euclidean3d[]) = x.AddParameterBlock(rs, pickle, unpickle, read)
+        member x.AddParameterBlock(rs : Euclidean3d[]) = x.AddParameterBlock(rs, pickle3, unpickle3, read3)
+        member x.AddParameterBlock(rs : Euclidean2d[]) = x.AddParameterBlock(rs, read2)
 
 
+
+[<Struct>]
+type Similarity2d(scale : float, euclidean : Euclidean2d) =
+    member x.Scale = scale
+    member x.Rot = euclidean.Rot
+    member x.Trans = euclidean.Trans
+    member x.EuclideanTransformation = euclidean
+    
+    static member Identity = Similarity2d(1.0, Euclidean2d.Identity)
+
+    static member (*) (l : Similarity2d, r : Similarity2d) =
+        Similarity2d(
+            l.Scale * r.Scale,
+            Euclidean2d(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(l.Scale * r.Trans)
+            )
+        )
+        
+    static member (*) (l : Euclidean2d, r : Similarity2d) =
+        Similarity2d(
+            r.Scale,
+            Euclidean2d(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(r.Trans)
+            )
+        )
+
+    static member (*) (l : Similarity2d, r : Euclidean2d) =
+        Similarity2d(
+            l.Scale,
+            Euclidean2d(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(l.Scale * r.Trans)
+            )
+        )
+           
+    static member (*) (l : Rot2d, r : Similarity2d) =
+        Similarity2d(
+            r.Scale,
+            Euclidean2d(
+                l * r.Rot,
+                l.TransformDir(r.Trans)
+            )
+        )
+
+    static member (*) (l : Similarity2d, r : Rot2d) =
+        Similarity2d(
+            l.Scale,
+            Euclidean2d(
+                l.Rot * r,
+                l.Trans
+            )
+        )
+        
+    member x.TransformDir (d : V2d) = euclidean.TransformDir(scale * d)
+    member x.InvTransformDir (d : V2d) = euclidean.InvTransformDir(d) / scale
+
+    member x.TransformPos (d : V2d) = euclidean.TransformPos(scale * d)
+    member x.InvTransformPos (d : V2d) = euclidean.InvTransformPos(d) / scale
+
+    member x.Inverse =
+        let news = 1.0 / scale
+        let newr = euclidean.Inverse
+        Similarity2d(news, Euclidean2d(newr.Rot, newr.Trans * news))
+ 
+type Similarity2s(scale : scalar, euclidean : Euclidean2s) =
+    member x.Scale = scale
+    member x.Rot = euclidean.Rot
+    member x.Trans = euclidean.Trans
+    member x.EuclideanTransformation = euclidean
+
+    static member Identity = Similarity2s(scalar.One, Euclidean2s.Identity)
+
+    static member (*) (l : Similarity2s, r : Similarity2s) =
+        Similarity2s(
+            l.Scale * r.Scale,
+            Euclidean2s(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(l.Scale * r.Trans)
+            )
+        )
+
+    static member (*) (l : Similarity2s, r : Similarity2d) =
+        Similarity2s(
+            l.Scale * r.Scale,
+            Euclidean2s(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(l.Scale * V2s r.Trans)
+            )
+        )
+
+    static member (*) (l : Similarity2d, r : Similarity2s) =
+        Similarity2s(
+            l.Scale * r.Scale,
+            Euclidean2s(
+                l.Rot * r.Rot,
+                l.Trans + (Rot2s l.Rot).TransformDir(l.Scale * r.Trans)
+            )
+        )
+
+    static member (*) (l : Similarity2s, r : Euclidean2s) =
+        Similarity2s(
+            l.Scale,
+            Euclidean2s(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(l.Scale * r.Trans)
+            )
+        )
+        
+    static member (*) (l : Similarity2s, r : Euclidean2d) =
+        Similarity2s(
+            l.Scale,
+            Euclidean2s(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(l.Scale * V2s r.Trans)
+            )
+        )
+
+    static member (*) (l : Euclidean2s, r : Similarity2s) =
+        Similarity2s(
+            r.Scale,
+            Euclidean2s(
+                l.Rot * r.Rot,
+                l.Trans + l.Rot.TransformDir(r.Trans)
+            )
+        )
+        
+    static member (*) (l : Euclidean2d, r : Similarity2s) =
+        Similarity2s(
+            r.Scale,
+            Euclidean2s(
+                l.Rot * r.Rot,
+                l.Trans + (Rot2s l.Rot).TransformDir(r.Trans)
+            )
+        )
+
+    member x.TransformDir (d : V2s) = euclidean.TransformDir(scale * d)
+    member x.TransformDir (d : V2d) = euclidean.TransformDir(scale * V2s d)
+    member x.InvTransformDir (d : V2s) = euclidean.InvTransformDir(d) / scale
+    member x.InvTransformDir (d : V2d) = euclidean.InvTransformDir(V2s d) / scale
+
+    member x.TransformPos (d : V2s) = euclidean.TransformPos(scale * d)
+    member x.TransformPos (d : V2d) = euclidean.TransformPos(scale * V2s d)
+    member x.InvTransformPos (d : V2s) = euclidean.InvTransformPos(d) / scale
+    member x.InvTransformPos (d : V2d) = euclidean.InvTransformPos(V2s d) / scale
+
+    member x.Inverse =
+        let news = scalar.One / scale
+        let newr = euclidean.Inverse
+        Similarity2s(news, Euclidean2s(newr.Rot, newr.Trans * news))
+
+    new(s : Similarity2d) = Similarity2s(scalar s.Scale, Euclidean2s s.EuclideanTransformation)
 
 type Similarity3s(scale : scalar, euclidean : Euclidean3s) =
     member x.Scale = scale
@@ -378,16 +678,11 @@ type Similarity3s(scale : scalar, euclidean : Euclidean3s) =
         let newr = euclidean.Inverse
         Similarity3s(news, Euclidean3s(newr.Rot, newr.Trans * news))
 
-    interface ITrafo3s with
-        member x.TransformDir d = x.TransformDir d
-        member x.InvTransformDir d = x.InvTransformDir d
-        member x.TransformPos d = x.TransformPos d
-        member x.InvTransformPos d = x.InvTransformPos d
-
     new(s : Similarity3d) = Similarity3s(scalar s.Scale, Euclidean3s s.EuclideanTransformation)
 
+
 [<AutoOpen>]
-module ``Similarity3s Extensions`` =
+module ``Similarity Extensions`` =
 
     [<Struct>]
     type private SimilarityAdapter(scale : float, rot : V3d, trans : V3d) =
@@ -395,10 +690,10 @@ module ``Similarity3s Extensions`` =
         member x.AngleAxis = rot
         member x.Trans = trans
         
-    let private pickle (r : Similarity3d) = SimilarityAdapter(r.Scale, r.Rot.ToAngleAxis(), r.Trans)
-    let private unpickle (v : SimilarityAdapter) = Similarity3d(v.Scale, Euclidean3d(Rot3d.FromAngleAxis(v.AngleAxis), v.Trans))
+    let private pickle3 (r : Similarity3d) = SimilarityAdapter(r.Scale, r.Rot.ToAngleAxis(), r.Trans)
+    let private unpickle3 (v : SimilarityAdapter) = Similarity3d(v.Scale, Euclidean3d(Rot3d.FromAngleAxis(v.AngleAxis), v.Trans))
 
-    let private read (offset : int) (v : SimilarityAdapter) = 
+    let private read3 (offset : int) (v : SimilarityAdapter) = 
         if offset < 0 then
             Similarity3s(scalar v.Scale, Euclidean3s(Rot3s(V3s v.AngleAxis), V3s v.Trans))
         else
@@ -409,6 +704,18 @@ module ``Similarity3s Extensions`` =
                     read (offset + 4) v.Trans
                 )
             )
+    let private read2 (offset : int) (v : Similarity2d) = 
+        if offset < 0 then
+            Similarity2s(scalar v.Scale, Euclidean2s(Rot2s v.Rot, V2s v.Trans))
+        else
+            Similarity2s(
+                read offset v.Scale,
+                Euclidean2s(
+                    Rot2s(read (offset + 1) v.Rot.Angle), 
+                    read (offset + 2) v.Trans
+                )
+            )
 
     type Problem with
-        member x.AddParameterBlock(rs : Similarity3d[]) = x.AddParameterBlock(rs, pickle, unpickle, read)
+        member x.AddParameterBlock(rs : Similarity3d[]) = x.AddParameterBlock(rs, pickle3, unpickle3, read3)
+        member x.AddParameterBlock(rs : Similarity2d[]) = x.AddParameterBlock(rs, read2)

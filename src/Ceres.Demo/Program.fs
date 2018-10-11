@@ -35,7 +35,7 @@ let findRot () =
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
     
-    problem.AddCostFunction(samples.Length * 3, pTrafo, TrivialLoss, fun trafo res ->
+    problem.AddCostFunctionScalar(samples.Length * 3, pTrafo, TrivialLoss, fun trafo res  ->
         let trafo = trafo.[0]
 
         let mutable ri = 0
@@ -82,7 +82,8 @@ let findEuclidean () =
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
     
-    problem.AddCostFunction(samples.Length * 3, pTrafo, TrivialLoss, fun trafo res ->
+    
+    problem.AddCostFunctionScalar(samples.Length * 3, pTrafo, TrivialLoss, fun trafo res ->
         let trafo = trafo.[0]
 
         let mutable ri = 0
@@ -128,24 +129,19 @@ let findSimilarity () =
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
     
-    problem.AddCostFunctionI(samples.Length, pTrafo, fun (trafo: Similarity3s[]) (i : int) ->
+    //problem.AddCostFunction(samples.Length, pTrafo, fun trafo i ->
+    //    let trafo = trafo.[0]
+    //    let (l,r) = samples.[i]
+    //    trafo.TransformPos l - r
+    //)
+    
+    problem.AddCostFunction(samples.Length, pTrafo, fun trafo ->
         let trafo = trafo.[0]
 
-        let (l,r) = samples.[i]
-        trafo.TransformPos l - r
-
-        //let mutable ri = 0
-        //for i in 0 .. samples.Length - 1 do
-        //    let (l,r) = samples.[i]
-
-        //    let r = trafo.TransformPos l - r
-
-        //    res.[ri + 0] <- r.X
-        //    res.[ri + 1] <- r.Y
-        //    res.[ri + 2] <- r.Z
-        //    ri <- ri + 3
+        samples |> Array.map (fun (l,r) ->
+            trafo.TransformPos l - r
+        )
     )
-
 
     let residual =
         problem.Solve {
@@ -198,9 +194,10 @@ let cosSin () =
 
 [<EntryPoint>]
 let main argv =
-    findSimilarity()
-    //findEuclidean()
+    //cosSin()
     //findSimilarity()
+    //findEuclidean()
+    findRot()
     
 
     0 
