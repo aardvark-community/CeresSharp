@@ -6,6 +6,30 @@ open Aardvark.Base
 
 let rand = RandomSystem()
 
+let randomDistortion() =
+    RadialDistortion2d(
+        (rand.UniformDouble() - 0.5),
+        (rand.UniformDouble() - 0.5),
+        (rand.UniformDouble() - 0.5),
+        (rand.UniformDouble() - 0.5)
+    )
+
+    
+let randomProjection() =
+    {
+        focalLength = rand.UniformDouble() * 2.0 + 0.1
+        aspect = rand.UniformDouble() * 4.0 + 0.5
+        principalPoint = rand.UniformV2dDirection() * rand.UniformDouble() * 0.1
+        distortion = 
+            RadialDistortion2d(
+                (rand.UniformDouble() - 0.5) * 0.01,
+                (rand.UniformDouble() - 0.5) * 0.01,
+                (rand.UniformDouble() - 0.5) * 0.01,
+                (rand.UniformDouble() - 0.5) * 0.01
+            )
+
+    }
+
 let randomRot2d() =
     let angle = rand.UniformDouble() * Constant.PiTimesTwo
     Rot2d(angle)
@@ -491,24 +515,147 @@ let tenthOrder() =
     Log.line "residual: %.4f" res
     Log.line "x = %A" x
     Log.stop()
+    
+
+let findDistortion() =
+    Log.start "RadialDistortion2d"
+
+    let distortion = randomDistortion() 
+
+    let samples = 
+        let ndc = Box2d(-V2d.II, V2d.II)
+        Array.init 100 (fun _ ->
+            let pt = rand.UniformV2d(ndc)
+            let d = distortion.TransformPos pt
+            if ndc.Contains d then
+                Some (pt, d)
+            else
+                None
+        )
+        |> Array.choose id
+
+    use problem = new Problem()
+    use dist = problem.AddParameterBlock [| RadialDistortion2d.Identitiy |]
+    problem.AddCostFunction(samples.Length, dist, fun dist i ->
+        let dist = dist.[0]
+        let (l,r) = samples.[i]
+        dist.TransformPos l - r
+    )
+
+    let residual = 
+        problem.Solve {
+            maxIterations = 50
+            solverType = DenseQr
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        } 
+
+    let recovered = dist.Result.[0]
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" distortion
+    Log.line "rec: %A" recovered
+    
+    Log.stop()
+    
+
+let findProjection() =
+    Log.start "Projection3d"
+
+    let original = randomProjection() 
+
+    let samples = 
+        let ndc = Box2d(-V2d.II, V2d.II)
+        Array.init 100 (fun _ ->
+            let pt = rand.UniformV2d(ndc)
+            let d = original.Unproject pt
+            
+
+            d, pt
+        )
+
+    use problem = new Problem()
+    use proj = problem.AddParameterBlock [| randomProjection() |]
+    problem.AddCostFunction(samples.Length, proj, fun proj i ->
+        let proj = proj.[0]
+        let (l,r) = samples.[i]
+        proj.ProjectUnsafe(V3s l) - r
+    )
+
+    let residual = 
+        problem.Solve {
+            maxIterations = 100
+            solverType = DenseQr
+            print = false
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        } 
+
+    let recovered = proj.Result.[0]
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" original
+    Log.line "rec: %A" recovered
+    
+    Log.stop()
+    
+let findPointTrafo() =
+    
+
+
+    let sim = randomSimilarity3d()
+    let box = Box3d(-10.0 * V3d.III, 10.0 * V3d.III)
+    let corresponding =
+        Array.init 200 (fun i ->
+            if i > 3 && rand.UniformDouble() < 0.0 then
+                rand.UniformV3d(box), rand.UniformV3d(box)
+            else
+                let a = rand.UniformV3d(box)
+                let b = sim.TransformPos a
+
+                let noise = rand.UniformV3dDirection() * rand.UniformDouble() * 2.0
+
+                a, b + noise
+        )
+
+    match Ceres.tryRegisterPointCloud 0.05 corresponding with
+        | Some trafo ->
+            let test = sim * trafo.Inverse
+            
+            
+
+            Log.line "org:  %A" sim
+            Log.line "rec:  %A" trafo
+            Log.line "scale: %A" test.Scale
+            Log.line "angle: %.4f°" (Constant.DegreesPerRadian * test.Rot.ToAngleAxis().Length)
+            Log.line "trans: %.4f" (sim.Trans.Length / trafo.Trans.Length)
+
+        | None ->
+            Log.error "no work"
+
+
 
 
 [<EntryPoint>]
 let main argv =
-    cosSin()
-    powell()
+    findPointTrafo()
 
-    findRot2d()
-    findEuclidean2d()
-    findSimilarity2d()
-    findCircle()
+    //cosSin()
+    //powell()
 
-    findRot3d()
-    findEuclidean3d()
-    findSimilarity3d()
-    findSphere()
+    //findRot2d()
+    //findEuclidean2d()
+    //findSimilarity2d()
+    //findCircle()
+
+    //findRot3d()
+    //findEuclidean3d()
+    //findSimilarity3d()
+    //findSphere()
     
-
+    //findDistortion()
     //tenthOrder()
+    //findProjection()
 
     0 
