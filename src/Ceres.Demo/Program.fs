@@ -619,7 +619,7 @@ let findPointTrafo() =
                 a, b + noise
         )
 
-    match Ceres.tryRegisterPointCloud 0.05 corresponding with
+    match Ceres.registerPointsSimilarity 0.05 corresponding with
         | Some trafo ->
             let test = sim * trafo.Inverse
             
