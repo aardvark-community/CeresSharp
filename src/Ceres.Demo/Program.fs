@@ -75,7 +75,7 @@ let findRot2d () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -123,7 +123,7 @@ let findRot3d () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -171,7 +171,7 @@ let findEuclidean2d () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -220,7 +220,7 @@ let findEuclidean3d () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -266,7 +266,7 @@ let findSimilarity2d () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -312,7 +312,7 @@ let findSimilarity3d () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -350,7 +350,7 @@ let findCircle () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -389,7 +389,7 @@ let findSphere () =
     let residual =
         problem.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -423,7 +423,7 @@ let cosSin () =
     let res = 
         p.Solve {
             maxIterations = 50
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -454,7 +454,7 @@ let powell() =
     let res = 
         problem.Solve {
             maxIterations = 100
-            solverType = DenseSchur
+            solverType = DenseQr
             print = false
             functionTolerance = 1.0E-16
             gradientTolerance = 1.0E-16
@@ -465,6 +465,33 @@ let powell() =
     Log.line "residual: %.4f" res
     Log.line "x = %A" x
     Log.stop()
+
+let tenthOrder() =
+    Log.start "(x-10)^10"
+    use problem = new Problem()
+    
+    use x = problem.AddParameterBlock [| 3.0 |]
+
+    problem.AddCostFunction(1, x, fun x _ ->
+        let x = x.[0]
+        (x - 10.0) ** 10.0
+    )
+
+    let res = 
+        problem.Solve {
+            maxIterations = 100
+            solverType = DenseQr
+            print = true
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        } 
+
+    let x = x.Result 
+    Log.line "residual: %.4f" res
+    Log.line "x = %A" x
+    Log.stop()
+
 
 [<EntryPoint>]
 let main argv =
@@ -481,5 +508,7 @@ let main argv =
     findSimilarity3d()
     findSphere()
     
+
+    //tenthOrder()
 
     0 
