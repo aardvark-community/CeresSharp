@@ -76,12 +76,10 @@ type Rot2s(angle : scalar) =
 type Rot3s(angleAxis : V3s) =
 
     static let asQuaternion (l : Rot3s) (f : V4s -> V4s)  =
-        f (l.ToQuaternion())
-        |> Rot3s.OfQuaternion
+        f (l.ToQuaternion()) |> Rot3s.OfQuaternion
 
     static let asQuaternion2 (l : Rot3s) (r : Rot3s) (f : V4s -> V4s -> V4s)  =
-        f (l.ToQuaternion()) (r.ToQuaternion())
-        |> Rot3s.OfQuaternion
+        f (l.ToQuaternion()) (r.ToQuaternion()) |> Rot3s.OfQuaternion
 
     static member private OfQuaternion(q : V4s) =
         let w = q.W
@@ -89,7 +87,7 @@ type Rot3s(angleAxis : V3s) =
         let sinTheta2 = v.LengthSquared
         if sinTheta2.Value > Constant.PositiveTinyValue then
             let sinTheta = sqrt sinTheta2
-            let cosTheta = q.X
+            let cosTheta = w
             let twoTheta = 2.0 * atan (sinTheta / cosTheta)
             Rot3s(v * (twoTheta / sinTheta))
         else
@@ -119,7 +117,7 @@ type Rot3s(angleAxis : V3s) =
     member x.InvTransformPos(d : V3d) = AngleAxis.RotatePoint(-angleAxis, d)
 
     member x.Inverse = Rot3s(-angleAxis)
-    member x.Conjugated = asQuaternion x (fun q -> -q)
+    member x.Conjugated = asQuaternion x (fun q -> V4s(-q.X, -q.Y, -q.Z, q.W))
 
     static member FromAngleAxis(aa : V3s) = Rot3s(aa)
     member x.ToAngleAxis() = angleAxis
@@ -142,37 +140,37 @@ type Rot3s(angleAxis : V3s) =
     static member (+) (l : Rot3s, r : Rot3d) = asQuaternion l (fun v -> v + V4d(r.V, r.W))
     static member (+) (l : Rot3d, r : Rot3s) = asQuaternion r (fun v -> V4d(l.V, l.W) + v)
 
-    static member (-) (l : Rot3s, r : Rot3s) = asQuaternion2 l r (+)
+    static member (-) (l : Rot3s, r : Rot3s) = asQuaternion2 l r (-)
     static member (-) (l : Rot3s, r : Rot3d) = asQuaternion l (fun v -> v - V4d(r.V, r.W))
     static member (-) (l : Rot3d, r : Rot3s) = asQuaternion r (fun v -> V4d(l.V, l.W) - v)
     
     static member (*) (l : Rot3s, r : Rot3s) =
         asQuaternion2 l r (fun a b ->
             V4s(
-                a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z,
                 a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
                 a.W * b.Y + a.Y * b.W + a.Z * b.X - a.X * b.Z,
-                a.W * b.Z + a.Z * b.W + a.X * b.Y - a.Y * b.X
+                a.W * b.Z + a.Z * b.W + a.X * b.Y - a.Y * b.X,
+                a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z
             )
         )
           
     static member (*) (l : Rot3s, b : Rot3d) =
         asQuaternion l (fun a ->
             V4s(
-                a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z,
                 a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
                 a.W * b.Y + a.Y * b.W + a.Z * b.X - a.X * b.Z,
-                a.W * b.Z + a.Z * b.W + a.X * b.Y - a.Y * b.X
+                a.W * b.Z + a.Z * b.W + a.X * b.Y - a.Y * b.X,
+                a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z
             )
         )
 
     static member (*) (a : Rot3d, r : Rot3s) =
         asQuaternion r (fun b ->
             V4s(
-                a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z,
                 a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
                 a.W * b.Y + a.Y * b.W + a.Z * b.X - a.X * b.Z,
-                a.W * b.Z + a.Z * b.W + a.X * b.Y - a.Y * b.X
+                a.W * b.Z + a.Z * b.W + a.X * b.Y - a.Y * b.X,
+                a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z
             )
         )
 

@@ -162,11 +162,11 @@ type scalar =
             
         static member Acos (v : scalar) =
             let d = -sqrt(1.0 - v.Value*v.Value)
-            scalar(asin v.Value, Jacobian.Div(v.Jacobian, d))
+            scalar(acos v.Value, Jacobian.Div(v.Jacobian, d))
             
         static member Atan (v : scalar) =
             let d = 1.0 + v.Value*v.Value
-            scalar(asin v.Value, Jacobian.Div(v.Jacobian, d))
+            scalar(atan v.Value, Jacobian.Div(v.Jacobian, d))
 
         static member Variable(id : int, v : float) =
             scalar(v, MapExt.ofList [id, 1.0])

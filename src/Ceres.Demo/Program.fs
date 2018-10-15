@@ -314,7 +314,7 @@ let findSimilarity3d () =
             pt, trafo.TransformPos pt
         )
 
-    let guess = randomSimilarity3d()
+    let guess = trafo
 
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
@@ -636,10 +636,46 @@ let findPointTrafo() =
 
 
 
+let findInverseRot3d () =
+    Log.start "Rot3d"
+    let trafo = randomRot3d()
+    
+    let guess = randomRot3d()
+
+    use problem = new Problem()
+    use pTrafo = problem.AddParameterBlock [| guess |]
+    
+    let target = trafo.Inverse
+    problem.AddCostFunction(1, pTrafo, TrivialLoss, fun inv _  ->
+        let res = (inv.[0] * target).ToAngleAxis()
+        
+        res
+
+    )
+
+
+    let residual =
+        problem.Solve {
+            maxIterations = 50
+            solverType = DenseQr
+            print = true
+            functionTolerance = 1.0E-16
+            gradientTolerance = 1.0E-16
+            parameterTolerance = 1.0E-16
+        }
+    
+    let recovered = pTrafo.Result.[0]
+
+    Log.line "residual %.4f" residual
+    Log.line "org: %A" trafo
+    Log.line "rec: %A" recovered
+    Log.stop()
+
 
 [<EntryPoint>]
 let main argv =
-    findPointTrafo()
+    findInverseRot3d()
+    //findPointTrafo()
 
     //cosSin()
     //powell()
