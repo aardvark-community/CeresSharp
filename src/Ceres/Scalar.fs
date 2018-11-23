@@ -7,24 +7,25 @@ open Aardvark.Base
 #nowarn "9"
 
 
-type Jacobian<'a> = Map<int, 'a>
+type Jacobian<'a> = MapExt<int, 'a>
 
 type Jacobian =
     
     static member ZipWith (f : 'a -> 'a -> 'a) (l : Jacobian<'a>) (r : Jacobian<'a>) =
-        if Map.isEmpty l then r
-        elif Map.isEmpty r then l
-        else
-            let mutable res = l
-            for kvp in r do
-                match Map.tryFind kvp.Key res with
-                    | Some l -> res <- Map.add kvp.Key (f l kvp.Value) res
-                    | _ -> res <- Map.add kvp.Key kvp.Value res
-            res
+        if MapExt.isEmpty l then r
+        elif MapExt.isEmpty r then l
+        else MapExt.unionWith f l r
+            
+            //let mutable res = l
+            //for kvp in r do
+            //    match Map.tryFind kvp.Key res with
+            //        | Some l -> res <- Map.add kvp.Key (f l kvp.Value) res
+            //        | _ -> res <- Map.add kvp.Key kvp.Value res
+            //res
 
     static member Map (f : 'a -> 'b) (l : Jacobian<'a>) =
-        if Map.isEmpty l then Map.empty
-        else l |> Map.map (fun _ v -> f v)
+        if MapExt.isEmpty l then MapExt.empty
+        else l |> MapExt.map (fun _ v -> f v)
 
 
     static member inline Add (l : Jacobian<'a>, r : Jacobian<'a>) =
@@ -34,15 +35,15 @@ type Jacobian =
         Jacobian.ZipWith (+) l (Jacobian.Map (~-) r)
 
     static member inline Mul (l : 'b, r : Jacobian<'a>) =
-        if Map.isEmpty r then Map.empty
+        if MapExt.isEmpty r then MapExt.empty
         else Jacobian.Map (fun v -> l * v) r
 
     static member inline Mul (l : Jacobian<'a>, r : 'b) =
-        if Map.isEmpty l then Map.empty
+        if MapExt.isEmpty l then MapExt.empty
         else Jacobian.Map (fun v -> v * r) l
 
     static member inline Div (l : Jacobian<'a>, r : 'b) =
-        if Map.isEmpty l then Map.empty
+        if MapExt.isEmpty l then MapExt.empty
         else Jacobian.Map (fun v -> v / r) l
 
 
@@ -71,12 +72,11 @@ type scalar =
             x.Value.GetHashCode()
 
         override x.ToString() =
-            let d = x.Jacobian |> Map.toSeq |> Seq.map (fun (vi, v) -> sprintf "dv/d%d = %f" vi v) |> String.concat "; "
+            let d = x.Jacobian |> MapExt.toSeq |> Seq.map (fun (vi, v) -> sprintf "dv/d%d = %f" vi v) |> String.concat "; "
             if d.Length > 0 then
                 sprintf "{ v = %f; %s }" x.Value d
             else
                 sprintf "%f" x.Value
-
 
         static member Equation(l : scalar, r : scalar) =
             Equation [l - r]
@@ -88,8 +88,8 @@ type scalar =
         static member Equation(l : float, r : scalar) =
             Equation [scalar l - r]
 
-        static member Zero = scalar(0.0, Map.empty)
-        static member One = scalar(1.0, Map.empty)
+        static member Zero = scalar(0.0, MapExt.empty)
+        static member One = scalar(1.0, MapExt.empty)
 
         static member (~-) (l : scalar) =
             scalar(-l.Value, Jacobian.Map (~-) l.Jacobian)
@@ -156,24 +156,34 @@ type scalar =
             if v.Value > 0.0 then v
             else -v
 
+        static member Asin (v : scalar) =
+            let d = sqrt(1.0 - v.Value*v.Value)
+            scalar(asin v.Value, Jacobian.Div(v.Jacobian, d))
+            
+        static member Acos (v : scalar) =
+            let d = -sqrt(1.0 - v.Value*v.Value)
+            scalar(acos v.Value, Jacobian.Div(v.Jacobian, d))
+            
+        static member Atan (v : scalar) =
+            let d = 1.0 + v.Value*v.Value
+            scalar(atan v.Value, Jacobian.Div(v.Jacobian, d))
+
         static member Variable(id : int, v : float) =
-            scalar(v, Map.ofList [id, 1.0])
-
-
-
+            scalar(v, MapExt.ofList [id, 1.0])
+            
         new(v : float, j : Jacobian<float>) = { Value = v; Jacobian = j }
 
-        new(v : int8) = { Value = float v; Jacobian = Map.empty }
-        new(v : uint8) = { Value = float v; Jacobian = Map.empty }
-        new(v : int16) = { Value = float v; Jacobian = Map.empty }
-        new(v : uint16) = { Value = float v; Jacobian = Map.empty }
-        new(v : int32) = { Value = float v; Jacobian = Map.empty }
-        new(v : uint32) = { Value = float v; Jacobian = Map.empty }
-        new(v : int64) = { Value = float v; Jacobian = Map.empty }
-        new(v : uint64) = { Value = float v; Jacobian = Map.empty }
-        new(v : float32) = { Value = float v; Jacobian = Map.empty }
-        new(v : float) = { Value = v; Jacobian = Map.empty }
-        new(v : decimal) = { Value = float v; Jacobian = Map.empty }
+        new(v : int8) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : uint8) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : int16) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : uint16) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : int32) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : uint32) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : int64) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : uint64) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : float32) = { Value = float v; Jacobian = MapExt.empty }
+        new(v : float) = { Value = v; Jacobian = MapExt.empty }
+        new(v : decimal) = { Value = float v; Jacobian = MapExt.empty }
     end
 
 and Equation =
