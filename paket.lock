@@ -22,7 +22,7 @@ NUGET
       FSharp.Core (>= 3.1.2) - restriction: || (== net471) (&& (== netcoreapp2.0) (>= net45)) (&& (== netstandard2.0) (>= net45))
       FSharp.Core (>= 4.3.2) - restriction: || (&& (== net471) (< net45)) (== netcoreapp2.0) (== netstandard2.0)
       System.Reflection.Emit.Lightweight (>= 4.3) - restriction: || (&& (== net471) (< net45)) (== netcoreapp2.0) (== netstandard2.0)
-    Microsoft.NETCore.Platforms (2.1.1) - restriction: || (&& (== net471) (>= dnxcore50)) (&& (== net471) (< net45)) (== netcoreapp2.0) (== netstandard2.0)
+    Microsoft.NETCore.Platforms (2.1.2) - restriction: || (&& (== net471) (>= dnxcore50)) (&& (== net471) (< net45)) (== netcoreapp2.0) (== netstandard2.0)
     Microsoft.NETCore.Targets (2.1) - restriction: || (&& (== net471) (>= dnxcore50)) (&& (== net471) (< net45)) (== netcoreapp2.0) (== netstandard2.0)
     System.Collections (4.3) - restriction: || (&& (== net471) (>= dnxcore50)) (&& (== net471) (< net45)) (== netcoreapp2.0) (== netstandard2.0)
       Microsoft.NETCore.Platforms (>= 1.1) - restriction: || (&& (== net471) (>= dnxcore50)) (&& (== net471) (< net45)) (== netcoreapp2.0) (== netstandard2.0)
@@ -153,8 +153,8 @@ NUGET
     Mono.Cecil (0.10.1)
     SourceLink.Fake (1.1)
 GITHUB
-  remote: vrvis/Aardvark.Fake
-    FULLPROJECT (a67246f7ceec0cb8bc9e529addf3cf8701937665)
+  remote: aardvark-platform/aardvark.fake
+    FULLPROJECT (a6577d8e0d5572104194801c3c14893394276f5e)
       FAKE (>= 4.63 < 4.64)
       Mono.Cecil (>= 0.10.0-beta6 < 0.11)
       SourceLink.Fake (>= 1.1 < 1.2)

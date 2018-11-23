@@ -8,4 +8,4 @@ group Build
 framework: net471
 content: none
 source https://api.nuget.org/v3/index.json
-github vrvis/Aardvark.Fake:v4-temp
+github aardvark-platform/aardvark.fake:v4-temp
