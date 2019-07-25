@@ -1,8 +1,8 @@
 framework: netstandard2.0, net471, netcoreapp2.0
 source https://api.nuget.org/v3/index.json
 
-nuget Aardvark.Base        >= 4.3.2
-nuget Aardvark.Base.FSharp >= 4.3.2
+nuget Aardvark.Base >= 4.5.8
+nuget Aardvark.Base.FSharp >= 4.5.8
 
 group Build
 framework: net471
