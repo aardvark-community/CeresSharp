@@ -674,6 +674,8 @@ let findInverseRot3d () =
 
 [<EntryPoint>]
 let main argv =
+    Aardvark.Init()
+    
     findInverseRot3d()
     //findPointTrafo()
 

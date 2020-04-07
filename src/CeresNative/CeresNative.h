@@ -1,5 +1,12 @@
+#ifndef __GNUC__
+#ifndef __APPLE__
 #include "stdafx.h"
+#endif
+#endif
 #include <iostream>
+#include <sys/types.h>
+
+using namespace std;
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 
@@ -7,7 +14,6 @@
 #include <ceres/rotation.h>
 
 
-using namespace std;
 using ceres::AutoDiffCostFunction;
 using ceres::CostFunction;
 using ceres::SizedCostFunction;
@@ -15,7 +21,9 @@ using ceres::Problem;
 using ceres::Solver;
 using ceres::Solve;
 
-#ifdef __GNUC__
+#ifdef __APPLE__
+#define DllExport(t) extern "C" t
+#elif __GNUC__
 #define DllExport(t) extern "C" t
 #else
 #define DllExport(t) extern "C"  __declspec( dllexport ) t __cdecl

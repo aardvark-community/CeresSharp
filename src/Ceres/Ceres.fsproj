@@ -13,6 +13,7 @@
   </PropertyGroup>
   <ItemGroup>
     <NativeDependency Include="$(ProjectDir)..\..\libs\Native\Ceres\windows\AMD64\*.dll" />
+    <NativeDependency Include="$(ProjectDir)..\..\libs\Native\Ceres\linux\AMD64\*.so" />
   </ItemGroup>
   <Target Name="CopyNative" AfterTargets="Build">
     <MakeDir Condition="!Exists('$(OutputPath)..\netstandard2.0\')" Directories="$(OutputPath)..\netstandard2.0\" />

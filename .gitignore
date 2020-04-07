@@ -1,3 +1,7 @@
+Aardvark.log
+.ionide
+src/**/*.o
+src/**/*.so
 bin/Release
 bin/Debug
 *.swp

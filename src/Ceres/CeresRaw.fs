@@ -90,7 +90,7 @@ type CeresCostFunctionDelegate = delegate of nativeptr<nativeptr<float>> * nativ
 module CeresRaw =
     
     [<Literal>]
-    let lib = "CeresNative.dll"
+    let lib = "CeresNative"
     
     [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
     extern CeresLossFunctionHandle cCreateLossFunction(CeresLossFunction f)
