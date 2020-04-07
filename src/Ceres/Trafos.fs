@@ -456,7 +456,7 @@ type Similarity2d(scale : float, euclidean : Euclidean2d) =
             l.Scale * r.Scale,
             Euclidean2d(
                 l.Rot * r.Rot,
-                l.Trans + l.Rot.TransformDir(l.Scale * r.Trans)
+                l.Trans + l.Rot.Transform(l.Scale * r.Trans)
             )
         )
         
@@ -465,7 +465,7 @@ type Similarity2d(scale : float, euclidean : Euclidean2d) =
             r.Scale,
             Euclidean2d(
                 l.Rot * r.Rot,
-                l.Trans + l.Rot.TransformDir(r.Trans)
+                l.Trans + l.Rot.Transform(r.Trans)
             )
         )
 
@@ -474,7 +474,7 @@ type Similarity2d(scale : float, euclidean : Euclidean2d) =
             l.Scale,
             Euclidean2d(
                 l.Rot * r.Rot,
-                l.Trans + l.Rot.TransformDir(l.Scale * r.Trans)
+                l.Trans + l.Rot.Transform(l.Scale * r.Trans)
             )
         )
            
@@ -483,7 +483,7 @@ type Similarity2d(scale : float, euclidean : Euclidean2d) =
             r.Scale,
             Euclidean2d(
                 l * r.Rot,
-                l.TransformDir(r.Trans)
+                l.Transform(r.Trans)
             )
         )
 
@@ -686,7 +686,7 @@ type Similarity3s(euclidean : Euclidean3s, sqrtscale : scalar) =
         Similarity3s(news, Euclidean3s(newr.Rot, newr.Trans * news))
         
     new(scale : scalar, e : Euclidean3s) = Similarity3s(e, sqrt scale)
-    new(s : Similarity3d) = Similarity3s(scalar s.Scale, Euclidean3s s.EuclideanTransformation)
+    new(s : Similarity3d) = Similarity3s(scalar s.Scale, Euclidean3s s.Euclidean)
 
 
 [<AutoOpen>]

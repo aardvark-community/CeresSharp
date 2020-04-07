@@ -1,36 +1,19 @@
-#load @"paket-files/build/aardvark-platform/Aardvark.Fake/DefaultSetup.fsx"
 
-open Fake
+#r "paket: groupref Build //"
+#load ".fake/build.fsx/intellisense.fsx"
+#load @"paket-files/build/aardvark-platform/aardvark.fake/DefaultSetup.fsx"
+
 open System
 open System.IO
 open System.Diagnostics
 open Aardvark.Fake
-open Fake.Testing
-
+open Fake.Core
+open Fake.Tools
+open Fake.IO.Globbing.Operators
+open System.Runtime.InteropServices
 
 do Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
-
-let sln = ["src/Ceres.sln"]
-DefaultSetup.install sln
-
-Target "UnpackCeresNative" (fun () ->
-    // todo: repack on push?
-    Console.WriteLine("Unzipping CERES static lib.")
-    
-    let unzipToIfNotExists zip target =
-        if File.Exists target |> not then
-            let dir = Path.GetDirectoryName target
-            System.IO.Compression.ZipFile.ExtractToDirectory(zip,dir)
-    
-    unzipToIfNotExists @"lib\ceres\x64\Debug\ceres_static.zip" @"lib\ceres\x64\Debug\ceres_static.lib"
-    unzipToIfNotExists @"lib\ceres\x64\Release\ceres_static.zip" @"lib\ceres\x64\Release\ceres_static.lib"
-)
-
-"UnpackCeresNative" ==> "Restore" |> ignore
-
-#if DEBUG
-do System.Diagnostics.Debugger.Launch() |> ignore
-#endif
+DefaultSetup.install ["src/Ceres.sln"]
 
 
 entry()

@@ -37,7 +37,7 @@ let randomRot2d() =
 let randomRot3d() =
     let axis  = rand.UniformV3dDirection()
     let angle = rand.UniformDouble() * Constant.Pi
-    Rot3d(axis, angle)
+    Rot3d.Rotation(axis, angle)
 
 let randomEuclidean2d() =
     let trans = rand.UniformV2dDirection() * rand.UniformDouble() * 10.0
@@ -73,7 +73,7 @@ let findRot2d () =
     let samples =
         Array.init 5 (fun _ ->
             let pt = rand.UniformV2dDirection() * rand.UniformDouble() * 10.0
-            pt, trafo.TransformPos pt
+            pt, trafo.Transform pt
         )
 
     let guess = randomRot2d()
@@ -120,7 +120,7 @@ let findRot3d () =
     let samples =
         Array.init 5 (fun _ ->
             let pt = rand.UniformV3dDirection() * rand.UniformDouble() * 10.0
-            pt, trafo.TransformPos pt
+            pt, trafo.Transform pt
         )
 
     let guess = randomRot3d()

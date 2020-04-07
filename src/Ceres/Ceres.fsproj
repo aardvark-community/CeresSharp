@@ -7,12 +7,19 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>..\..\bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DebugType>None</DebugType>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <OutputPath>..\..\bin\Release\</OutputPath>
-    <DebugType>None</DebugType>
   </PropertyGroup>
+  <ItemGroup>
+    <NativeDependency Include="$(ProjectDir)..\..\libs\Native\Ceres\windows\AMD64\*.dll" />
+  </ItemGroup>
+  <Target Name="CopyNative" AfterTargets="Build">
+    <MakeDir Condition="!Exists('$(OutputPath)..\netstandard2.0\')" Directories="$(OutputPath)..\netstandard2.0\" />
+    <MakeDir Condition="!Exists('$(OutputPath)..\netcoreapp3.1\')" Directories="$(OutputPath)..\netcoreapp3.1\" />
+    <Copy SourceFiles="@(NativeDependency)" DestinationFolder="$(OutputPath)..\netstandard2.0\" ContinueOnError="true" />
+    <Copy SourceFiles="@(NativeDependency)" DestinationFolder="$(OutputPath)..\netcoreapp3.1\"  ContinueOnError="true" />
+  </Target>
   <ItemGroup>
     <None Include="CostFunctionGenerator.fsx" />
     <None Include="CodeGen.fsx" />
