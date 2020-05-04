@@ -1,6 +1,8 @@
 framework: netstandard2.0, netcoreapp3.1
 source https://api.nuget.org/v3/index.json
 
+
+nuget FSharp.Core >= 4.6.2 lowest_matching: true
 nuget Aardvark.Base >= 5.0.0 < 6.0.0
 nuget Aardvark.Base.FSharp >= 5.0.0 < 6.0.0
 
