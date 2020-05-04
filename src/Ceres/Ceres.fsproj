@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>..\..\bin\Debug\</OutputPath>
