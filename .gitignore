@@ -39,3 +39,6 @@ lib/ceres/x64/Release/ceres_static.lib
 /src/CeresNative/*.user
 /.paket
 /.fake
+.DS_Store
+src/CeresNative/CeresNative.dylib
+src/CeresNative/*.o

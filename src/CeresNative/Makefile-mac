@@ -1,0 +1,37 @@
+all: deploy
+
+deploy: CeresNative.dylib
+	cp CeresNative.dylib ../../libs/Native/Ceres/mac/AMD64/
+
+CeresNative.dylib: CeresNative.o 
+	g++ CeresNative.o -shared -o CeresNative.dylib \
+	/usr/local/lib/libceres.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libcholmod.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libcxsparse.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libcsparse.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libcolamd.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libccolamd.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libspqr.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libumfpack.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libklu.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libldl.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libamd.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libbtf.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libcamd.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/librbio.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libmongoose.a \
+	/usr/local/Cellar/suite-sparse/5.7.2/lib/libsuitesparseconfig.a \
+	/usr/local/Cellar/openblas/0.3.9/lib/libopenblas.a \
+	/usr/local/Cellar/libomp/10.0.0/lib/libomp.a \
+	/usr/local/Cellar/gcc/9.3.0_1/lib/gcc/9/gcc/x86_64-apple-darwin19/9.3.0/libgcc.a \
+	/usr/local/Cellar/gcc/9.3.0_1/lib/gcc/9/libquadmath.a \
+	/usr/local/Cellar/gcc/9.3.0_1/lib/gcc/9/libgfortran.a \
+	/Users/atti/proj/gflags/build-out/lib/libgflags.a \
+	/Users/atti/proj/metis-5.1.0/build/Darwin-x86_64/libmetis/libmetis.a \
+	/Users/atti/proj/glog/.libs/libglog.a
+
+CeresNative.o:
+	g++ -std=c++11 -fPIC -I/usr/local/Cellar/eigen/3.3.7/include/eigen3 -c CeresNative.cpp  -o CeresNative.o
+
+.PHONY clean:
+	rm -f *.o && rm CeresNative.dylib
