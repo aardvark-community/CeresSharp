@@ -4,6 +4,8 @@ open System.Runtime.InteropServices
 open Microsoft.FSharp.NativeInterop
 open Aardvark.Base
 
+#nowarn "9"
+
 let rand = RandomSystem()
 
 let randomDistortion() =
@@ -65,6 +67,42 @@ let randomSphere() =
     let c = rand.UniformV3dDirection() * rand.UniformDouble() * 5.0
     Sphere3d(c, r)
 
+let custom () =
+    
+    use problem = new Problem()
+    let b = problem.AddParameterBlock [| 100.0 |]
+
+    problem.AddCostFunction([|1, b.Pointer|], 1, LossFunction.TrivialLoss, (fun (i : nativeptr<nativeptr<float>>, r : nativeptr<float>, j : nativeptr<nativeptr<float>>) ->
+        let x = NativePtr.read (NativePtr.read i)
+        
+        let res = sin x
+        let j00 = cos x
+
+        NativePtr.write r res
+
+        if j <> NativePtr.zero then
+            let j0 = NativePtr.read j
+            if j0 <> NativePtr.zero then
+                NativePtr.write j0 j00
+
+        1   
+    ), id)
+
+    let rms = 
+        problem.Solve {
+            parameterTolerance = 1E-8
+            functionTolerance = 1E-8
+            gradientTolerance = 1E-8
+            solverType = SolverType.DenseQr
+            maxIterations = 100
+            print = true
+        }
+
+    printfn "%A (%A)" b.Result.[0] (sin )
+
+
+
+
 
 let findRot2d () =
     Log.start "Rot2d"
@@ -81,6 +119,7 @@ let findRot2d () =
     use problem = new Problem()
     use pTrafo = problem.AddParameterBlock [| guess |]
     
+
     problem.AddCostFunctionScalar(samples.Length * 2, pTrafo, TrivialLoss, fun trafo res  ->
         let trafo = trafo.[0]
 
@@ -675,8 +714,9 @@ let findInverseRot3d () =
 [<EntryPoint>]
 let main argv =
     Aardvark.Init()
-    
-    findInverseRot3d()
+    custom()
+
+    //findInverseRot3d()
     //findPointTrafo()
 
     //cosSin()
