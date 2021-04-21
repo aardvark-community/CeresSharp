@@ -714,7 +714,7 @@ let findInverseRot3d () =
 [<EntryPoint>]
 let main argv =
     Aardvark.Init()
-    custom()
+    findEuclidean3d()
 
     //findInverseRot3d()
     //findPointTrafo()

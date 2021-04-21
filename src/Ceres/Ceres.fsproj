@@ -2,7 +2,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -20,7 +19,7 @@
     <MakeDir Condition="!Exists('$(OutputPath)..\netstandard2.0\')" Directories="$(OutputPath)..\netstandard2.0\" />
     <MakeDir Condition="!Exists('$(OutputPath)..\netcoreapp3.1\')" Directories="$(OutputPath)..\netcoreapp3.1\" />
     <Copy SourceFiles="@(NativeDependency)" DestinationFolder="$(OutputPath)..\netstandard2.0\" ContinueOnError="true" />
-    <Copy SourceFiles="@(NativeDependency)" DestinationFolder="$(OutputPath)..\netcoreapp3.1\"  ContinueOnError="true" />
+    <Copy SourceFiles="@(NativeDependency)" DestinationFolder="$(OutputPath)..\netcoreapp3.1\" ContinueOnError="true" />
   </Target>
   <ItemGroup>
     <None Include="CostFunctionGenerator.fsx" />
