@@ -6,7 +6,7 @@ on:
       - newbuild
     paths:
       - RELEASE_NOTES.md
-      - .github/workflows/publish.yml 
+      - .github/workflows/publish.yml
 jobs:
   mac_x64:
     name: OSX (x64)
