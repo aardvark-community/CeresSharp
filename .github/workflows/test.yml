@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master
+      - newbuild
 jobs:
   mac:
     name: OSX (x64)
