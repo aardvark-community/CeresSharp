@@ -1,10 +1,11 @@
-framework: netstandard2.0, netcoreapp3.1
+framework: netstandard2.0, net6.0
 source https://api.nuget.org/v3/index.json
 
 
-nuget FSharp.Core >= 4.7.0 lowest_matching: true
-nuget Aardvark.Base >= 5.1.8 < 6.0.0
-nuget Aardvark.Base.FSharp >= 5.1.8 < 6.0.0
+nuget FSharp.Core >= 5.0 lowest_matching: true
+nuget Aardvark.Base ~> 5.1.25
+nuget Aardvark.Base.FSharp ~> 5.1.25
+nuget Aardvark.Build ~> 1.0.10
 
 group Build
 framework: netstandard2.0

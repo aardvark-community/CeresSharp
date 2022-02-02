@@ -1,0 +1,28 @@
+name: Publish
+on:
+  push:
+    branches:
+      - master
+jobs:
+  mac:
+    name: OSX (x64)
+    runs-on: macos-latest
+    steps:  
+      - uses: actions/checkout@v2
+      - name: Build Native Libraries
+        run: ./buildnative.sh x86_64
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '6.0.100'
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test
+        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+      - name: Upload OSX native libs
+        uses: actions/upload-artifact@v2
+        with:
+          name: osx
+          path: libs/Native/
