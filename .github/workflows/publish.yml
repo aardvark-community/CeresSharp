@@ -8,13 +8,70 @@ on:
       - RELEASE_NOTES.md
       - .github/workflows/publish.yml
 jobs:
-  mac_x64:
-    name: OSX (x64)
-    runs-on: macos-11
+  # mac_x64:
+  #   name: OSX (x64)
+  #   runs-on: macos-11
+  #   steps:  
+  #     - uses: actions/checkout@v2
+  #     - name: Build Native Libraries
+  #       run: ./buildnative.sh x86_64
+  #     - name: Install Dotnet
+  #       uses: actions/setup-dotnet@v1
+  #       with:
+  #         dotnet-version: '6.0.100'
+  #     - name: Restore Tools
+  #       run: dotnet tool restore
+  #     - name: Restore
+  #       run: dotnet paket restore
+  #     - name: Test
+  #       run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+  #     - name: Upload OSX native libs
+  #       uses: actions/upload-artifact@v2
+  #       with:
+  #         name: mac_x64
+  #         path: libs/Native/Ceres/mac/AMD64/
+  # mac_arm64:
+  #   name: OSX (arm64)
+  #   runs-on: macos-11
+  #   steps:  
+  #     - uses: actions/checkout@v2
+  #     - name: Build Native Libraries
+  #       run: ./buildnative.sh arm64
+  #     - name: Upload OSX native libs
+  #       uses: actions/upload-artifact@v2
+  #       with:
+  #         name: mac_arm64
+  #         path: libs/Native/Ceres/mac/ARM64/
+  # linux:
+  #   name: Linux (x64)
+  #   runs-on: ubuntu-18.04
+  #   steps:  
+  #     - uses: actions/checkout@v2
+  #     - name: Build Native Libraries
+  #       run: ./buildnative.sh
+  #     - name: Install Dotnet
+  #       uses: actions/setup-dotnet@v1
+  #       with:
+  #         dotnet-version: '6.0.100'
+  #     - name: Restore Tools
+  #       run: dotnet tool restore
+  #     - name: Restore
+  #       run: dotnet paket restore
+  #     - name: Test
+  #       run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+  #     - name: Upload Linux native libs
+  #       uses: actions/upload-artifact@v2
+  #       with:
+  #         name: linux_x64
+  #         path: libs/Native/Ceres/linux/AMD64/
+  windows:
+    name: Windows (x64)
+    runs-on: windows-latest
     steps:  
       - uses: actions/checkout@v2
       - name: Build Native Libraries
-        run: ./buildnative.sh x86_64
+        shell: cmd
+        run: buildnative.cmd
       - name: Install Dotnet
         uses: actions/setup-dotnet@v1
         with:
@@ -24,43 +81,9 @@ jobs:
       - name: Restore
         run: dotnet paket restore
       - name: Test
-        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
-      - name: Upload OSX native libs
-        uses: actions/upload-artifact@v2
-        with:
-          name: mac_x64
-          path: libs/Native/Ceres/mac/AMD64/
-  mac_arm64:
-    name: OSX (arm64)
-    runs-on: macos-11
-    steps:  
-      - uses: actions/checkout@v2
-      - name: Build Native Libraries
-        run: ./buildnative.sh arm64
-      - name: Upload OSX native libs
-        uses: actions/upload-artifact@v2
-        with:
-          name: mac_arm64
-          path: libs/Native/Ceres/mac/ARM64/
-  linux:
-    name: Linux (x64)
-    runs-on: ubuntu-18.04
-    steps:  
-      - uses: actions/checkout@v2
-      - name: Build Native Libraries
-        run: ./buildnative.sh
-      - name: Install Dotnet
-        uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: '6.0.100'
-      - name: Restore Tools
-        run: dotnet tool restore
-      - name: Restore
-        run: dotnet paket restore
-      - name: Test
-        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+        run: dotnet run --project src\Ceres.Demo\Ceres.Demo.fsproj
       - name: Upload Linux native libs
         uses: actions/upload-artifact@v2
         with:
-          name: linux_x64
-          path: libs/Native/Ceres/linux/AMD64/
+          name: windows_x64
+          path: libs/Native/Ceres/windows/AMD64/
