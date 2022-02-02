@@ -42,3 +42,5 @@ lib/ceres/x64/Release/ceres_static.lib
 .DS_Store
 src/CeresNative/CeresNative.dylib
 src/CeresNative/*.o
+/.vcpkg
+/src/CeresNative/build/
