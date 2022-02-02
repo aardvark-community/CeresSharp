@@ -8,7 +8,6 @@
         "**/Thumbs.db": true,
         "src/**/obj": true,
         ".ionide": true,
-        ".vcpkg": true,
         "packages": true,
         "paket-files": true,
     }
