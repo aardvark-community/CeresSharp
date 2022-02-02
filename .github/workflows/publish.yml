@@ -78,10 +78,13 @@ jobs:
         with:
           dotnet-version: '6.0.100'
       - name: Restore Tools
+        shell: cmd
         run: dotnet tool restore
       - name: Restore
+        shell: cmd
         run: dotnet paket restore
       - name: Test
+        shell: cmd
         run: dotnet run --project src\Ceres.Demo\Ceres.Demo.fsproj
       - name: Upload Windows native libs
         uses: actions/upload-artifact@v2
