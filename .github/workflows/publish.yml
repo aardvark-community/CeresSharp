@@ -73,7 +73,7 @@ jobs:
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Build Native Libraries
+      # - name: Build Native Libraries
       #   shell: cmd
       #   run: buildnative.cmd
       - name: Install Dotnet
