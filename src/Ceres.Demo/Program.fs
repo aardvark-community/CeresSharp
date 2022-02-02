@@ -710,17 +710,16 @@ let findInverseRot3d () =
     Log.line "rec: %A" recovered
     Log.stop()
 
-type Marker = class end
-
-open System.IO
-
 [<EntryPoint>]
 let main argv =
-    let ass = System.Reflection.Assembly.LoadFile (Path.Combine(Path.GetDirectoryName(typeof<Marker>.Assembly.Location), "Ceres.dll"))
-    Log.line "%A" ass
+    // temporary workaround for Introspection problem
+    let oldFilter = IntrospectionProperties.UnpackNativeLibrariesFilter
+    IntrospectionProperties.UnpackNativeLibrariesFilter <- Func<_,_>(fun a ->
+        a.GetName().Name = "Ceres" || oldFilter.Invoke(a)
+    )
+
     Aardvark.Init()
-
-
+    findEuclidean3d()
 
     //findInverseRot3d()
     //findPointTrafo()
