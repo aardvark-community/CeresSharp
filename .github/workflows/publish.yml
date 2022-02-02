@@ -35,7 +35,8 @@ jobs:
     name: MacOS (arm64)
     runs-on: macos-11
     steps:  
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
       # - name: Build Native Libraries
       #   run: ./buildnative.sh arm64
       - name: Upload MacOS native libs
@@ -47,7 +48,8 @@ jobs:
     name: Linux (x64)
     runs-on: ubuntu-18.04
     steps:  
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
       # - name: Build Native Libraries
       #   run: ./buildnative.sh
       - name: Install Dotnet
@@ -69,8 +71,9 @@ jobs:
     name: Windows (x64)
     runs-on: windows-latest
     steps:  
-      # - uses: actions/checkout@v2
-      # - name: Build Native Libraries
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build Native Libraries
       #   shell: cmd
       #   run: buildnative.cmd
       - name: Install Dotnet
