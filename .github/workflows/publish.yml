@@ -82,7 +82,7 @@ jobs:
         run: dotnet paket restore
       - name: Test
         run: dotnet run --project src\Ceres.Demo\Ceres.Demo.fsproj
-      - name: Upload Linux native libs
+      - name: Upload Windows native libs
         uses: actions/upload-artifact@v2
         with:
           name: windows_x64

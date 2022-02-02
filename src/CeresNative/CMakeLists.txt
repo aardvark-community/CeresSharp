@@ -20,6 +20,8 @@ if(APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "-O3 -flto=thin -dead_strip")
 elseif(UNIX)
     set(CMAKE_SHARED_LINKER_FLAGS "-O3 -Wl,--gc-sections -Wl,--strip-all")
+elseif(WIN32)
+    add_compile_definitions(NOMINMAX)
 endif()
 
 
