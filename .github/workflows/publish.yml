@@ -14,8 +14,8 @@ jobs:
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Build Native Libraries
-        run: ./buildnative.sh x86_64
+      # - name: Build Native Libraries
+      #   run: ./buildnative.sh x86_64
       - name: Install Dotnet
         uses: actions/setup-dotnet@v1
         with:
@@ -36,8 +36,8 @@ jobs:
     runs-on: macos-11
     steps:  
       - uses: actions/checkout@v2
-      - name: Build Native Libraries
-        run: ./buildnative.sh arm64
+      # - name: Build Native Libraries
+      #   run: ./buildnative.sh arm64
       - name: Upload MacOS native libs
         uses: actions/upload-artifact@v2
         with:
@@ -48,8 +48,8 @@ jobs:
     runs-on: ubuntu-18.04
     steps:  
       - uses: actions/checkout@v2
-      - name: Build Native Libraries
-        run: ./buildnative.sh
+      # - name: Build Native Libraries
+      #   run: ./buildnative.sh
       - name: Install Dotnet
         uses: actions/setup-dotnet@v1
         with:
@@ -69,10 +69,10 @@ jobs:
     name: Windows (x64)
     runs-on: windows-latest
     steps:  
-      - uses: actions/checkout@v2
-      - name: Build Native Libraries
-        shell: cmd
-        run: buildnative.cmd
+      # - uses: actions/checkout@v2
+      # - name: Build Native Libraries
+      #   shell: cmd
+      #   run: buildnative.cmd
       - name: Install Dotnet
         uses: actions/setup-dotnet@v1
         with:
