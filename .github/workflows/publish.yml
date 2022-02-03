@@ -98,7 +98,7 @@ jobs:
           path: libs/Native/Ceres/linux/AMD64/
   windows_x64:
     name: Windows (x64)
-    runs-on: windows-latest 
+    runs-on: windows-latest
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
