@@ -21,14 +21,12 @@ then
     elif [ "$1" = "arm64" ]; then
         VCPKG_TRIPLET="arm64-osx"
         ARCH="arm64"
-        echo "set(VCPKG_BUILD_TYPE release)" >> .vcpkg/vcpkg/triplets/community/arm64-osx.cmake
     else
         ARCH=`uname -m`
         if [ "$ARCH" = "x86_64" ]; then
             VCPKG_TRIPLET="x64-osx-release"
         elif [ "$ARCH" ]; then
             VCPKG_TRIPLET="arm64-osx"
-            echo "set(VCPKG_BUILD_TYPE release)" >> .vcpkg/vcpkg/triplets/community/arm64-osx.cmake
         fi
     fi
 
