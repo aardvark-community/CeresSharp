@@ -102,7 +102,7 @@ jobs:
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
-      - name: 'Setup NuGet Credentials'
+      - name: 'Setup NuGet Credentials' 
         shell: 'bash'
         run: >
           .config/nuget.exe
