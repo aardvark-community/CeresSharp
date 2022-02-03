@@ -107,7 +107,7 @@ jobs:
         run: >
           .config\nuget.exe
           sources add
-          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -source https://nuget.pkg.github.com/aardvark-community/index.json
           -storepasswordincleartext
           -name "GitHub"
           -username "aardvark-community"
