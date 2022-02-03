@@ -105,7 +105,7 @@ jobs:
       - name: 'Setup NuGet Credentials'
         shell: 'cmd'
         run: >
-          .config/nuget.exe
+          .config\nuget.exe
           sources add
           -source "https://nuget.pkg.github.com/aardvark-community/index.json"
           -storepasswordincleartext
