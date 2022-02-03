@@ -13,6 +13,16 @@ jobs:
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
       - name: Build Native Libraries
         run: ./buildnative.sh x86_64
       - name: Install Dotnet 
@@ -36,6 +46,16 @@ jobs:
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
       - name: Build Native Libraries
         run: ./buildnative.sh arm64
       - name: Upload MacOS native libs
@@ -49,6 +69,16 @@ jobs:
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
       - name: Build Native Libraries
         run: ./buildnative.sh
       - name: Install Dotnet
@@ -72,6 +102,16 @@ jobs:
     steps:  
       - name: Checkout
         uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
       - name: Build Native Libraries
         shell: cmd
         run: buildnative.cmd

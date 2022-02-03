@@ -40,7 +40,8 @@ else
 fi
 
 ./.vcpkg/vcpkg/bootstrap-vcpkg.sh
-./.vcpkg/vcpkg/vcpkg install ceres --triplet $VCPKG_TRIPLET
+export VCPKG_NUGET_REPOSITORY="https://github.com/aardvark-community/CeresSharp"
+./.vcpkg/vcpkg/vcpkg install ceres --triplet $VCPKG_TRIPLET --binarysource='clear;nuget,Github,readwrite'
 
 
 rm -dfr src/CeresNative/build
