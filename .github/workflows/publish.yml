@@ -103,7 +103,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2 
       - name: 'Setup NuGet Credentials'
-        shell: 'bash'
+        shell: 'cmd'
         run: >
           .config/nuget.exe
           sources add
