@@ -20,6 +20,31 @@
                 "reveal": "always"
             },
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "clean",
+            "command": "dotnet",
+            "args": [
+                "clean",
+                "src/Ceres.sln",
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "install",
+            "command": "dotnet",
+            "args": [
+                "paket",
+                "install",
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            }
         }
     ]
 }
