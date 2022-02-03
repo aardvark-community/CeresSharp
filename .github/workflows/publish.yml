@@ -1,0 +1,157 @@
+name: Publish
+on:
+  push:
+    branches:
+      - master
+      - newbuild
+    paths:
+      - RELEASE_NOTES.md
+      - .github/workflows/publish.yml
+jobs:
+  mac_x64:
+    name: MacOS (x64)
+    runs-on: macos-11
+    steps:  
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build Native Libraries
+        run: ./buildnative.sh x86_64
+      - name: Install Dotnet 
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '6.0.100'
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test
+        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+      - name: Upload MacOS native libs
+        uses: actions/upload-artifact@v2
+        with:
+          name: mac_x64
+          path: libs/Native/Ceres/mac/AMD64/
+  mac_arm64:
+    name: MacOS (arm64)
+    runs-on: macos-11
+    steps:  
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build Native Libraries
+        run: ./buildnative.sh arm64
+      - name: Upload MacOS native libs
+        uses: actions/upload-artifact@v2
+        with:
+          name: mac_arm64
+          path: libs/Native/Ceres/mac/ARM64/
+  linux_x64:
+    name: Linux (x64)
+    runs-on: ubuntu-18.04
+    steps:  
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build Native Libraries
+        run: ./buildnative.sh
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '6.0.100'
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test
+        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+      - name: Upload Linux native libs
+        uses: actions/upload-artifact@v2
+        with:
+          name: linux_x64
+          path: libs/Native/Ceres/linux/AMD64/
+  windows_x64:
+    name: Windows (x64)
+    runs-on: windows-latest
+    steps:  
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build Native Libraries
+        shell: cmd
+        run: buildnative.cmd
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '6.0.100'
+      - name: Restore Tools
+        shell: cmd
+        run: dotnet tool restore
+      - name: Restore
+        shell: cmd
+        run: dotnet paket restore
+      - name: Test
+        shell: cmd
+        run: dotnet run --project src\Ceres.Demo\Ceres.Demo.fsproj
+      - name: Upload Windows native libs
+        uses: actions/upload-artifact@v2
+        with:
+          name: windows_x64
+          path: libs/Native/Ceres/windows/AMD64/
+
+  final:
+    name: "Pack"
+    needs: 
+      - mac_x64
+      - windows_x64
+      - linux_x64
+      - mac_arm64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download MacOS dependencies (x64)
+        uses: actions/download-artifact@v2
+        with:
+          name: mac_x64
+          path: libs/Native/Ceres/mac/AMD64/
+      - name: Download MacOS dependencies (arm64)
+        uses: actions/download-artifact@v2
+        with:
+          name: mac_arm64
+          path: libs/Native/Ceres/mac/ARM64/
+      - name: Download Linux dependencies
+        uses: actions/download-artifact@v2
+        with:
+          name: linux_x64
+          path: libs/Native/Ceres/linux/AMD64/
+      - name: Download Windows dependencies
+        uses: actions/download-artifact@v2
+        with:
+          name: windows_x64
+          path: libs/Native/Ceres/windows/AMD64/
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '6.0.100'
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Build
+        run: dotnet build src\Ceres.sln -c Release
+      - name: Pack
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet aardpack src\Ceres.sln --notag
+      - name: Upload Package
+        uses: actions/upload-artifact@v2
+        with:
+          name: packages
+          path: bin\pack
+      - name: GitHub Packages
+        env:
+          NUGET_KEY: ${{ secrets.GITHUB_TOKEN }} 
+        shell: cmd
+        run: dotnet nuget push "bin\pack\*.nupkg" -k %NUGET_KEY% -s "https://nuget.pkg.github.com/aardvark-community/index.json" --skip-duplicate
+      - name: NuGet
+        env:
+          NUGET_KEY: ${{ secrets.NUGET_KEY }}
+        shell: cmd
+        run: dotnet nuget push "bin\pack\*.nupkg" -k %NUGET_KEY% -s "https://api.nuget.org/v3/index.json" --skip-duplicate

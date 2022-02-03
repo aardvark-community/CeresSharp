@@ -710,9 +710,14 @@ let findInverseRot3d () =
     Log.line "rec: %A" recovered
     Log.stop()
 
-
 [<EntryPoint>]
 let main argv =
+    // temporary workaround for Introspection problem
+    let oldFilter = IntrospectionProperties.UnpackNativeLibrariesFilter
+    IntrospectionProperties.UnpackNativeLibrariesFilter <- Func<_,_>(fun a ->
+        a.GetName().Name = "Ceres" || oldFilter.Invoke(a)
+    )
+
     Aardvark.Init()
     findEuclidean3d()
 

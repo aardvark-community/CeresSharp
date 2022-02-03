@@ -103,7 +103,7 @@ DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 	ceres::Solver::Summary summary;
 	ceres::Solve(opt, problem, &summary);
 
-	if(options->PrintProgress != 0) std::cout << summary.FullReport() << "\n";
+	if(options->PrintProgress != 0) printf("%s\n", summary.FullReport().c_str());
 
 	if (summary.termination_type == ceres::TerminationType::CONVERGENCE)
 	{
