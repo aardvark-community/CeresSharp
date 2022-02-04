@@ -121,7 +121,7 @@ jobs:
           dotnet-version: '6.0.100'
       - name: Restore Tools
         shell: cmd
-        run: dotnet tool restore
+        run: dotnet tool restore 
       - name: Restore
         shell: cmd
         run: dotnet paket restore
