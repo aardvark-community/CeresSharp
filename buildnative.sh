@@ -5,7 +5,6 @@ OS=`uname -s`
 VCPKG_TRIPLET=""
 ARCH=""
 ARCH_FLAGS=""
-DEBUG=""
 
 a="/$0"; a=${a%/*}; a=${a#/}; a=${a:-.}; BASEDIR=$(cd "$a"; pwd)
 
@@ -24,14 +23,12 @@ then
     elif [ "$1" = "arm64" ]; then
         VCPKG_TRIPLET="arm64-osx"
         ARCH="arm64"
-        DEBUG="--debug"
     else
-        ARCH=`uname -m`
+        ARCH=`uname -m | tail -1`
         if [ "$ARCH" = "x86_64" ]; then
             VCPKG_TRIPLET="x64-osx-release"
-        elif [ "$ARCH" = "arm64"]; then
+        elif [ "$ARCH" = "arm64" ]; then
             VCPKG_TRIPLET="arm64-osx"
-            DEBUG="--debug"
         fi
     fi
 
@@ -45,7 +42,7 @@ fi
 ./.vcpkg/vcpkg/bootstrap-vcpkg.sh
 export VCPKG_NUGET_REPOSITORY=https://github.com/aardvark-community/CeresSharp
 ./.confog
-./.vcpkg/vcpkg/vcpkg install ceres --triplet $VCPKG_TRIPLET --binarysource='clear;nuget,GitHub,readwrite;nugettimeout,1000' $DEBUG
+./.vcpkg/vcpkg/vcpkg install ceres --triplet $VCPKG_TRIPLET --binarysource='clear;nuget,GitHub,readwrite;nugettimeout,1000'
 
 
 rm -dfr src/CeresNative/build
