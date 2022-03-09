@@ -1,3 +1,6 @@
+### 0.9.12
+* updated to Aardvark.Base 5.2
+
 ### 0.9.11
 * Aardvark.Build version
 

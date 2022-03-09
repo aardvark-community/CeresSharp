@@ -507,11 +507,11 @@ let powell() =
     
     use x = problem.AddParameterBlock [| 3.0; -1.0; 0.; 1.0 |]
 
-    problem.AddCostFunctionScalar(4, x, fun x r ->
+    problem.AddCostFunctionScalar(4, x, fun (x : scalar[]) r ->
         r.[0] <- x.[0] + 10.0 * x.[1]
         r.[1] <- sqrt (5.0) * (x.[2] - x.[3])
-        r.[2] <- (x.[1] - 2.0 * x.[2]) ** 2.0
-        r.[3] <- sqrt 10.0 * (x.[0] - x.[3]) ** 2.0
+        r.[2] <- scalar.Pow((x.[1] - 2.0 * x.[2]), 2.0)
+        r.[3] <- scalar.Pow(sqrt 10.0 * (x.[0] - x.[3]), 2.0)
     )
 
     let res = 
@@ -537,7 +537,7 @@ let tenthOrder() =
 
     problem.AddCostFunction(1, x, fun x _ ->
         let x = x.[0]
-        (x - 10.0) ** 10.0
+        scalar.Pow((x - 10.0), 10.0)
     )
 
     let res = 
