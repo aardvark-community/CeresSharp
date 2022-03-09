@@ -10,6 +10,7 @@ Simple Ceres wrapper written in F# including aardvark-style native dependencies
 ### Prerequisites
 
 * `cmake`
+* `dotnet >= 6.0`
 * C/C++ compiler
 
 ### Steps
