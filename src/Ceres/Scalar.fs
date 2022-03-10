@@ -142,6 +142,9 @@ type scalar =
         static member Pow (v : scalar, e : float) =
             scalar(v.Value ** e, Jacobian.Mul(e * v.Value ** (e - 1.0), v.Jacobian))
 
+        static member Power (v : scalar, e : float) =
+            scalar(v.Value ** e, Jacobian.Mul(e * v.Value ** (e - 1.0), v.Jacobian))
+
         static member Sin (v : scalar) =
             scalar(sin v.Value, Jacobian.Mul(cos v.Value, v.Jacobian))
 
