@@ -147,7 +147,7 @@ struct CostFunctor {
 		T ppy = projection[3];
 		T projSpace[2];
 		projSpace[0] = focal * viewSpace[0] / -viewSpace[2] + ppx;
-		projSpace[1] = focal * viewSpace[1] / -viewSpace[2] + ppy;
+		projSpace[1] = focal * viewSpace[1] * aspect / -viewSpace[2] + ppy;
 
 
 

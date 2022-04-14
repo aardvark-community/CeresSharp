@@ -1,3 +1,6 @@
+### 0.9.16
+* PhotoNetwork properly handling aspect
+
 ### 0.9.15
 * fixed parameter blocks in PhotoNetwork optimize.
 

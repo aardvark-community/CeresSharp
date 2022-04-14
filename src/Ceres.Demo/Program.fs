@@ -718,6 +718,7 @@ let inline read<'a when 'a : unmanaged> (r : BinaryReader) (len : int) =
     use ptr = fixed res
     Marshal.Copy(bytes, 0, NativePtr.toNativeInt ptr, bytes.Length)
     res
+    
 let photoNet() =
     use s = File.OpenRead("/Users/schorsch/Desktop/pn.bin")
     use r = new System.IO.BinaryReader(s)
