@@ -116,12 +116,6 @@ DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 
 }
 
-class MyCostFunction : public AutoDiffCostFunction<MyCostFunction, 1, 1>
-{
-	private:
-
-};
-
 struct CostFunctor {
 
 	V2d observation;
