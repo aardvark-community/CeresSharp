@@ -87,6 +87,48 @@ type CeresLossFunctionHandle =
 
 type CeresCostFunctionDelegate = delegate of nativeptr<nativeptr<float>> * nativeptr<float> * nativeptr<nativeptr<float>> -> int
 
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type CeresCamera3d private (rx : float, ry : float, rz : float, tx : float, ty : float, tz : float) =
+
+    static member FromEuclidean3d (e : Euclidean3d) =
+        let aa = e.Rot.ToAngleAxis()
+        CeresCamera3d(
+            aa.X, aa.Y, aa.Z,
+            e.Trans.X, e.Trans.Y, e.Trans.Z
+        )
+        
+    member x.ToEuclidean3d() =
+        Euclidean3d(
+            Rot3d.FromAngleAxis (V3d(rx, ry, rz)),
+            V3d(tx, ty, tz)
+        )
+
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type CeresProjection(focalLength : float, aspect : float, ppx : float, ppy : float) =
+    member x.FocalLength = focalLength
+    member x.Aspect = aspect
+    member x.PrincipalPointX = ppx
+    member x.PrincipalPointY = ppy
+    
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int) =
+    member x.ProjectionIndex = projectionIndex
+    member x.CameraIndex = cameraIndex
+    member x.PointIndex = pointIndex
+
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type CeresBundleIteration private(projConstant : int, camConstant : int, pointConstant : int) =
+    member x.ProjConstant = projConstant <> 0
+    member x.CamConstant = camConstant <> 0
+    member x.PointConstant = pointConstant <> 0
+
+    new(projConstant : bool, camConstant : bool, pointsConstant : bool) =
+        CeresBundleIteration(
+            (if projConstant then 1 else 0),
+            (if camConstant then 1 else 0),
+            (if pointsConstant then 1 else 0)
+        )
+        
 module CeresRaw =
     
     [<Literal>]
@@ -125,4 +167,12 @@ module CeresRaw =
     [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
     extern float cSolve(CeresProblem problem, CeresOptions* options)
 
-
+    [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
+    extern float cOptimizePhotonetwork (
+        CeresOptions* options,
+        int nIterations, CeresBundleIteration* iterations,
+        int nProjections, CeresProjection* projs, 
+        int nCams, CeresCamera3d* cams, 
+        int nPoints, V3d* world, V2d* observations,
+        int nResiduals, CeresBundleResidual* residuals)
+    

@@ -1,4 +1,8 @@
 {
+    "cmake.configureSettings": {
+        "CMAKE_TOOLCHAIN_FILE": "${workspaceRoot}/.vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_BUILD": "ON",
+    },
     "files.exclude": {
         "**/.git": true,
         "**/.svn": true,

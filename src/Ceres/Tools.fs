@@ -1,6 +1,11 @@
 ﻿namespace CeresSharp
 
 open Aardvark.Base
+open CeresSharp
+open CeresSharp.Raw
+open Microsoft.FSharp.NativeInterop
+
+#nowarn "9"
 
 module Ceres =
 
@@ -130,6 +135,35 @@ module Ceres =
             else
                 Some trafo.Result.[0]
 
+    
+    
+    let optimizePhotoNetwork (options : Config) (iterations : CeresBundleIteration[]) (projections : CeresProjection[]) (cameras : Euclidean3d[]) (points : V3d[]) (observations : V2d[]) (residuals : CeresBundleResidual[]) =
+        let localCameras = cameras |> Array.map CeresCamera3d.FromEuclidean3d
+        
+        use pProjections = fixed projections
+        use pCameras = fixed localCameras
+        use pPoints = fixed points
+        use pObs = fixed observations
+        use pResiduals = fixed residuals
+        use pIterations = fixed iterations
+        use pOptions = fixed [| Config.toCeresOptions options |]
+        
+        let final =
+            CeresRaw.cOptimizePhotonetwork(
+                pOptions,
+                iterations.Length, pIterations,
+                projections.Length, pProjections,
+                cameras.Length, pCameras,
+                points.Length, pPoints, pObs,
+                residuals.Length, pResiduals
+            )
+            
+        for i in 0 .. cameras.Length - 1 do
+            cameras.[i] <- localCameras.[i].ToEuclidean3d()
+            
+        final
+        
+        
     
 
 

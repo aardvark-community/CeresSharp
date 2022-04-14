@@ -105,3 +105,54 @@ DllExport(void) cAddResidualFunction4(Problem* problem, ceres::LossFunction* los
 DllExport(double) cSolve(Problem* problem, CeresOptions* options);
 
 
+typedef struct {
+	double Rx;
+	double Ry;
+	double Rz;
+	double Tx;
+	double Ty;
+	double Tz;
+} Euclidean3d;
+
+typedef struct {
+	double FocalLength;
+	double Aspect;
+	double PrincipalPointX;
+	double PrincipalPointY;
+} Projection;
+
+typedef struct {
+	double X;
+	double Y;
+	double Z;
+} V3d;
+
+typedef struct {
+	double X;
+	double Y;
+} V2d;
+
+typedef struct {
+	int ProjectionIndex;
+	int CameraIndex;
+	int PointIndex;
+} Residual;
+
+typedef struct {
+	int ProjectionsConstant;
+	int CamerasConstant;
+	int PointsConstant;
+} IterationConfig;
+
+#define CAMERA_DOUBLES 6
+#define PROJECTION_DOUBLES 4
+#define POINT_DOUBLES 3
+
+DllExport(double) cOptimizePhotonetwork(
+	CeresOptions* options,
+	int nInterations, IterationConfig* config,
+	int nProjections, Projection* projs, 
+	int nCams, Euclidean3d* cams, 
+	int nPoints, V3d* world, V2d* observations,
+	int nResiduals, Residual* residuals);
+

@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "name": "MacOS",
+            "includePath": [
+                "${workspaceRoot}/.vcpkg/vcpkg/installed/arm64-osx/include",
+                "${default}"
+            ],
+            "cppStandard": "c++17",
+            "compilerPath": "/usr/bin/clang++"
+        }
+    ],
+    "version": 4
+}
