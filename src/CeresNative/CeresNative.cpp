@@ -162,7 +162,7 @@ DllExport(double) cOptimizePhotonetwork(
 		int nInterations, IterationConfig* config,
 		int nProjections, Projection* projs, 
 		int nCams, Euclidean3d* cams, 
-		int nPoints, V3d* world, V2d* observations,
+		int nPoints, V3d* world,
 		int nResiduals, Residual* residuals) {	
 
 	disableGoogleLogging();
@@ -174,7 +174,7 @@ DllExport(double) cOptimizePhotonetwork(
 
 	for(int ri = 0; ri < nResiduals; ri++) {
 		auto res = residuals[ri];
-		auto obs = observations[res.PointIndex];
+		auto obs = res.Observation;
   		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs));
   		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&cams[res.CameraIndex], (double*)&world[res.PointIndex]);
 	}

@@ -136,6 +136,7 @@ typedef struct {
 	int ProjectionIndex;
 	int CameraIndex;
 	int PointIndex;
+	V2d Observation;
 } Residual;
 
 typedef struct {
@@ -153,6 +154,6 @@ DllExport(double) cOptimizePhotonetwork(
 	int nInterations, IterationConfig* config,
 	int nProjections, Projection* projs, 
 	int nCams, Euclidean3d* cams, 
-	int nPoints, V3d* world, V2d* observations,
+	int nPoints, V3d* world,
 	int nResiduals, Residual* residuals);
 

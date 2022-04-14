@@ -111,10 +111,11 @@ type CeresProjection(focalLength : float, aspect : float, ppx : float, ppy : flo
     member x.PrincipalPointY = ppy
     
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int) =
+type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d) =
     member x.ProjectionIndex = projectionIndex
     member x.CameraIndex = cameraIndex
     member x.PointIndex = pointIndex
+    member x.Observation = observation
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type CeresBundleIteration private(projConstant : int, camConstant : int, pointConstant : int) =
@@ -173,6 +174,6 @@ module CeresRaw =
         int nIterations, CeresBundleIteration* iterations,
         int nProjections, CeresProjection* projs, 
         int nCams, CeresCamera3d* cams, 
-        int nPoints, V3d* world, V2d* observations,
+        int nPoints, V3d* world,
         int nResiduals, CeresBundleResidual* residuals)
     
