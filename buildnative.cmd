@@ -4,6 +4,10 @@
 cmd /C "rmdir /S /Q .vcpkg"
 
 git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg --depth 1
+cd .\.vcpkg\vcpkg
+git reset --hard 99346bb6926e85d93e4aad330bf28cce4a18051b
+cd ..\..
+
 copy .vcpkg\vcpkg\triplets\community\x64-windows-static-md.cmake .vcpkg\vcpkg\triplets\community\x64-windows-static-md-rel.cmake
 echo set(VCPKG_BUILD_TYPE release) >> .vcpkg\vcpkg\triplets\community\x64-windows-static-md-rel.cmake
 
