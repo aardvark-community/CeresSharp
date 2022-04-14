@@ -772,9 +772,9 @@ let main argv =
 
     Aardvark.Init()
     
-    photoNet()
+    //photoNet()
     
-    //findEuclidean3d()
+    findEuclidean3d()
 
     //findInverseRot3d()
     //findPointTrafo()
