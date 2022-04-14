@@ -168,9 +168,9 @@ DllExport(double) cOptimizePhotonetwork(
 	disableGoogleLogging();
 	Problem problem;
 
-	problem.AddParameterBlock((double*)projs, nProjections * PROJECTION_DOUBLES);
-	problem.AddParameterBlock((double*)cams, nCams * CAMERA_DOUBLES);
-	problem.AddParameterBlock((double*)world, nPoints * POINT_DOUBLES);
+	for (int i = 0; i < nProjections; i++) problem.AddParameterBlock((double*)&projs[i], PROJECTION_DOUBLES);
+	for (int i = 0; i < nCams; i++) problem.AddParameterBlock((double*)&cams[i], CAMERA_DOUBLES);
+	for (int i = 0; i < nPoints; i++) problem.AddParameterBlock((double*)&world[i], POINT_DOUBLES);
 
 	for(int ri = 0; ri < nResiduals; ri++) {
 		auto res = residuals[ri];

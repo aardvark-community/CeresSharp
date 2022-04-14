@@ -45,3 +45,4 @@ src/CeresNative/*.o
 /.vcpkg
 /src/CeresNative/build/
 /libs
+.idea/

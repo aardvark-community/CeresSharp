@@ -1,3 +1,6 @@
+### 0.9.15 
+* fixed parameter blocks in PhotoNetwork optimize
+
 ### 0.9.14 
 * usable PhotoNetwork optimize
 
