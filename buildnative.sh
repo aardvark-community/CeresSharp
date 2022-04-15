@@ -46,7 +46,7 @@ fi
 
 ./.vcpkg/vcpkg/bootstrap-vcpkg.sh
 export VCPKG_NUGET_REPOSITORY=https://github.com/aardvark-community/CeresSharp
-./.vcpkg/vcpkg/vcpkg install $PACKAGE--triplet $VCPKG_TRIPLET --binarysource='clear;nuget,GitHub,readwrite;nugettimeout,1000'
+./.vcpkg/vcpkg/vcpkg install $PACKAGE --triplet $VCPKG_TRIPLET --binarysource='clear;nuget,GitHub,readwrite;nugettimeout,1000'
 
 
 rm -dfr src/CeresNative/build
