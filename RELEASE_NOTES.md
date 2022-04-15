@@ -1,3 +1,6 @@
+### 0.9.19
+* num_threads is now ProcessorCount
+
 ### 0.9.18
 * PhotoNetwork fixed
 

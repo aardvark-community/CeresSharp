@@ -99,6 +99,7 @@ DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 	opt.gradient_tolerance = options->GradientTolerance;
 	opt.function_tolerance = options->FunctionTolerance;
 	opt.parameter_tolerance = options->ParameterTolerance;
+	opt.num_threads = (int)std::thread::hardware_concurrency();
 
 	ceres::Solver::Summary summary;
 	ceres::Solve(opt, problem, &summary);
@@ -205,7 +206,7 @@ DllExport(double) cOptimizePhotonetwork(
 	opt.gradient_tolerance = options->GradientTolerance;
 	opt.function_tolerance = options->FunctionTolerance;
 	opt.parameter_tolerance = options->ParameterTolerance;
-
+	opt.num_threads = (int)std::thread::hardware_concurrency();
 	ceres::Solver::Summary summary;
 
 	for(int i = 0; i < nInterations; i++) {

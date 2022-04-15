@@ -12,6 +12,7 @@ using namespace std;
 
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
+#include <thread>
 
 
 using ceres::AutoDiffCostFunction;
