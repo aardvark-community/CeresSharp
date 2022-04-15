@@ -1,5 +1,5 @@
 ### 0.9.20
-* added sparse features 
+* added sparse features
 
 ### 0.9.19
 * num_threads is now ProcessorCount
