@@ -9,13 +9,15 @@ ARCH_FLAGS=""
 a="/$0"; a=${a%/*}; a=${a#/}; a=${a:-.}; BASEDIR=$(cd "$a"; pwd)
 
 mkdir .vcpkg
-git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg --depth 1
+git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg 
 cd ./.vcpkg/vcpkg
 git reset --hard 99346bb6926e85d93e4aad330bf28cce4a18051b
 cd ../..
 
+PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
 if [ "$OS" = "Darwin" ];
 then
+    PACKAGE=ceres[suitesparse,eigensparse]
     echo "MacOS"
     if [ "$1" = "x86_64" ]; then
         VCPKG_TRIPLET="x64-osx-release"
@@ -40,7 +42,7 @@ else
 fi
 
 ./.vcpkg/vcpkg/bootstrap-vcpkg.sh
-./.vcpkg/vcpkg/vcpkg install ceres[suitesparse,lapack,cxsparse,eigensparse] --triplet $VCPKG_TRIPLET 
+./.vcpkg/vcpkg/vcpkg install $PACKAGE --triplet $VCPKG_TRIPLET 
 
 rm -dfr src/CeresNative/build
 cmake -S src/CeresNative/ -B src/CeresNative/build $ARCH_FLAGS \

@@ -17,8 +17,10 @@ cd ./.vcpkg/vcpkg
 git reset --hard 99346bb6926e85d93e4aad330bf28cce4a18051b
 cd ../..
 
+PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
 if [ "$OS" = "Darwin" ];
 then
+    PACKAGE=ceres[suitesparse,eigensparse]
     echo "MacOS"
     if [ "$1" = "x86_64" ]; then
         VCPKG_TRIPLET="x64-osx-release"
@@ -44,7 +46,7 @@ fi
 
 ./.vcpkg/vcpkg/bootstrap-vcpkg.sh
 export VCPKG_NUGET_REPOSITORY=https://github.com/aardvark-community/CeresSharp
-./.vcpkg/vcpkg/vcpkg install ceres[suitesparse,lapack,cxsparse,eigensparse] --triplet $VCPKG_TRIPLET --binarysource='clear;nuget,GitHub,readwrite;nugettimeout,1000'
+./.vcpkg/vcpkg/vcpkg install $PACKAGE--triplet $VCPKG_TRIPLET --binarysource='clear;nuget,GitHub,readwrite;nugettimeout,1000'
 
 
 rm -dfr src/CeresNative/build
