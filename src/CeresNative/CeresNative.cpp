@@ -153,7 +153,7 @@ struct CostFunctor {
 		T p2 = projection[8];
 
 		T px = viewSpace[0] / -viewSpace[2];
-		T py = viewSpace[0] / -viewSpace[2];
+		T py = viewSpace[1] / -viewSpace[2];
 
 		T r2 = px*px + py*py;
 		T r4 = r2*r2;

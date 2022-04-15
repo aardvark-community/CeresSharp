@@ -1,3 +1,6 @@
+### 0.9.18
+* PhotoNetwork fixed
+
 ### 0.9.17
 * PhotoNetwork distortion
 
