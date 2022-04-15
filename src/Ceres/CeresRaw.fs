@@ -104,18 +104,24 @@ type CeresCamera3d private (rx : float, ry : float, rz : float, tx : float, ty :
         )
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresProjection(focalLength : float, aspect : float, ppx : float, ppy : float) =
+type CeresProjection(focalLength : float, aspect : float, ppx : float, ppy : float, k1 : float, k2 : float, k3 : float, p1 : float, p2 : float) =
     member x.FocalLength = focalLength
     member x.Aspect = aspect
     member x.PrincipalPointX = ppx
     member x.PrincipalPointY = ppy
-    
+    member x.K1 = k1
+    member x.K2 = k2
+    member x.K3 = k3
+    member x.P1 = p1
+    member x.P2 = p2
+
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d) =
+type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d, imageSize : V2i) =
     member x.ProjectionIndex = projectionIndex
     member x.CameraIndex = cameraIndex
     member x.PointIndex = pointIndex
     member x.Observation = observation
+    member x.ImageSize = imageSize
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type CeresBundleIteration private(projConstant : int, camConstant : int, pointConstant : int) =

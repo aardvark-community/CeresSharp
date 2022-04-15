@@ -119,9 +119,10 @@ DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 struct CostFunctor {
 
 	V2d observation;
-
-	CostFunctor(V2d obs) {
+	V2i imageSize;
+	CostFunctor(V2d obs, V2i size) {
 		observation = obs;
+		imageSize = size;
 	}
 
    	template <typename T>
@@ -145,14 +146,30 @@ struct CostFunctor {
 		T aspect = projection[1];
 		T ppx = projection[2];
 		T ppy = projection[3];
-		T projSpace[2];
-		projSpace[0] = focal * viewSpace[0] / -viewSpace[2] + ppx;
-		projSpace[1] = focal * viewSpace[1] * aspect / -viewSpace[2] + ppy;
+		T k1 = projection[4];
+		T k2 = projection[5];
+		T k3 = projection[6];
+		T p1 = projection[7];
+		T p2 = projection[8];
 
+		T px = viewSpace[0] / -viewSpace[2];
+		T py = viewSpace[0] / -viewSpace[2];
 
+		T r2 = px*px + py*py;
+		T r4 = r2*r2;
+		T r6 = r4*r2;
+		T factor = 1.0 + k1*r2 + k2*r4 + k3*r6;
+		T px1 = px * factor + 2.0*p1*px*py + p2;
+		T py1 = py * factor + p1*(r2 + 2.0*py*py) + 2.0*p2*px*py;
 
-		residual[0] = projSpace[0] - observation.X;
-		residual[1] = projSpace[1] - observation.Y;
+		px = focal * px1 + ppx;
+		py = focal * aspect * py1 + ppy;
+
+		px = (0.5 + 0.5 * px) * (double)imageSize.X;
+		py = (0.5 - 0.5 * py) * (double)imageSize.Y;
+
+		residual[0] = px - observation.X;
+		residual[1] = py - observation.Y;
      	return true;
    	}
 };
@@ -175,7 +192,7 @@ DllExport(double) cOptimizePhotonetwork(
 	for(int ri = 0; ri < nResiduals; ri++) {
 		auto res = residuals[ri];
 		auto obs = res.Observation;
-  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs));
+  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize));
   		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&cams[res.CameraIndex], (double*)&world[res.PointIndex]);
 	}
 
@@ -192,14 +209,28 @@ DllExport(double) cOptimizePhotonetwork(
 	ceres::Solver::Summary summary;
 
 	for(int i = 0; i < nInterations; i++) {
-		if(config[i].ProjectionsConstant) problem.SetParameterBlockConstant((double*)projs);
-		else problem.SetParameterBlockVariable((double*)projs);
+		if(config[i].ProjectionsConstant) {
+			for(int pi = 0; pi < nProjections; pi++) { problem.SetParameterBlockConstant((double*)&projs[pi]); }
+		}
+		else {
+			for(int pi = 0; pi < nProjections; pi++) { problem.SetParameterBlockVariable((double*)&projs[pi]); }
+		}
 
-		if(config[i].CamerasConstant) problem.SetParameterBlockConstant((double*)cams);
-		else problem.SetParameterBlockVariable((double*)cams);
+		if(config[i].CamerasConstant) {
+			for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockConstant((double*)&cams[pi]); }
+		}
+		else {
+			for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockVariable((double*)&cams[pi]); }
+		}
 
-		if(config[i].PointsConstant) problem.SetParameterBlockConstant((double*)world);
-		else problem.SetParameterBlockVariable((double*)world);
+
+		if(config[i].PointsConstant) {
+			for(int pi = 0; pi < nPoints; pi++) { problem.SetParameterBlockConstant((double*)&world[pi]); }
+		}
+		else {
+			for(int pi = 0; pi < nPoints; pi++) { problem.SetParameterBlockVariable((double*)&world[pi]); }
+		}
+
 
 		ceres::Solve(opt, &problem, &summary);
 	}

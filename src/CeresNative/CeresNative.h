@@ -119,6 +119,11 @@ typedef struct {
 	double Aspect;
 	double PrincipalPointX;
 	double PrincipalPointY;
+	double K1;
+	double K2;
+	double K3;
+	double P1;
+	double P2;
 } Projection;
 
 typedef struct {
@@ -133,10 +138,16 @@ typedef struct {
 } V2d;
 
 typedef struct {
+	int X;
+	int Y;
+} V2i;
+
+typedef struct {
 	int ProjectionIndex;
 	int CameraIndex;
 	int PointIndex;
 	V2d Observation;
+	V2i ImageSize;
 } Residual;
 
 typedef struct {
@@ -146,7 +157,7 @@ typedef struct {
 } IterationConfig;
 
 #define CAMERA_DOUBLES 6
-#define PROJECTION_DOUBLES 4
+#define PROJECTION_DOUBLES 9
 #define POINT_DOUBLES 3
 
 DllExport(double) cOptimizePhotonetwork(

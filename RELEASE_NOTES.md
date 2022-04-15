@@ -1,3 +1,6 @@
+### 0.9.17
+* PhotoNetwork distortion
+
 ### 0.9.16
 * PhotoNetwork properly handling aspect
 
