@@ -14,7 +14,7 @@ echo set(VCPKG_BUILD_TYPE release) >> .vcpkg\vcpkg\triplets\community\x64-window
 cmd /C ".vcpkg\vcpkg\bootstrap-vcpkg.bat -disableMetrics"
 
 SET VCPKG_NUGET_REPOSITORY=https://github.com/aardvark-community/CeresSharp
-.vcpkg\vcpkg\vcpkg.exe install ceres --triplet x64-windows-static-md-rel --binarysource="clear;nuget,Github,readwrite;nugettimeout,1000"
+.vcpkg\vcpkg\vcpkg.exe install ceres[suitesparse,lapack,cxsparse,eigensparse] --triplet x64-windows-static-md-rel --binarysource="clear;nuget,Github,readwrite;nugettimeout,1000"
 
 cmake -S src\CeresNative -B src\CeresNative\build -DCMAKE_TOOLCHAIN_FILE="%~dp0\.vcpkg\vcpkg\scripts\buildsystems\vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static-md-rel -DCMAKE_BUILD_TYPE=Release
 

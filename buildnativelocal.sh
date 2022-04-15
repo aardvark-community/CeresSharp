@@ -10,6 +10,9 @@ a="/$0"; a=${a%/*}; a=${a#/}; a=${a:-.}; BASEDIR=$(cd "$a"; pwd)
 
 mkdir .vcpkg
 git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg --depth 1
+cd ./.vcpkg/vcpkg
+git reset --hard 99346bb6926e85d93e4aad330bf28cce4a18051b
+cd ../..
 
 if [ "$OS" = "Darwin" ];
 then
@@ -37,7 +40,7 @@ else
 fi
 
 ./.vcpkg/vcpkg/bootstrap-vcpkg.sh
-./.vcpkg/vcpkg/vcpkg install ceres --triplet $VCPKG_TRIPLET 
+./.vcpkg/vcpkg/vcpkg install ceres[suitesparse,lapack,cxsparse,eigensparse] --triplet $VCPKG_TRIPLET 
 
 rm -dfr src/CeresNative/build
 cmake -S src/CeresNative/ -B src/CeresNative/build $ARCH_FLAGS \
