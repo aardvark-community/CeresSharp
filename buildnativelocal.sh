@@ -17,7 +17,7 @@ cd ../..
 PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
 if [ "$OS" = "Darwin" ];
 then
-    PACKAGE=ceres[suitesparse,eigensparse]
+    PACKAGE=ceres
     echo "MacOS"
     if [ "$1" = "x86_64" ]; then
         VCPKG_TRIPLET="x64-osx-release"
