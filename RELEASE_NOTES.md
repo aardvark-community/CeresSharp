@@ -1,3 +1,6 @@
+### 0.9.21
+* mingw suitesparse for windows
+
 ### 0.9.20
 * added sparse features 
 
