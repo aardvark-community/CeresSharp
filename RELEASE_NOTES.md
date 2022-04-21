@@ -1,5 +1,5 @@
 ### 0.9.22
-* explicit distortions
+* explicit distortions 
 
 ### 0.9.21
 * mingw suitesparse for windows

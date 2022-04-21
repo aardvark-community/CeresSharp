@@ -17,7 +17,7 @@ cd ./.vcpkg/vcpkg
 git reset --hard 99346bb6926e85d93e4aad330bf28cce4a18051b
 cd ../..
 
-PACKAGE=ceres[suitesparse] 
+PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
 if [ "$OS" = "Darwin" ];
 then
     PACKAGE=ceres
