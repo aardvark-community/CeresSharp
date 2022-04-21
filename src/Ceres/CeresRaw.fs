@@ -104,11 +104,14 @@ type CeresCamera3d private (rx : float, ry : float, rz : float, tx : float, ty :
         )
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresProjection(focalLength : float, aspect : float, ppx : float, ppy : float, k1 : float, k2 : float, k3 : float, p1 : float, p2 : float) =
+type CeresProjection(focalLength : float, aspect : float, ppx : float, ppy : float) =
     member x.FocalLength = focalLength
     member x.Aspect = aspect
     member x.PrincipalPointX = ppx
     member x.PrincipalPointY = ppy
+
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type CeresDistortion(k1 : float, k2 : float, k3 : float, p1 : float, p2 : float) =
     member x.K1 = k1
     member x.K2 = k2
     member x.K3 = k3
@@ -124,14 +127,16 @@ type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : 
     member x.ImageSize = imageSize
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresBundleIteration private(projConstant : int, camConstant : int, pointConstant : int) =
+type CeresBundleIteration private(projConstant : int, distConstant : int, camConstant : int, pointConstant : int) =
     member x.ProjConstant = projConstant <> 0
+    member x.DistortionConstant = distConstant <> 0
     member x.CamConstant = camConstant <> 0
     member x.PointConstant = pointConstant <> 0
 
-    new(projConstant : bool, camConstant : bool, pointsConstant : bool) =
+    new(projConstant : bool, distConstant : bool, camConstant : bool, pointsConstant : bool) =
         CeresBundleIteration(
             (if projConstant then 1 else 0),
+            (if distConstant then 1 else 0),
             (if camConstant then 1 else 0),
             (if pointsConstant then 1 else 0)
         )
@@ -178,7 +183,7 @@ module CeresRaw =
     extern float cOptimizePhotonetwork (
         CeresOptions* options,
         int nIterations, CeresBundleIteration* iterations,
-        int nProjections, CeresProjection* projs, 
+        int nProjections, CeresProjection* projs, CeresDistortion* dists,
         int nCams, CeresCamera3d* cams, 
         int nPoints, V3d* world,
         int nResiduals, CeresBundleResidual* residuals)

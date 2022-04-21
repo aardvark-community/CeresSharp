@@ -120,12 +120,15 @@ typedef struct {
 	double Aspect;
 	double PrincipalPointX;
 	double PrincipalPointY;
+} Projection;
+
+typedef struct {
 	double K1;
 	double K2;
 	double K3;
 	double P1;
 	double P2;
-} Projection;
+} Distortion;
 
 typedef struct {
 	double X;
@@ -153,18 +156,21 @@ typedef struct {
 
 typedef struct {
 	int ProjectionsConstant;
+	int DistortionsConstant;
 	int CamerasConstant;
 	int PointsConstant;
+	
 } IterationConfig;
 
 #define CAMERA_DOUBLES 6
-#define PROJECTION_DOUBLES 9
+#define PROJECTION_DOUBLES 4
+#define DISTORTION_DOUBLES 5
 #define POINT_DOUBLES 3
 
 DllExport(double) cOptimizePhotonetwork(
 	CeresOptions* options,
 	int nInterations, IterationConfig* config,
-	int nProjections, Projection* projs, 
+	int nProjections, Projection* projs, Distortion* distortions,
 	int nCams, Euclidean3d* cams, 
 	int nPoints, V3d* world,
 	int nResiduals, Residual* residuals);

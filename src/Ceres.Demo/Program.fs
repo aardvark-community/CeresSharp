@@ -719,49 +719,52 @@ let inline read<'a when 'a : unmanaged> (r : BinaryReader) (len : int) =
     Marshal.Copy(bytes, 0, NativePtr.toNativeInt ptr, bytes.Length)
     res
     
-let photoNet() =
-    use s = File.OpenRead("/Users/schorsch/Desktop/pn.bin")
-    use r = new System.IO.BinaryReader(s)
+// let photoNet() =
+
+
+
+//     use s = File.OpenRead("/Users/schorsch/Desktop/pn.bin")
+//     use r = new System.IO.BinaryReader(s)
     
-    let len = r.ReadInt32()
-    let projBlock = read<Raw.CeresProjection> r len
+//     let len = r.ReadInt32()
+//     let projBlock = read<Raw.CeresProjection> r len
     
-    let len = r.ReadInt32()
-    let cameraBlock = read<Euclidean3d> r len
+//     let len = r.ReadInt32()
+//     let cameraBlock = read<Euclidean3d> r len
     
-    let len = r.ReadInt32()
-    let pointBlock = read<V3d> r len
+//     let len = r.ReadInt32()
+//     let pointBlock = read<V3d> r len
     
-    let len = r.ReadInt32()
-    let residuals = read<Raw.CeresBundleResidual> r len
+//     let len = r.ReadInt32()
+//     let residuals = read<Raw.CeresBundleResidual> r len
     
-    let config =
-        {
-            solverType = SolverType.SparseSchur
-            gradientTolerance = 1E-10
-            functionTolerance = 1E-4
-            parameterTolerance = 1E-8
-            maxIterations = 100
-            print = true
-        }
+//     let config =
+//         {
+//             solverType = SolverType.SparseSchur
+//             gradientTolerance = 1E-10
+//             functionTolerance = 1E-4
+//             parameterTolerance = 1E-8
+//             maxIterations = 100
+//             print = true
+//         }
         
-    let iterations =
-        [|
-            Raw.CeresBundleIteration(true, false, false)
-            Raw.CeresBundleIteration(false, false, false)
-        |]
+//     let iterations =
+//         [|
+//             Raw.CeresBundleIteration(true, false, false, false)
+//             Raw.CeresBundleIteration(false, false, false, false)
+//         |]
         
 
-    printfn "%A %A" projBlock.[0].FocalLength projBlock.[0].Aspect 
-    let res = 
-        Ceres.optimizePhotoNetwork
-            config iterations
-            projBlock
-            cameraBlock
-            pointBlock
-            residuals
-    printfn "%A %A" projBlock.[0].FocalLength projBlock.[0].Aspect 
-    printfn "%A" res
+//     printfn "%A %A" projBlock.[0].FocalLength projBlock.[0].Aspect 
+//     let res = 
+//         Ceres.optimizePhotoNetwork
+//             config iterations
+//             projBlock
+//             cameraBlock
+//             pointBlock
+//             residuals
+//     printfn "%A %A" projBlock.[0].FocalLength projBlock.[0].Aspect 
+//     printfn "%A" res
 
 [<EntryPoint>]
 let main argv =
@@ -773,6 +776,7 @@ let main argv =
 
     Aardvark.Init()
     
+
     //photoNet()
     
     findEuclidean3d()
