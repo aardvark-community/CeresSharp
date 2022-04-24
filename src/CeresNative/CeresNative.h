@@ -173,5 +173,6 @@ DllExport(double) cOptimizePhotonetwork(
 	int nProjections, Projection* projs, Distortion* distortions,
 	int nCams, Euclidean3d* cams, 
 	int nPoints, V3d* world,
+	int nFixed, V3d* fixed,
 	int nResiduals, Residual* residuals);
 

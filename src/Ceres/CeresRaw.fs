@@ -119,12 +119,18 @@ type CeresDistortion(k1 : float, k2 : float, k3 : float, p1 : float, p2 : float)
     member x.P2 = p2
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d, imageSize : V2i) =
+type CeresBundleResidual private(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d, imageSize : V2i) =
     member x.ProjectionIndex = projectionIndex
     member x.CameraIndex = cameraIndex
     member x.PointIndex = pointIndex
     member x.Observation = observation
     member x.ImageSize = imageSize
+
+    static member Fixed(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d, imageSize : V2i) =
+        CeresBundleResidual(projectionIndex, cameraIndex, -1 - pointIndex, observation, imageSize)
+
+    static member Variable(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d, imageSize : V2i) =
+        CeresBundleResidual(projectionIndex, cameraIndex, pointIndex, observation, imageSize)
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type CeresBundleIteration private(projConstant : int, distConstant : int, camConstant : int, pointConstant : int) =
@@ -186,5 +192,6 @@ module CeresRaw =
         int nProjections, CeresProjection* projs, CeresDistortion* dists,
         int nCams, CeresCamera3d* cams, 
         int nPoints, V3d* world,
+        int nFixed, V3d* fixedPoints,
         int nResiduals, CeresBundleResidual* residuals)
     

@@ -1,3 +1,6 @@
+### 0.9.23
+* fixed points for PhotoNetwork
+
 ### 0.9.22
 * explicit distortions 
 
