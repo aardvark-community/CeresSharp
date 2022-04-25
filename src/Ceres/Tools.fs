@@ -7,6 +7,41 @@ open Microsoft.FSharp.NativeInterop
 
 #nowarn "9"
 
+type BundleIteration =
+    {
+
+        projConstant : bool
+        distConstant : bool
+        camConstant : bool
+        pointConstant : bool
+        fixedPointIndices : int[]
+    }
+
+    member x.Pin(action : CeresBundleIteration -> 'a) =
+        if isNull x.fixedPointIndices then
+            action (
+                CeresBundleIteration(x.projConstant, x.distConstant, x.camConstant, x.pointConstant, 0, NativePtr.zero)
+            )
+        else    
+            use ptr = fixed x.fixedPointIndices
+            action (
+                CeresBundleIteration(x.projConstant, x.distConstant, x.camConstant, x.pointConstant, x.fixedPointIndices.Length, ptr)
+            )
+            
+
+    static member PinMany(things : BundleIteration[], action : nativeptr<CeresBundleIteration> -> 'a) =
+        let res = Array.zeroCreate things.Length
+        let rec run (i : int) =
+            if i >= things.Length then
+                use pp = fixed res
+                action pp
+            else
+                things.[i].Pin(fun pi ->
+                    res.[i] <- pi
+                    run (i + 1)
+                )
+        run 0
+
 module Ceres =
 
     let private gramSchmidt (m : M33d) =
@@ -137,7 +172,7 @@ module Ceres =
 
     
     
-    let optimizePhotoNetwork (options : Config) (iterations : CeresBundleIteration[]) (projections : CeresProjection[]) (distortions : CeresDistortion[]) (cameras : Euclidean3d[]) (points : V3d[]) (fixedPoints : V3d[]) (residuals : CeresBundleResidual[]) =
+    let optimizePhotoNetwork (options : Config) (iterations : BundleIteration[]) (projections : CeresProjection[]) (distortions : CeresDistortion[]) (cameras : Euclidean3d[]) (points : V3d[]) (residuals : CeresBundleResidual[]) =
         let localCameras = cameras |> Array.map CeresCamera3d.FromEuclidean3d
         
         use pProjections = fixed projections
@@ -145,19 +180,18 @@ module Ceres =
         use pCameras = fixed localCameras
         use pPoints = fixed points
         use pResiduals = fixed residuals
-        use pIterations = fixed iterations
         use pOptions = fixed [| Config.toCeresOptions options |]
-        use pFixed = fixed fixedPoints
 
         let final =
-            CeresRaw.cOptimizePhotonetwork(
-                pOptions,
-                iterations.Length, pIterations,
-                projections.Length, pProjections, pDistortions,
-                cameras.Length, pCameras,
-                points.Length, pPoints,
-                fixedPoints.Length, pFixed,
-                residuals.Length, pResiduals
+            BundleIteration.PinMany(iterations, fun pIterations ->
+                CeresRaw.cOptimizePhotonetwork(
+                    pOptions,
+                    iterations.Length, pIterations,
+                    projections.Length, pProjections, pDistortions,
+                    cameras.Length, pCameras,
+                    points.Length, pPoints,
+                    residuals.Length, pResiduals
+                )
             )
             
         for i in 0 .. cameras.Length - 1 do

@@ -121,31 +121,16 @@ struct CostFunctor {
 
 	V2d observation;
 	V2i imageSize;
-	V3d* fixed;
-	CostFunctor(V2d obs, V2i size, V3d* f) {
+	CostFunctor(V2d obs, V2i size) {
 		observation = obs;
 		imageSize = size;
-		fixed = f;
 	}
 
    	template <typename T>
    	bool operator()(const T* const projection, const T* const distortion, const T* const camera, const T* const world, T* residual) const {
 		
-		T w[3];
-		if(fixed != nullptr) {
-			w[0] = (T)fixed->X;
-			w[1] = (T)fixed->Y;
-			w[2] = (T)fixed->Z;
-		}
-		else {
-			w[0] = world[0];
-			w[1] = world[1];
-			w[2] = world[2];
-		}
-
-
 		T viewSpace[3];
-		ceres::AngleAxisRotatePoint(camera, w, viewSpace);
+		ceres::AngleAxisRotatePoint(camera, world, viewSpace);
 		viewSpace[0] += camera[3];
 		viewSpace[1] += camera[4];
 		viewSpace[2] += camera[5];
@@ -196,7 +181,6 @@ DllExport(double) cOptimizePhotonetwork(
 		int nProjections, Projection* projs, Distortion* distortions,
 		int nCams, Euclidean3d* cams, 
 		int nPoints, V3d* world,
-		int nFixed, V3d* fixed,
 		int nResiduals, Residual* residuals) {	
 
 	disableGoogleLogging();
@@ -213,18 +197,8 @@ DllExport(double) cOptimizePhotonetwork(
 		auto res = residuals[ri];
 		auto obs = res.Observation;
 
-		V3d* fix = nullptr;
-		V3d* point = nullptr;
-		if(res.PointIndex < 0) {
-			auto fixedIndex = -1 - res.PointIndex;
-			fix = &fixed[fixedIndex];
-		}
-		else {
-			point = &world[res.PointIndex];
-		}
-
-  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize, fix));
-  		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&distortions[res.ProjectionIndex], (double*)&cams[res.CameraIndex], (double*)point);
+  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize));
+  		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&distortions[res.ProjectionIndex], (double*)&cams[res.CameraIndex], (double*)&world[res.PointIndex]);
 	}
 
 	ceres::Solver::Options opt;
@@ -269,8 +243,18 @@ DllExport(double) cOptimizePhotonetwork(
 			for(int pi = 0; pi < nPoints; pi++) { problem.SetParameterBlockVariable((double*)&world[pi]); }
 		}
 
+		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {
+			int pi = config[i].FixedPoints[fi];
+			problem.SetParameterBlockConstant((double*)&world[pi]);
+		}
 
 		ceres::Solve(opt, &problem, &summary);
+		
+		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {
+			int pi = config[i].FixedPoints[fi];
+			problem.SetParameterBlockVariable((double*)&world[pi]);
+		}
+
 	}
 
 	if(options->PrintProgress != 0) printf("%s\n", summary.FullReport().c_str());

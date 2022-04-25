@@ -1,3 +1,6 @@
+### 0.9.24
+* fixed points for PhotoNetwork v2
+
 ### 0.9.23
 * fixed points for PhotoNetwork
 
