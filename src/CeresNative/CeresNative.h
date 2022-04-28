@@ -160,6 +160,8 @@ typedef struct {
 	int DistortionsConstant;
 	int CamerasConstant;
 	int PointsConstant;
+	int FixedPointCount;
+	int* FixedPoints;
 	
 } IterationConfig;
 

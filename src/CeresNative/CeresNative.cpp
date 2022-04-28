@@ -245,8 +245,18 @@ DllExport(double) cOptimizePhotonetwork(
 			for(int pi = 0; pi < nPoints; pi++) { problem.SetParameterBlockVariable((double*)&world[pi]); }
 		}
 
+		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {
+			int pi = config[i].FixedPoints[fi];
+			problem.SetParameterBlockConstant((double*)&world[pi]);
+		}
 
 		ceres::Solve(opt, &problem, &summary);
+		
+		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {
+			int pi = config[i].FixedPoints[fi];
+			problem.SetParameterBlockVariable((double*)&world[pi]);
+		}
+
 	}
 
 	if(options->PrintProgress != 0) printf("%s\n", summary.FullReport().c_str());

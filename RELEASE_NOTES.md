@@ -1,5 +1,11 @@
-### 0.9.23
+### 0.9.25
 * resdiual weights 
+
+### 0.9.24
+* fixed points for PhotoNetwork v2
+
+### 0.9.23
+* fixed points for PhotoNetwork
 
 ### 0.9.22
 * explicit distortions 
