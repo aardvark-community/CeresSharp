@@ -119,13 +119,17 @@ type CeresDistortion(k1 : float, k2 : float, k3 : float, p1 : float, p2 : float)
     member x.P2 = p2
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d, imageSize : V2i) =
+type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : int, weight: float, observation : V2d, imageSize : V2i) =
     member x.ProjectionIndex = projectionIndex
     member x.CameraIndex = cameraIndex
     member x.PointIndex = pointIndex
     member x.Observation = observation
     member x.ImageSize = imageSize
+    member x.Weight = weight
 
+    new (projectionIndex : int, cameraIndex : int, pointIndex : int, observation : V2d, imageSize : V2i) =
+        CeresBundleResidual(projectionIndex, cameraIndex, pointIndex, 1.0, observation, imageSize)
+        
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type CeresBundleIteration private(projConstant : int, distConstant : int, camConstant : int, pointConstant : int) =
     member x.ProjConstant = projConstant <> 0

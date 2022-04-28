@@ -1,3 +1,6 @@
+### 0.9.23
+* resdiual weights 
+
 ### 0.9.22
 * explicit distortions 
 

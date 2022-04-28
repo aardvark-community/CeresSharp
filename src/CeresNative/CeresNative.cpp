@@ -121,9 +121,12 @@ struct CostFunctor {
 
 	V2d observation;
 	V2i imageSize;
-	CostFunctor(V2d obs, V2i size) {
+	double weight;
+
+	CostFunctor(V2d obs, V2i size, double w) {
 		observation = obs;
 		imageSize = size;
+		weight = w;
 	}
 
    	template <typename T>
@@ -169,8 +172,8 @@ struct CostFunctor {
 		px = (0.5 + 0.5 * px) * (double)imageSize.X;
 		py = (0.5 - 0.5 * py) * (double)imageSize.Y;
 
-		residual[0] = px - observation.X;
-		residual[1] = py - observation.Y;
+		residual[0] = (px - observation.X) * weight;
+		residual[1] = (py - observation.Y) * weight;
      	return true;
    	}
 };
@@ -196,7 +199,7 @@ DllExport(double) cOptimizePhotonetwork(
 	for(int ri = 0; ri < nResiduals; ri++) {
 		auto res = residuals[ri];
 		auto obs = res.Observation;
-  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize));
+  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize, res.Weight));
   		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&distortions[res.ProjectionIndex], (double*)&cams[res.CameraIndex], (double*)&world[res.PointIndex]);
 	}
 

@@ -150,6 +150,7 @@ typedef struct {
 	int ProjectionIndex;
 	int CameraIndex;
 	int PointIndex;
+	double Weight;
 	V2d Observation;
 	V2i ImageSize;
 } Residual;
