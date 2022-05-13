@@ -1,3 +1,6 @@
+### 0.9.26
+* nonmonotonic flag for PhotoNetwork optimize
+
 ### 0.9.25
 * resdiual weights 
 
