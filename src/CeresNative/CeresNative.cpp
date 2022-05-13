@@ -179,7 +179,7 @@ struct CostFunctor {
 };
 
 DllExport(double) cOptimizePhotonetwork(
-		CeresOptions* options,
+		CeresOptions* options, bool nonmonotonic, 
 		int nInterations, IterationConfig* config,
 		int nProjections, Projection* projs, Distortion* distortions,
 		int nCams, Euclidean3d* cams, 
@@ -205,13 +205,16 @@ DllExport(double) cOptimizePhotonetwork(
 
 	ceres::Solver::Options opt;
 
+	auto solver = (ceres::LinearSolverType)options->SolverType;	
 	opt.max_num_iterations = options->MaxIterations;
-	opt.linear_solver_type = (ceres::LinearSolverType)options->SolverType;
+	opt.linear_solver_type = solver;
 
 	opt.minimizer_progress_to_stdout = options->PrintProgress != 0;
 	opt.gradient_tolerance = options->GradientTolerance;
 	opt.function_tolerance = options->FunctionTolerance;
 	opt.parameter_tolerance = options->ParameterTolerance;
+	opt.use_nonmonotonic_steps = nonmonotonic;
+	if (solver == ceres::LinearSolverType::ITERATIVE_SCHUR) opt.preconditioner_type = ceres::SCHUR_JACOBI;
 	opt.num_threads = (int)std::thread::hardware_concurrency();
 	ceres::Solver::Summary summary;
 
