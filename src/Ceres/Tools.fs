@@ -172,7 +172,7 @@ module Ceres =
 
     
     
-    let optimizePhotoNetwork (options : Config) (nonmonotonic : bool) (iterations : BundleIteration[]) (projections : CeresProjection[]) (distortions : CeresDistortion[]) (cameras : Euclidean3d[]) (points : V3d[]) (residuals : CeresBundleResidual[]) =
+    let optimizePhotoNetwork (options : Config) (nonmonotonic : bool) (useDifferentialPoses : bool) (iterations : BundleIteration[]) (projections : CeresProjection[]) (distortions : CeresDistortion[]) (cameras : Euclidean3d[]) (points : V3d[]) (residuals : CeresBundleResidual[]) =
         let localCameras = cameras |> Array.map CeresCamera3d.FromEuclidean3d
         
         use pProjections = fixed projections
@@ -185,7 +185,7 @@ module Ceres =
         let final =
             BundleIteration.PinMany(iterations, fun pIterations ->
                 CeresRaw.cOptimizePhotonetwork(
-                    pOptions, nonmonotonic,
+                    pOptions, nonmonotonic, useDifferentialPoses,
                     iterations.Length, pIterations,
                     projections.Length, pProjections, pDistortions,
                     cameras.Length, pCameras,

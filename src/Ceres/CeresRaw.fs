@@ -188,7 +188,7 @@ module CeresRaw =
 
     [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
     extern float cOptimizePhotonetwork (
-        CeresOptions* options, bool nonmonotonic,
+        CeresOptions* options, bool nonmonotonic, bool useDifferentialPoses,
         int nIterations, CeresBundleIteration* iterations,
         int nProjections, CeresProjection* projs, CeresDistortion* dists,
         int nCams, CeresCamera3d* cams, 

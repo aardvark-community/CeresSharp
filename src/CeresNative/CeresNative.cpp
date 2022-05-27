@@ -118,22 +118,31 @@ DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 }
 
 struct CostFunctor {
-
+	Euclidean3d pose0;
 	V2d observation;
 	V2i imageSize;
 	double weight;
 
-	CostFunctor(V2d obs, V2i size, double w) {
+	CostFunctor(V2d obs, V2i size, Euclidean3d pose, double w) {
 		observation = obs;
 		imageSize = size;
 		weight = w;
+		pose0 = pose;
 	}
 
    	template <typename T>
    	bool operator()(const T* const projection, const T* const distortion, const T* const camera, const T* const world, T* residual) const {
-		
+
+		T temp[3];
+		T p0[6] = { (T)pose0.Rx, (T)pose0.Ry, (T)pose0.Rz, (T)pose0.Tx, (T)pose0.Ty, (T)pose0.Tz };
+		ceres::AngleAxisRotatePoint(p0, world, temp);
+		temp[0] += p0[3];
+		temp[1] += p0[4];
+		temp[2] += p0[5];
+
+
 		T viewSpace[3];
-		ceres::AngleAxisRotatePoint(camera, world, viewSpace);
+		ceres::AngleAxisRotatePoint(camera, temp, viewSpace);
 		viewSpace[0] += camera[3];
 		viewSpace[1] += camera[4];
 		viewSpace[2] += camera[5];
@@ -178,8 +187,33 @@ struct CostFunctor {
    	}
 };
 
+Euclidean3d composeEuclidean(Euclidean3d a, Euclidean3d b) {
+	double ra[3] = { a.Rx, a.Ry, a.Rz };
+	double rb[3] = { b.Rx, b.Ry, b.Rz };
+	double ta[3] = { a.Tx, a.Ty, a.Tz };
+	double tb[3] = { b.Tx, b.Ty, b.Tz };
+	double tc[3];
+	double qa[4];
+	double qb[4];
+	double qc[4];
+
+	// qb = qa * qb
+	ceres::AngleAxisToQuaternion(ra, qa);
+	ceres::AngleAxisToQuaternion(rb, qb);
+	ceres::QuaternionProduct(qa, qb, qc);
+
+	// tb = ta + qa*tb
+	ceres::AngleAxisRotatePoint(ra, tb, tc);
+	tc[0] += ta[0];
+	tc[1] += ta[1];
+	tc[2] += ta[2];
+	ceres::QuaternionToAngleAxis(qc, rb);
+
+	return { rb[0], rb[1], rb[2], tc[0], tc[1], tc[2] };
+}
+
 DllExport(double) cOptimizePhotonetwork(
-		CeresOptions* options, bool nonmonotonic, 
+		CeresOptions* options, bool nonmonotonic, bool useDifferentialPoses,
 		int nInterations, IterationConfig* config,
 		int nProjections, Projection* projs, Distortion* distortions,
 		int nCams, Euclidean3d* cams, 
@@ -189,18 +223,41 @@ DllExport(double) cOptimizePhotonetwork(
 	disableGoogleLogging();
 	Problem problem;
 
+	Euclidean3d* extra = new Euclidean3d[nCams];
+	Euclidean3d* poses;
+	Euclidean3d* differentialPoses;
+
+	for(int i = 0; i < nCams; i++) {
+		extra[i].Rx = 0.0;
+		extra[i].Ry = 0.0;
+		extra[i].Rz = 0.0;
+		extra[i].Tx = 0.0;
+		extra[i].Ty = 0.0;
+		extra[i].Tz = 0.0;
+	}
+
+	if(useDifferentialPoses) {
+		poses = cams;
+		differentialPoses = extra;
+	}
+	else {
+		poses = extra;
+		differentialPoses = cams;
+	}
+
 	for (int i = 0; i < nProjections; i++) {
 		problem.AddParameterBlock((double*)&projs[i], PROJECTION_DOUBLES);
 		problem.AddParameterBlock((double*)&distortions[i], DISTORTION_DOUBLES);
 	}
-	for (int i = 0; i < nCams; i++) problem.AddParameterBlock((double*)&cams[i], CAMERA_DOUBLES);
+	for (int i = 0; i < nCams; i++) problem.AddParameterBlock((double*)&differentialPoses[i], CAMERA_DOUBLES);
 	for (int i = 0; i < nPoints; i++) problem.AddParameterBlock((double*)&world[i], POINT_DOUBLES);
 
 	for(int ri = 0; ri < nResiduals; ri++) {
 		auto res = residuals[ri];
 		auto obs = res.Observation;
-  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize, res.Weight));
-  		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&distortions[res.ProjectionIndex], (double*)&cams[res.CameraIndex], (double*)&world[res.PointIndex]);
+		auto pose = poses[res.CameraIndex];
+  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize, pose, res.Weight));
+  		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&distortions[res.ProjectionIndex], (double*)&differentialPoses[res.CameraIndex], (double*)&world[res.PointIndex]);
 	}
 
 	ceres::Solver::Options opt;
@@ -263,6 +320,13 @@ DllExport(double) cOptimizePhotonetwork(
 	}
 
 	if(options->PrintProgress != 0) printf("%s\n", summary.FullReport().c_str());
+
+
+	for(int i = 0; i < nCams; i++) {
+		if(useDifferentialPoses) cams[i] = composeEuclidean(differentialPoses[i], poses[i]);
+		else cams[i] = differentialPoses[i];
+	}
+	delete[] extra;
 
 	if (summary.termination_type == ceres::TerminationType::CONVERGENCE)
 	{

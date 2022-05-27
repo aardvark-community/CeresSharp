@@ -171,7 +171,7 @@ typedef struct {
 #define POINT_DOUBLES 3
 
 DllExport(double) cOptimizePhotonetwork(
-	CeresOptions* options, bool nonmonotonic,
+	CeresOptions* options, bool nonmonotonic, bool differentialPoses,
 	int nInterations, IterationConfig* config,
 	int nProjections, Projection* projs, Distortion* distortions,
 	int nCams, Euclidean3d* cams, 
