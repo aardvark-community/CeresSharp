@@ -291,10 +291,10 @@ DllExport(double) cOptimizePhotonetwork(
 		}
 
 		if(config[i].CamerasConstant) {
-			for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockConstant((double*)&cams[pi]); }
+			for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockConstant((double*)&differentialPoses[pi]); }
 		}
 		else {
-			for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockVariable((double*)&cams[pi]); }
+			for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockVariable((double*)&differentialPoses[pi]); }
 		}
 
 

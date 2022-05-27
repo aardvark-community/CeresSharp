@@ -1,3 +1,6 @@
+### 0.9.28
+* fixed differential pose problem
+
 ### 0.9.27
 * useDifferentialPoses flag
 
