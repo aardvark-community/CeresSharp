@@ -1,3 +1,6 @@
+### 0.9.29
+* covariances
+
 ### 0.9.28
 * fixed differential pose problem
 

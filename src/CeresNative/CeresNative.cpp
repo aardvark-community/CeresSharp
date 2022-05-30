@@ -212,13 +212,45 @@ Euclidean3d composeEuclidean(Euclidean3d a, Euclidean3d b) {
 	return { rb[0], rb[1], rb[2], tc[0], tc[1], tc[2] };
 }
 
+M33d composeMatrix(M33d a, M33d b) {
+	M33d res;
+
+	res.M[0] = a.M[0] * b.M[0] + a.M[1] * b.M[3] + a.M[2] * b.M[6];
+	res.M[1] = a.M[0] * b.M[1] + a.M[1] * b.M[4] + a.M[2] * b.M[7];
+	res.M[2] = a.M[0] * b.M[2] + a.M[1] * b.M[5] + a.M[2] * b.M[8];
+	res.M[3] = a.M[3] * b.M[0] + a.M[4] * b.M[3] + a.M[5] * b.M[6];
+	res.M[4] = a.M[3] * b.M[1] + a.M[4] * b.M[4] + a.M[5] * b.M[7];
+	res.M[5] = a.M[3] * b.M[2] + a.M[4] * b.M[5] + a.M[5] * b.M[8];
+	res.M[6] = a.M[6] * b.M[0] + a.M[7] * b.M[3] + a.M[8] * b.M[6];
+	res.M[7] = a.M[6] * b.M[1] + a.M[7] * b.M[4] + a.M[8] * b.M[7];
+	res.M[8] = a.M[6] * b.M[2] + a.M[7] * b.M[5] + a.M[8] * b.M[8];
+
+	return res;
+}
+M33d transpose(M33d a) {
+	M33d res;
+
+	res.M[0] = a.M[0];
+	res.M[1] = a.M[3];
+	res.M[2] = a.M[6];
+	res.M[3] = a.M[1];
+	res.M[4] = a.M[4];
+	res.M[5] = a.M[7];
+	res.M[6] = a.M[2];
+	res.M[7] = a.M[5];
+	res.M[8] = a.M[8];
+
+	return res;
+}
+
 DllExport(double) cOptimizePhotonetwork(
 		CeresOptions* options, bool nonmonotonic, bool useDifferentialPoses,
 		int nInterations, IterationConfig* config,
 		int nProjections, Projection* projs, Distortion* distortions,
 		int nCams, Euclidean3d* cams, 
 		int nPoints, V3d* world,
-		int nResiduals, Residual* residuals) {	
+		int nResiduals, Residual* residuals,
+		M33d* pointCovariances, M33d* cameraLocationCovariances) {	
 
 	disableGoogleLogging();
 	Problem problem;
@@ -315,6 +347,56 @@ DllExport(double) cOptimizePhotonetwork(
 		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {
 			int pi = config[i].FixedPoints[fi];
 			problem.SetParameterBlockVariable((double*)&world[pi]);
+		}
+
+		if(i == nInterations - 1 && (pointCovariances != nullptr || cameraLocationCovariances != nullptr)) {
+
+			ceres::Covariance::Options options;
+			ceres::Covariance covariance(options);
+			std::vector<pair<const double*, const double*> > covariance_blocks;
+
+			if(pointCovariances != nullptr) {
+				for(int pi = 0; pi < nPoints; pi++) {
+					covariance_blocks.push_back(make_pair((const double*)&world[pi], (const double*)&world[pi]));
+				}
+			}
+
+			if(cameraLocationCovariances != nullptr) {
+				for(int ci = 0; ci < nCams; ci++) {
+					covariance_blocks.push_back(make_pair((const double*)&differentialPoses[ci], (const double*)&differentialPoses[ci]));
+				}
+			}
+
+			covariance.Compute(covariance_blocks, &problem);
+
+			
+			if(pointCovariances != nullptr) {
+				for(int pi = 0; pi < nPoints; pi++) {
+					covariance.GetCovarianceBlock((const double*)&world[pi], (const double*)&world[pi], (double*)&pointCovariances[pi]);
+				}
+			}
+			
+			if(cameraLocationCovariances != nullptr) {
+				double cov[36];
+				for(int ci = 0; ci < nCams; ci++) {
+					// rx ry rz tx ty tz
+					covariance.GetCovarianceBlock((const double*)&differentialPoses[ci], (const double*)&differentialPoses[ci], cov);
+					M33d tCov;
+					tCov.M[0] = cov[21]; tCov.M[1] = cov[22]; tCov.M[2] = cov[23];
+					tCov.M[3] = cov[27]; tCov.M[4] = cov[28]; tCov.M[5] = cov[29];
+					tCov.M[6] = cov[33]; tCov.M[7] = cov[34]; tCov.M[8] = cov[35];
+
+					M33d rot;
+					auto cam = composeEuclidean(differentialPoses[i], poses[i]);
+					double r[3] = { cam.Rx, cam.Ry, cam.Rz };
+					ceres::AngleAxisToRotationMatrix(r, ceres::RowMajorAdapter3x3(rot.M));
+					M33d fin = composeMatrix(composeMatrix(rot, tCov), transpose(rot));
+
+					cameraLocationCovariances[ci] = fin;
+				}
+
+			}
+
 		}
 
 	}

@@ -142,6 +142,10 @@ typedef struct {
 } V2d;
 
 typedef struct {
+	double M[9];
+} M33d;
+
+typedef struct {
 	int X;
 	int Y;
 } V2i;
@@ -176,5 +180,6 @@ DllExport(double) cOptimizePhotonetwork(
 	int nProjections, Projection* projs, Distortion* distortions,
 	int nCams, Euclidean3d* cams, 
 	int nPoints, V3d* world,
-	int nResiduals, Residual* residuals);
+	int nResiduals, Residual* residuals,
+	M33d* pointCovariances, M33d* cameraLocationCovariances);
 

@@ -193,5 +193,6 @@ module CeresRaw =
         int nProjections, CeresProjection* projs, CeresDistortion* dists,
         int nCams, CeresCamera3d* cams, 
         int nPoints, V3d* world,
-        int nResiduals, CeresBundleResidual* residuals)
+        int nResiduals, CeresBundleResidual* residuals,
+        M33d* pointCovariances, M33d* cameraLocationCovariances)
     
