@@ -395,7 +395,7 @@ DllExport(double) cOptimizePhotonetwork(
 					tCov.M[6] = cov[33]; tCov.M[7] = cov[34]; tCov.M[8] = cov[35];
 
 					M33d rot;
-					auto cam = composeEuclidean(differentialPoses[i], poses[i]);
+					auto cam = composeEuclidean(differentialPoses[ci], poses[ci]);
 					double r[3] = { cam.Rx, cam.Ry, cam.Rz };
 					ceres::AngleAxisToRotationMatrix(r, ceres::RowMajorAdapter3x3(rot.M));
 					M33d fin = composeMatrix(composeMatrix(rot, tCov), transpose(rot));

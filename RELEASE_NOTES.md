@@ -1,3 +1,6 @@
+### 0.9.32
+* Covariance estimation index fix
+
 ### 0.9.31
 * Covariance estimated using CovarianceAlgorithmType::DENSE_SVD
 
