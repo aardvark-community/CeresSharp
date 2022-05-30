@@ -359,6 +359,7 @@ DllExport(double) cOptimizePhotonetwork(
 		if(i == nInterations - 1 && (pointCovariances != nullptr || cameraLocationCovariances != nullptr)) {
 
 			ceres::Covariance::Options options;
+			options.algorithm_type = ceres::CovarianceAlgorithmType::DENSE_SVD;
 			ceres::Covariance covariance(options);
 			std::vector<pair<const double*, const double*> > covariance_blocks;
 

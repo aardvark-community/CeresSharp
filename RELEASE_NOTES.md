@@ -1,3 +1,6 @@
+### 0.9.31
+* Covariance estimated using CovarianceAlgorithmType::DENSE_SVD
+
 ### 0.9.30
 * index-checks in cOptimizePhotonetwork
 
