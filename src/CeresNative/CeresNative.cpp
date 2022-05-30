@@ -286,10 +286,16 @@ DllExport(double) cOptimizePhotonetwork(
 
 	for(int ri = 0; ri < nResiduals; ri++) {
 		auto res = residuals[ri];
-		auto obs = res.Observation;
-		auto pose = poses[res.CameraIndex];
-  		CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize, pose, res.Weight));
-  		problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&distortions[res.ProjectionIndex], (double*)&differentialPoses[res.CameraIndex], (double*)&world[res.PointIndex]);
+		
+		if(res.CameraIndex < 0 || res.CameraIndex >= nCams) printf("[%03d] Camera index out of bounds: %d\n", ri, res.CameraIndex);
+		else if(res.ProjectionIndex < 0 || res.ProjectionIndex >= nProjections) printf("[%03d] Projection index out of bounds: %d\n", ri, res.ProjectionIndex);
+		else if(res.PointIndex < 0 || res.PointIndex >= nPoints) printf("[%03d] Point index out of bounds: %d\n", ri, res.PointIndex);
+		else {
+			auto obs = res.Observation;
+			auto pose = poses[res.CameraIndex];
+			CostFunction* cost_function = new AutoDiffCostFunction<CostFunctor, 2, PROJECTION_DOUBLES, DISTORTION_DOUBLES, CAMERA_DOUBLES, POINT_DOUBLES>(new CostFunctor(obs, res.ImageSize, pose, res.Weight));
+			problem.AddResidualBlock(cost_function, nullptr, (double*)&projs[res.ProjectionIndex], (double*)&distortions[res.ProjectionIndex], (double*)&differentialPoses[res.CameraIndex], (double*)&world[res.PointIndex]);
+		}
 	}
 
 	ceres::Solver::Options opt;
@@ -339,14 +345,15 @@ DllExport(double) cOptimizePhotonetwork(
 
 		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {
 			int pi = config[i].FixedPoints[fi];
-			problem.SetParameterBlockConstant((double*)&world[pi]);
+			if(pi < 0 || pi >= nPoints) printf("[%03d] Constant point index out of bounds: %d\n", fi, pi);
+			else problem.SetParameterBlockConstant((double*)&world[pi]);
 		}
 
 		ceres::Solve(opt, &problem, &summary);
 		
 		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {
 			int pi = config[i].FixedPoints[fi];
-			problem.SetParameterBlockVariable((double*)&world[pi]);
+			if(pi >= 0 && pi < nPoints) problem.SetParameterBlockVariable((double*)&world[pi]);
 		}
 
 		if(i == nInterations - 1 && (pointCovariances != nullptr || cameraLocationCovariances != nullptr)) {

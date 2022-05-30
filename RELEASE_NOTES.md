@@ -1,3 +1,6 @@
+### 0.9.30
+* index-checks in cOptimizePhotonetwork
+
 ### 0.9.29
 * covariances
 
