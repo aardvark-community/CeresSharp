@@ -1,3 +1,6 @@
+### 0.9.33
+* fixed distortion
+
 ### 0.9.32
 * Covariance estimation index fix
 

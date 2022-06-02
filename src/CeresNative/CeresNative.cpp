@@ -172,7 +172,7 @@ struct CostFunctor {
 		T r4 = r2*r2;
 		T r6 = r4*r2;
 		T factor = 1.0 + k1*r2 + k2*r4 + k3*r6;
-		T px1 = px * factor + 2.0*p1*px*py + p2;
+		T px1 = px * factor + 2.0*p1*px*py + p2*(r2 + 2.0*px*px);
 		T py1 = py * factor + p1*(r2 + 2.0*py*py) + 2.0*p2*px*py;
 
 		px = focal * px1 + ppx;
