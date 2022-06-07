@@ -1,3 +1,6 @@
+### 0.9.34
+* fixed covariance problem
+
 ### 0.9.33
 * fixed distortion
 

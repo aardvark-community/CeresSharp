@@ -278,8 +278,30 @@ DllExport(double) cOptimizePhotonetwork(
 	}
 
 	for (int i = 0; i < nProjections; i++) {
-		problem.AddParameterBlock((double*)&projs[i], PROJECTION_DOUBLES);
+		
+		double* proj = (double*)&projs[i];
+		problem.AddParameterBlock(proj, PROJECTION_DOUBLES);
 		problem.AddParameterBlock((double*)&distortions[i], DISTORTION_DOUBLES);
+
+		// double FocalLength;
+		// double Aspect;
+		// double PrincipalPointX;
+		// double PrincipalPointY;
+		// if(minProjections) {
+		// 	Projection* l = &minProjections[i];
+		// 	problem.SetParameterLowerBound(proj, 0, l->FocalLength);
+		// 	problem.SetParameterLowerBound(proj, 1, l->Aspect);
+		// 	problem.SetParameterLowerBound(proj, 2, l->PrincipalPointX);
+		// 	problem.SetParameterLowerBound(proj, 3, l->PrincipalPointY);
+		// }
+		// if(maxProjections) {
+		// 	Projection* l = &maxProjections[i];
+		// 	problem.SetParameterUpperBound(proj, 0, l->FocalLength);
+		// 	problem.SetParameterUpperBound(proj, 1, l->Aspect);
+		// 	problem.SetParameterUpperBound(proj, 2, l->PrincipalPointX);
+		// 	problem.SetParameterUpperBound(proj, 3, l->PrincipalPointY);
+		// }
+
 	}
 	for (int i = 0; i < nCams; i++) problem.AddParameterBlock((double*)&differentialPoses[i], CAMERA_DOUBLES);
 	for (int i = 0; i < nPoints; i++) problem.AddParameterBlock((double*)&world[i], POINT_DOUBLES);
@@ -312,6 +334,7 @@ DllExport(double) cOptimizePhotonetwork(
 	if (solver == ceres::LinearSolverType::ITERATIVE_SCHUR) opt.preconditioner_type = ceres::SCHUR_JACOBI;
 	opt.num_threads = (int)std::thread::hardware_concurrency();
 	ceres::Solver::Summary summary;
+
 
 	for(int i = 0; i < nInterations; i++) {
 		if(config[i].ProjectionsConstant) {
@@ -356,54 +379,62 @@ DllExport(double) cOptimizePhotonetwork(
 			if(pi >= 0 && pi < nPoints) problem.SetParameterBlockVariable((double*)&world[pi]);
 		}
 
-		if(i == nInterations - 1 && (pointCovariances != nullptr || cameraLocationCovariances != nullptr)) {
-
-			ceres::Covariance::Options options;
-			options.algorithm_type = ceres::CovarianceAlgorithmType::DENSE_SVD;
-			ceres::Covariance covariance(options);
-			std::vector<pair<const double*, const double*> > covariance_blocks;
-
-			if(pointCovariances != nullptr) {
-				for(int pi = 0; pi < nPoints; pi++) {
-					covariance_blocks.push_back(make_pair((const double*)&world[pi], (const double*)&world[pi]));
-				}
-			}
+		if(i == nInterations - 1) {
 
 			if(cameraLocationCovariances != nullptr) {
+				
+				ceres::Covariance::Options options;
+				options.algorithm_type = ceres::CovarianceAlgorithmType::SPARSE_QR;
+				ceres::Covariance covariance(options);
+				std::vector<pair<const double*, const double*> > covariance_blocks;
+
+				for(int pi = 0; pi < nPoints; pi++) { problem.SetParameterBlockConstant((double*)&world[pi]); }
+				for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockVariable((double*)&differentialPoses[pi]); }
 				for(int ci = 0; ci < nCams; ci++) {
 					covariance_blocks.push_back(make_pair((const double*)&differentialPoses[ci], (const double*)&differentialPoses[ci]));
 				}
+
+				if(covariance.Compute(covariance_blocks, &problem)) {
+					double cov[36];
+					for(int ci = 0; ci < nCams; ci++) {
+						// rx ry rz tx ty tz
+						covariance.GetCovarianceBlock((const double*)&differentialPoses[ci], (const double*)&differentialPoses[ci], cov);
+						M33d tCov;
+						tCov.M[0] = cov[21]; tCov.M[1] = cov[22]; tCov.M[2] = cov[23];
+						tCov.M[3] = cov[27]; tCov.M[4] = cov[28]; tCov.M[5] = cov[29];
+						tCov.M[6] = cov[33]; tCov.M[7] = cov[34]; tCov.M[8] = cov[35];
+
+						M33d rot;
+						auto cam = composeEuclidean(differentialPoses[ci], poses[ci]);
+						double r[3] = { cam.Rx, cam.Ry, cam.Rz };
+						ceres::AngleAxisToRotationMatrix(r, ceres::RowMajorAdapter3x3(rot.M));
+						M33d fin = composeMatrix(composeMatrix(rot, tCov), transpose(rot));
+
+						cameraLocationCovariances[ci] = fin;
+					}
+				}
 			}
 
-			covariance.Compute(covariance_blocks, &problem);
 
-			
 			if(pointCovariances != nullptr) {
+				ceres::Covariance::Options options;
+				options.algorithm_type = ceres::CovarianceAlgorithmType::SPARSE_QR;
+				ceres::Covariance covariance(options);
+				std::vector<pair<const double*, const double*> > covariance_blocks;
+
+				for(int pi = 0; pi < nPoints; pi++) { problem.SetParameterBlockVariable((double*)&world[pi]); }
+				for(int pi = 0; pi < nCams; pi++) { problem.SetParameterBlockConstant((double*)&differentialPoses[pi]); }
 				for(int pi = 0; pi < nPoints; pi++) {
-					covariance.GetCovarianceBlock((const double*)&world[pi], (const double*)&world[pi], (double*)&pointCovariances[pi]);
+					covariance_blocks.push_back(make_pair((const double*)&world[pi], (const double*)&world[pi]));
+				}
+
+				if(covariance.Compute(covariance_blocks, &problem)) {
+					for(int pi = 0; pi < nPoints; pi++) {
+						covariance.GetCovarianceBlock((const double*)&world[pi], (const double*)&world[pi], (double*)&pointCovariances[pi]);
+					}
 				}
 			}
 			
-			if(cameraLocationCovariances != nullptr) {
-				double cov[36];
-				for(int ci = 0; ci < nCams; ci++) {
-					// rx ry rz tx ty tz
-					covariance.GetCovarianceBlock((const double*)&differentialPoses[ci], (const double*)&differentialPoses[ci], cov);
-					M33d tCov;
-					tCov.M[0] = cov[21]; tCov.M[1] = cov[22]; tCov.M[2] = cov[23];
-					tCov.M[3] = cov[27]; tCov.M[4] = cov[28]; tCov.M[5] = cov[29];
-					tCov.M[6] = cov[33]; tCov.M[7] = cov[34]; tCov.M[8] = cov[35];
-
-					M33d rot;
-					auto cam = composeEuclidean(differentialPoses[ci], poses[ci]);
-					double r[3] = { cam.Rx, cam.Ry, cam.Rz };
-					ceres::AngleAxisToRotationMatrix(r, ceres::RowMajorAdapter3x3(rot.M));
-					M33d fin = composeMatrix(composeMatrix(rot, tCov), transpose(rot));
-
-					cameraLocationCovariances[ci] = fin;
-				}
-
-			}
 
 		}
 

@@ -6,6 +6,8 @@ project(CeresNative)
 # set(Ceres_DIR ${CMAKE_LIBRARY_PATH}../../.vcpkg/vcpkg/packages/ceres_x64-osx-release)
 find_package(Ceres CONFIG REQUIRED)
 
+
+# set(CMAKE_PLATFORM_TOOLSET "v141")
 set(CMAKE_BUILD_TYPE, "Release")
 if(UNIX)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -ffunction-sections -fdata-sections -fvisibility=hidden")
