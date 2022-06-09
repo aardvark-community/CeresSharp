@@ -1,3 +1,6 @@
+### 0.9.35
+* fixed camera covariance orientation
+
 ### 0.9.34
 * fixed covariance problem
 

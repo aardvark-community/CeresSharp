@@ -202,7 +202,7 @@ Euclidean3d composeEuclidean(Euclidean3d a, Euclidean3d b) {
 	ceres::AngleAxisToQuaternion(rb, qb);
 	ceres::QuaternionProduct(qa, qb, qc);
 
-	// tb = ta + qa*tb
+	// tc = ta + qa*tb
 	ceres::AngleAxisRotatePoint(ra, tb, tc);
 	tc[0] += ta[0];
 	tc[1] += ta[1];
@@ -404,11 +404,28 @@ DllExport(double) cOptimizePhotonetwork(
 						tCov.M[3] = cov[27]; tCov.M[4] = cov[28]; tCov.M[5] = cov[29];
 						tCov.M[6] = cov[33]; tCov.M[7] = cov[34]; tCov.M[8] = cov[35];
 
+
+						// Rf = Rd * Rp
+						// tf = Rd * tp + td + eps
+
+						// COV(eps) = tCov
+
+						// loc = Rf^-1 * -tf
+						// loc = Rp^-1*Rd^-1*(Rd*tp + td + eps)
+						// loc = Rp^-1*Rd^-1*Rd*tp + Rp^-1*Rd^-1*td + Rp^-1*Rd^-1*eps
+
+						// COV(loc) 
+						// = COV(Rp^-1*Rd^-1*Rd*tp + Rp^-1*Rd^-1*td + Rp^-1*Rd^-1*eps)
+						// = COV(Rp^-1*Rd^-1*Rd*tp) + COV(Rp^-1*Rd^-1*td) + COV(Rp^-1*Rd^-1*eps)
+						// = COV(Rf^-1*eps)
+						// = COV(Rf^T*eps)
+						// = Rf^T * COV(eps) * Rf
+
 						M33d rot;
 						auto cam = composeEuclidean(differentialPoses[ci], poses[ci]);
 						double r[3] = { cam.Rx, cam.Ry, cam.Rz };
 						ceres::AngleAxisToRotationMatrix(r, ceres::RowMajorAdapter3x3(rot.M));
-						M33d fin = composeMatrix(composeMatrix(rot, tCov), transpose(rot));
+						M33d fin = composeMatrix(composeMatrix(transpose(rot), tCov), rot);
 
 						cameraLocationCovariances[ci] = fin;
 					}
