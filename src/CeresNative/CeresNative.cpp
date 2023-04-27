@@ -372,6 +372,11 @@ DllExport(double) cOptimizePhotonetwork(
 			else problem.SetParameterBlockConstant((double*)&world[pi]);
 		}
 
+		opt.gradient_tolerance = config[i].GradientTolerance;
+		opt.function_tolerance = config[i].FunctionTolerance;
+		opt.parameter_tolerance = config[i].ParameterTolerance;
+		opt.max_num_iterations = config[i].MaxIterations;
+
 		ceres::Solve(opt, &problem, &summary);
 		
 		for(int fi = 0; fi < config[i].FixedPointCount; fi++) {

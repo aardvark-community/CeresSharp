@@ -1,3 +1,6 @@
+### 0.9.36
+* added MaxIterations/Tolerances to CeresBundleIteration
+
 ### 0.9.35
 * fixed camera covariance orientation
 

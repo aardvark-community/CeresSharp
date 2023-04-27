@@ -131,21 +131,26 @@ type CeresBundleResidual(projectionIndex : int, cameraIndex : int, pointIndex : 
         CeresBundleResidual(projectionIndex, cameraIndex, pointIndex, 1.0, observation, imageSize)
         
 [<Struct; StructLayout(LayoutKind.Sequential)>]
-type CeresBundleIteration private(projConstant : int, distConstant : int, camConstant : int, pointConstant : int, fixedPointCount : int, fixedPointIndices : nativeptr<int>) =
+type CeresBundleIteration private(projConstant : int, distConstant : int, camConstant : int, pointConstant : int, fixedPointCount : int, fixedPointIndices : nativeptr<int>, functionTolerance : float, parameterTolerance : float, gradientTolerance : float, maxIterations : int) =
     member x.ProjConstant = projConstant <> 0
     member x.DistortionConstant = distConstant <> 0
     member x.CamConstant = camConstant <> 0
     member x.PointConstant = pointConstant <> 0
     member x.FixedPointCount = fixedPointCount
     member x.FixedPointIndices = fixedPointIndices
+    member x.FunctionTolerance = functionTolerance
+    member x.ParameterTolerance = parameterTolerance
+    member x.GradientTolerance = gradientTolerance
+    member x.MaxIterations = maxIterations
 
-    new(projConstant : bool, distConstant : bool, camConstant : bool, pointsConstant : bool, fixedPointCount : int, fixedPointIndices : nativeptr<int>) =
+    new(projConstant : bool, distConstant : bool, camConstant : bool, pointsConstant : bool, fixedPointCount : int, fixedPointIndices : nativeptr<int>, functionTolerance : float, parameterTolerance : float, gradientTolerance : float, maxIterations : int) =
         CeresBundleIteration(
             (if projConstant then 1 else 0),
             (if distConstant then 1 else 0),
             (if camConstant then 1 else 0),
             (if pointsConstant then 1 else 0),
-            fixedPointCount, fixedPointIndices
+            fixedPointCount, fixedPointIndices,
+            functionTolerance, parameterTolerance, gradientTolerance, maxIterations
         )
         
 module CeresRaw =

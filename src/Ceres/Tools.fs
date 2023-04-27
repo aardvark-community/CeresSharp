@@ -15,17 +15,21 @@ type BundleIteration =
         camConstant : bool
         pointConstant : bool
         fixedPointIndices : int[]
+        functionTolerance : float
+        parameterTolerance : float
+        gradientTolerance : float
+        maxIterations : int
     }
 
     member x.Pin(action : CeresBundleIteration -> 'a) =
         if isNull x.fixedPointIndices then
             action (
-                CeresBundleIteration(x.projConstant, x.distConstant, x.camConstant, x.pointConstant, 0, NativePtr.zero)
+                CeresBundleIteration(x.projConstant, x.distConstant, x.camConstant, x.pointConstant, 0, NativePtr.zero, x.functionTolerance, x.parameterTolerance, x.gradientTolerance, x.maxIterations)
             )
         else    
             use ptr = fixed x.fixedPointIndices
             action (
-                CeresBundleIteration(x.projConstant, x.distConstant, x.camConstant, x.pointConstant, x.fixedPointIndices.Length, ptr)
+                CeresBundleIteration(x.projConstant, x.distConstant, x.camConstant, x.pointConstant, x.fixedPointIndices.Length, ptr, x.functionTolerance, x.parameterTolerance, x.gradientTolerance, x.maxIterations)
             )
             
 

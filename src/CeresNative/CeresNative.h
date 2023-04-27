@@ -167,6 +167,12 @@ typedef struct {
 	int FixedPointCount;
 	int* FixedPoints;
 	
+	double FunctionTolerance;
+	double ParameterTolerance;
+	double GradientTolerance;
+	int MaxIterations;
+
+
 } IterationConfig;
 
 #define CAMERA_DOUBLES 6
