@@ -23,11 +23,11 @@ jobs:
           -name "GitHub"
           -username "aardvark-community"
           -password "${{ secrets.GITHUB_TOKEN }}"
-      - name: Setup Fortran
-        uses: awvwgk/setup-fortran@main
-        with:
-          compiler: gcc
-          version: 11
+      # - name: Setup Fortran
+      #   uses: awvwgk/setup-fortran@main
+      #   with:
+      #     compiler: gcc
+      #     version: 11
       - name: Build Native Libraries
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
@@ -63,11 +63,11 @@ jobs:
           -name "GitHub"
           -username "aardvark-community"
           -password "${{ secrets.GITHUB_TOKEN }}"
-      - name: Setup Fortran
-        uses: awvwgk/setup-fortran@main
-        with:
-          compiler: gcc
-          version: 11
+      # - name: Setup Fortran
+      #   uses: awvwgk/setup-fortran@main
+      #   with:
+      #     compiler: gcc
+      #     version: 11
       - name: Build Native Libraries
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
