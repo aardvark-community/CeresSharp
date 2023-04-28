@@ -1,6 +1,6 @@
 ### 0.9.36
 * added MaxIterations/Tolerances to CeresBundleIteration 
-* updated Ceres packages
+* updated Ceres packages and added glfags
 
 ### 0.9.35
 * fixed camera covariance orientation

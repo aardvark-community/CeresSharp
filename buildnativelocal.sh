@@ -42,7 +42,7 @@ else
 fi
 
 ./.vcpkg/vcpkg/bootstrap-vcpkg.sh
-./.vcpkg/vcpkg/vcpkg install $PACKAGE --triplet $VCPKG_TRIPLET 
+./.vcpkg/vcpkg/vcpkg install gflags $PACKAGE --triplet $VCPKG_TRIPLET 
 
 rm -dfr src/CeresNative/build
 cmake -S src/CeresNative/ -B src/CeresNative/build $ARCH_FLAGS \
