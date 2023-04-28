@@ -79,7 +79,7 @@ jobs:
           path: libs/Native/Ceres/mac/ARM64/
   linux_x64:
     name: Linux (x64)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:  
       - name: Checkout
         uses: actions/checkout@v2

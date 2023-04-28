@@ -14,7 +14,7 @@ rm -dfr .vcpkg
 mkdir .vcpkg
 git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg 
 cd ./.vcpkg/vcpkg
-git reset --hard 99346bb6926e85d93e4aad330bf28cce4a18051b
+git reset --hard e52999ee1a61bfea654733712288c5d4469d38bc
 cd ../..
 
 PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
