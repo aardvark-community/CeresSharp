@@ -2,9 +2,9 @@
 
 
 git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg
-cd .\.vcpkg\vcpkg
-git reset --hard e52999ee1a61bfea654733712288c5d4469d38bc
-cd ..\..
+REM cd .\.vcpkg\vcpkg
+REM git reset --hard e52999ee1a61bfea654733712288c5d4469d38bc
+REM cd ..\..
 
 cmd /C ".vcpkg\vcpkg\bootstrap-vcpkg.bat -disableMetrics"
 

@@ -10,9 +10,9 @@ a="/$0"; a=${a%/*}; a=${a#/}; a=${a:-.}; BASEDIR=$(cd "$a"; pwd)
 
 mkdir .vcpkg
 git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg 
-cd ./.vcpkg/vcpkg
-git reset --hard e52999ee1a61bfea654733712288c5d4469d38bc
-cd ../..
+# cd ./.vcpkg/vcpkg
+# git reset --hard e52999ee1a61bfea654733712288c5d4469d38bc
+# cd ../..
 
 PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
 if [ "$OS" = "Darwin" ];
