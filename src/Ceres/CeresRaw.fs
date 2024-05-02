@@ -153,6 +153,13 @@ type CeresBundleIteration private(projConstant : int, distConstant : int, camCon
             functionTolerance, parameterTolerance, gradientTolerance, maxIterations
         )
         
+type CeresTerminationType =
+    | Convergence = 0
+    | NoConvergence = 1
+    | Failure = 2
+    | UserSuccess = 3
+    | UserFailure = 4
+
 module CeresRaw =
     
     [<Literal>]
@@ -189,7 +196,19 @@ module CeresRaw =
     extern void cAddResidualFunction4(CeresProblem problem, CeresLossFunctionHandle loss, CeresCostFunction func, double* p0, double* p1, double* p2, double* p3)
 
     [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
-    extern float cSolve(CeresProblem problem, CeresOptions* options)
+    extern void cAddResidualFunction5(CeresProblem problem, CeresLossFunctionHandle loss, CeresCostFunction func, double* p0, double* p1, double* p2, double* p3, double* p4)
+
+    [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
+    extern void cAddResidualFunction6(CeresProblem problem, CeresLossFunctionHandle loss, CeresCostFunction func, double* p0, double* p1, double* p2, double* p3, double* p4, double* p5)
+
+    [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
+    extern void cAddResidualFunction7(CeresProblem problem, CeresLossFunctionHandle loss, CeresCostFunction func, double* p0, double* p1, double* p2, double* p3, double* p4, double* p5, double* p6)
+
+    [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
+    extern void cAddResidualFunction8(CeresProblem problem, CeresLossFunctionHandle loss, CeresCostFunction func, double* p0, double* p1, double* p2, double* p3, double* p4, double* p5, double* p6, double* p7)
+
+    [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
+    extern float cSolve(CeresProblem problem, CeresOptions* options, CeresTerminationType* termination, int* usable)
 
     [<DllImport(lib); SuppressUnmanagedCodeSecurity>]
     extern float cOptimizePhotonetwork (

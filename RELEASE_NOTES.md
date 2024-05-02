@@ -1,3 +1,7 @@
+### 0.9.37
+* added `AddCostFunction` overloads for 5-8 parameter blocks
+* added `TrySolve` returning whether or not the solution is usable and converged
+
 ### 0.9.36
 * added MaxIterations/Tolerances to CeresBundleIteration 
 * updated Ceres packages and added glfags

@@ -145,13 +145,46 @@ type Problem() =
             | [|p0; p1|] -> CeresRaw.cAddResidualFunction2(handle, loss, fhandle, p0, p1)
             | [|p0; p1; p2|] -> CeresRaw.cAddResidualFunction3(handle, loss, fhandle, p0, p1, p2)
             | [|p0; p1; p2; p3|] -> CeresRaw.cAddResidualFunction4(handle, loss, fhandle, p0, p1, p2, p3)
+            | [|p0; p1; p2; p3; p4|] -> CeresRaw.cAddResidualFunction5(handle, loss, fhandle, p0, p1, p2, p3, p4)
+            | [|p0; p1; p2; p3; p4; p5|] -> CeresRaw.cAddResidualFunction6(handle, loss, fhandle, p0, p1, p2, p3, p4, p5)
+            | [|p0; p1; p2; p3; p4; p5; p6|] -> CeresRaw.cAddResidualFunction7(handle, loss, fhandle, p0, p1, p2, p3, p4, p5, p6)
+            | [|p0; p1; p2; p3; p4; p5; p6; p7|] -> CeresRaw.cAddResidualFunction8(handle, loss, fhandle, p0, p1, p2, p3, p4, p5, p6, p7)
             | _ -> failwithf "too many parameter-blocks for cost function: %A" parameters.Length
             
     member x.Solve(options : Config) =
+        use termination = fixed [| CeresTerminationType.Convergence |]
+        use usable = fixed [| 0 |]
         use pOptions = fixed [| Config.toCeresOptions options |]
-        let res = CeresRaw.cSolve(handle, pOptions)
+        let res = CeresRaw.cSolve(handle, pOptions, termination, usable)
         for b in blocks do b.Mark()
-        res
+        
+        let termination = NativePtr.read termination
+        match termination with
+        | CeresTerminationType.Convergence
+        | CeresTerminationType.UserSuccess ->
+            res
+        | _ ->
+            System.Double.PositiveInfinity
+            
+    member x.TrySolve(options : Config) =
+        use termination = fixed [| CeresTerminationType.Convergence |]
+        use usable = fixed [| 0 |]
+        use pOptions = fixed [| Config.toCeresOptions options |]
+        let res = CeresRaw.cSolve(handle, pOptions, termination, usable)
+        for b in blocks do b.Mark()
+        
+        let termination = NativePtr.read termination
+        let usable = NativePtr.read usable
+        
+        if usable <> 0 then
+            match termination with
+            | CeresTerminationType.Convergence
+            | CeresTerminationType.UserSuccess ->
+                Some (true, res)
+            | _ ->
+                Some (false, res)
+        else
+            None
 
     member private x.Dispose(disposing : bool) =
         if disposing then GC.SuppressFinalize(x)

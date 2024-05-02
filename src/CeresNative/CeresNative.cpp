@@ -34,7 +34,9 @@ DllExport(ceres::LossFunction*) cCreateLossFunction(CeresLossFunction f)
 		default: return new ceres::TrivialLoss();
 	}
 
-}DllExport(void) cReleaseLossFunction(ceres::LossFunction* f)
+}
+
+DllExport(void) cReleaseLossFunction(ceres::LossFunction* f)
 {
 	if(f) delete f;
 }
@@ -87,7 +89,31 @@ DllExport(void) cAddResidualFunction4(Problem* problem, ceres::LossFunction* los
 	problem->AddResidualBlock(cost, loss, p0, p1, p2, p3);
 }
 
-DllExport(double) cSolve(Problem* problem, CeresOptions* options)
+DllExport(void) cAddResidualFunction5(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3, double* p4)
+{
+	disableGoogleLogging();
+	problem->AddResidualBlock(cost, loss, p0, p1, p2, p3, p4);
+}
+
+DllExport(void) cAddResidualFunction6(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3, double* p4, double* p5)
+{
+	disableGoogleLogging();
+	problem->AddResidualBlock(cost, loss, p0, p1, p2, p3, p4, p5);
+}
+
+DllExport(void) cAddResidualFunction7(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3, double* p4, double* p5, double* p6)
+{
+	disableGoogleLogging();
+	problem->AddResidualBlock(cost, loss, p0, p1, p2, p3, p4, p5, p6);
+}
+
+DllExport(void) cAddResidualFunction8(Problem* problem, ceres::LossFunction* loss, CustomCostFunction* cost, double* p0, double* p1, double* p2, double* p3, double* p4, double* p5, double* p6, double* p7)
+{
+	disableGoogleLogging();
+	problem->AddResidualBlock(cost, loss, p0, p1, p2, p3, p4, p5, p6, p7);
+}
+
+DllExport(double) cSolve(Problem* problem, CeresOptions* options, ceres::TerminationType* status, int* usable)
 {
 	disableGoogleLogging();
 	ceres::Solver::Options opt;
@@ -106,13 +132,16 @@ DllExport(double) cSolve(Problem* problem, CeresOptions* options)
 
 	if(options->PrintProgress != 0) printf("%s\n", summary.FullReport().c_str());
 
-	if (summary.termination_type == ceres::TerminationType::CONVERGENCE)
+	*status = summary.termination_type;
+	if (summary.IsSolutionUsable())
 	{
+		*usable = 1;
 		return summary.final_cost;
 	}
 	else
 	{
-		return INFINITY;
+		*usable = 0;
+		return summary.final_cost;
 	}
 
 }
