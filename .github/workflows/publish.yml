@@ -164,22 +164,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Download MacOS dependencies (x64)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: mac_x64
           path: libs/Native/Ceres/mac/AMD64/
       - name: Download MacOS dependencies (arm64)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: mac_arm64
           path: libs/Native/Ceres/mac/ARM64/
       - name: Download Linux dependencies 
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: linux_x64
           path: libs/Native/Ceres/linux/AMD64/
       - name: Download Windows dependencies
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4.1.7
         with:
           name: windows_x64
           path: libs/Native/Ceres/windows/AMD64/
