@@ -43,7 +43,7 @@ jobs:
       - name: Test
         run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
       - name: Upload MacOS native libs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: mac_x64
           path: libs/Native/Ceres/mac/AMD64/
@@ -73,7 +73,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         run: ./buildnative.sh arm64
       - name: Upload MacOS native libs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: mac_arm64
           path: libs/Native/Ceres/mac/ARM64/
@@ -108,7 +108,7 @@ jobs:
       - name: Test
         run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
       - name: Upload Linux native libs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: linux_x64
           path: libs/Native/Ceres/linux/AMD64/
@@ -147,7 +147,7 @@ jobs:
         shell: cmd
         run: dotnet run --project src\Ceres.Demo\Ceres.Demo.fsproj
       - name: Upload Windows native libs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: windows_x64
           path: libs/Native/Ceres/windows/AMD64/
@@ -198,7 +198,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: dotnet aardpack src\Ceres.sln --notag
       - name: Upload Package
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: packages
           path: bin\pack
