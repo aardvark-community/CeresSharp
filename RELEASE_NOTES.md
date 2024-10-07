@@ -1,3 +1,6 @@
+### 0.9.39
+* updated build
+
 ### 0.9.38
 * updated dependencies (Aardvark.Base)
 

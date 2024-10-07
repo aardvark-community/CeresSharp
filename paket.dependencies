@@ -1,4 +1,4 @@
-framework: netstandard2.0, net6.0
+framework: netstandard2.0, net8.0
 storage: none
 source https://api.nuget.org/v3/index.json
 
@@ -6,4 +6,4 @@ source https://api.nuget.org/v3/index.json
 nuget FSharp.Core >= 5.0.0 lowest_matching: true
 nuget Aardvark.Base          ~> 5.3.4
 nuget Aardvark.Base.FSharp   ~> 5.3.4
-nuget Aardvark.Build         ~> 1.0.11
+nuget Aardvark.Build         ~> 2.0.2 
