@@ -1,4 +1,4 @@
-### 0.9.40 
+### 0.9.40
 * tried to fix https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
 
 ### 0.9.39
