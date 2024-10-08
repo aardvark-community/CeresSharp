@@ -4,6 +4,7 @@
 //
 
 #pragma once
+#define _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR
 
 #include "targetver.h"
 

@@ -9,6 +9,7 @@
 using namespace std;
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
+#define _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR
 
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>

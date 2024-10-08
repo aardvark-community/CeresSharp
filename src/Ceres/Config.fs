@@ -36,7 +36,7 @@ module Config =
         }
 
     let private toSolverType =
-        LookupTable.lookupTable [
+        LookupTable.lookup [
             SolverType.DenseNormalCholesky , CeresSolverType.DenseNormalCholesky 
             SolverType.DenseQr             , CeresSolverType.DenseQr             
             SolverType.SparseNormalCholesky, CeresSolverType.SparseNormalCholesky
