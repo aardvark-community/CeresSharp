@@ -1,3 +1,6 @@
+### 0.9.42
+* build CeresNative dependencies with `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR`
+
 ### 0.9.41
 * workaround for https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
 
