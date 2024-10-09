@@ -26,6 +26,7 @@ elseif(WIN32)
     add_compile_definitions(NOMINMAX)
 endif()
 
+add_definitions(-D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR )
 
 add_library(CeresNative SHARED CeresNative.h CeresNative.cpp)
 
