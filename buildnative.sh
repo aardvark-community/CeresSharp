@@ -13,9 +13,9 @@ mono .config/nuget.exe setApiKey -Source GitHub $GITHUB_TOKEN -NonInteractive
 rm -dfr .vcpkg
 mkdir .vcpkg
 git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg 
-# cd ./.vcpkg/vcpkg
-# git reset --hard e52999ee1a61bfea654733712288c5d4469d38bc
-# cd ../..
+cd ./.vcpkg/vcpkg
+git reset --hard b322364f06308bdd24823f9d8f03fe0cc86fd46f
+cd ../..
 
 PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
 if [ "$OS" = "Darwin" ];

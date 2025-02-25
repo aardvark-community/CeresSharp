@@ -4,6 +4,9 @@
 cmd /C "rmdir /S /Q .vcpkg"
 
 git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg
+pushd .vcpkg\vcpkg
+git reset --hard b322364f06308bdd24823f9d8f03fe0cc86fd46f
+popd
 
 cmd /C ".vcpkg\vcpkg\bootstrap-vcpkg.bat -disableMetrics"
 
