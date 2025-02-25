@@ -26,8 +26,8 @@ let run() =
     printfn "module ``Problem CostFunction Extensions`` = "
     printfn "    type Problem with"
 
-    let blockCounts = [1; 2; 3; 4]
-    let typeArgs = ["b"; "c"; "d"; "e"]
+    let blockCounts = [1; 2; 3; 4; 5; 6; 7]
+    let typeArgs = ["b"; "c"; "d"; "e"; "f"; "g"; "h"]
     let kinds = [ MutateArray; ReturnArray; Indexed ]
     let types = [ Scalar; Vec 2; Vec 3; Vec 4 ]
     let loss = [ true; false ]
@@ -237,3 +237,4 @@ let run() =
 
     System.IO.File.WriteAllText(System.IO.Path.Combine(__SOURCE_DIRECTORY__, "ProblemExtensionsGenerated.fs"), str)
 
+run()

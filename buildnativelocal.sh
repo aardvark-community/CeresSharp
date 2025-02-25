@@ -49,5 +49,4 @@ cmake -S src/CeresNative/ -B src/CeresNative/build $ARCH_FLAGS \
     -DCMAKE_TOOLCHAIN_FILE="$BASEDIR/.vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake" \
     -DVCPKG_TARGET_TRIPLET=$VCPKG_TRIPLET \
     -DCMAKE_BUILD_TYPE=Release
-
 cmake --build src/CeresNative/build --config Release --target install

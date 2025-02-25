@@ -1,3 +1,6 @@
+### 0.9.43
+* added `AddCostFunction` overloads with 5,6,7 blocks
+
 ### 0.9.42
 * build CeresNative dependencies with `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR`
 
