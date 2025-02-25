@@ -41,6 +41,7 @@ then
 
 else
     echo "Linux"
+    PACKAGE=ceres[suitesparse,lapack,eigensparse] 
     VCPKG_TRIPLET="x64-linux-release"
 fi
 
