@@ -1,7 +1,8 @@
 # CeresSharp
 
-[![Nuget](https://badgen.net/nuget/v/MiniCV/pre)](https://www.nuget.org/packages/MiniCV/)
-[![Downloads](https://badgen.net/nuget/dt/MiniCV)](https://www.nuget.org/packages/MiniCV/)
+[![Publish](https://github.com/aardvark-community/CeresSharp/actions/workflows/publish.yml/badge.svg)](https://github.com/aardvark-community/CeresSharp/actions/workflows/publish.yml)
+[![Version](https://img.shields.io/nuget/vpre/Ceres)](https://www.nuget.org/packages/Ceres/)
+[![Downloads](https://img.shields.io/nuget/dt/Ceres)](https://www.nuget.org/packages/Ceres/)
 
 Simple Ceres wrapper written in F# including aardvark-style native dependencies
 
@@ -23,4 +24,5 @@ Simple Ceres wrapper written in F# including aardvark-style native dependencies
 ## Pushing Packages
 
 New Packages can be created by simply adding a new version in `RELEASE_NOTES.md` and pushing the file to the `master` branch.
-The GitHub [CI Action](https://github.com/aardvark-community/MiniCV/actions/workflows/publish.yml) will take care of building native code and publishing packages to NuGet/GitHub Packages
+The GitHub [CI Action](https://github.com/aardvark-community/CeresSharp/actions/workflows/publish.yml) will take care of building native code and publishing packages to NuGet/GitHub Packages
+
