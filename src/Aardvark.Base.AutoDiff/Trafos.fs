@@ -1,6 +1,93 @@
 ﻿namespace Aardvark.Base
 
 
+type AngleAxis private() =
+    static member RotatePoint(aa : V3d, p : V3d) =
+        let theta2 = aa.LengthSquared
+        if not (Fun.IsTiny theta2) then
+            let theta = sqrt theta2
+            let costheta = cos theta
+            let sintheta = sin theta
+            let thetainverse = 1.0 / theta
+
+            let w = aa * thetainverse
+
+            let wCrossP = Vec.cross w p
+            let tmp = (Vec.dot w p) * (1.0 - costheta)
+
+
+            (p * costheta) + (wCrossP * sintheta) + (w * tmp)
+
+        else
+            let wCrossP = Vec.cross aa p
+            p + wCrossP
+
+    static member RotatePoint(aa : V3d, p : V3s) =
+        let theta2 = aa.LengthSquared
+        if not (Fun.IsTiny theta2) then
+            let theta = sqrt theta2
+            let costheta = cos theta
+            let sintheta = sin theta
+            let thetainverse = 1.0 / theta
+
+            let w = aa * thetainverse
+
+            let wCrossP = Vec.cross (V3s w) p
+            let tmp = (Vec.dot (V3s w) p) * (1.0 - costheta)
+
+
+            (p * costheta) + (wCrossP * sintheta) + ((V3s w) * tmp)
+
+        else
+            let wCrossP = Vec.cross (V3s aa) p
+            p + wCrossP
+
+    static member RotatePoint(aa : V3s, p : V3s) =
+        let theta2 = aa.LengthSquared
+        if not (Fun.IsTiny theta2.Value) then
+            let theta = sqrt theta2
+            let costheta = cos theta
+            let sintheta = sin theta
+            let thetainverse = 1.0 / theta
+
+            let w = aa * thetainverse
+
+            let wCrossP = Vec.cross w p
+            let tmp = (Vec.dot w p) * (1.0 - costheta)
+
+
+            (p * costheta) + (wCrossP * sintheta) + (w * tmp)
+
+        else
+            let wCrossP = Vec.cross aa p
+            p + wCrossP
+
+    static member RotatePoint(aa : V3s, p : V3d) =
+        let theta2 = aa.LengthSquared
+        if not (Fun.IsTiny theta2.Value) then
+            let theta = sqrt theta2
+            let costheta = cos theta
+            let sintheta = sin theta
+            let thetainverse = 1.0 / theta
+
+            let w = aa * thetainverse
+
+            let wCrossP = Vec.cross w (V3s p)
+            let tmp = (Vec.dot w (V3s p)) * (1.0 - costheta)
+
+
+            ((V3s p) * costheta) + (wCrossP * sintheta) + (w * tmp)
+
+        else
+            let wCrossP = Vec.cross aa (V3s p)
+            p + wCrossP
+
+    static member Trafo(aa : V3d) =
+        let x = AngleAxis.RotatePoint(aa, V3d.IOO)
+        let y = AngleAxis.RotatePoint(aa, V3d.OIO)
+        let z = AngleAxis.RotatePoint(aa, V3d.OOI)
+        Trafo3d.FromBasis(x, y, z, V3d.Zero)
+
 type Rot2s(angle : scalar) =
     
     member x.Angle = angle

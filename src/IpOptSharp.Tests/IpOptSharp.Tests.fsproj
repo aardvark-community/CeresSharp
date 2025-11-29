@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ScalarAdapterTests.fs" />
+    <Compile Include="SolverIntegrationTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\IpOptSharp\IpOptSharp.fsproj" />
