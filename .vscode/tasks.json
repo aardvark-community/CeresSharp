@@ -9,7 +9,7 @@
             "type": "shell",
             "args": [
                 "build",
-                "src/Ceres.sln",
+                "src/Aardvark.Optimization.sln",
                 // Ask dotnet build to generate full paths for file names.
                 "/property:GenerateFullPaths=true",
                 // Do not generate summary otherwise it leads to duplicate errors in Problems panel
@@ -26,7 +26,7 @@
             "command": "dotnet",
             "args": [
                 "clean",
-                "src/Ceres.sln",
+                "src/Aardvark.Optimization.sln",
             ],
             "group": "build",
             "presentation": {

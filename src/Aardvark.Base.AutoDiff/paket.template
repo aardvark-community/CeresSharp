@@ -1,0 +1,9 @@
+type project
+id Aardvark.AutoDiff
+authors The Aardvark Platform Team
+projectUrl https://github.com/aardvark-community/CeresSharp
+licenseUrl http://www.apache.org/licenses/LICENSE-2.0.txt
+repositoryType git
+repositoryUrl https://github.com/aardvark-community/CeresSharp
+description
+    Automatic Differentiation
