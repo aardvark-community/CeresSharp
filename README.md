@@ -19,7 +19,7 @@ Simple Ceres wrapper written in F# including aardvark-style native dependencies
 2. run `buildnative`
 3. `dotnet tool restore`
 4. `dotnet paket restore`
-5. `dotnet build src/Ceres.sln`
+5. `dotnet build src/Aardvark.Optimization.sln`
 
 ## Pushing Packages
 
