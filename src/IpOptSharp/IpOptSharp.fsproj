@@ -10,7 +10,6 @@
     <Compile Include="Types.fs" />
     <Compile Include="Builder.fs" />
     <Compile Include="Frontend.fs" />
-    <Compile Include="Test.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Aardvark.Base.AutoDiff\Aardvark.Base.AutoDiff.fsproj" />

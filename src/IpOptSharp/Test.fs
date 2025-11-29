@@ -1,5 +1,0 @@
-module IpOptSharp.Test
-
-
-
-
