@@ -467,8 +467,131 @@ module IpOptBuilderImplementation =
                         scalar.Variable(id+6, sqrt value.Scale)
                     )
             }
-         
+            
+        static member GetScalarAdapter (_dummy : Circle2d) =
+            { new ScalarAdapter<Circle2d, Circle2s> with
+                member x.DoubleCount = 3
+                member x.ReadScalar(ptr, id) =
+                    let sqrtRadius = scalar.Variable(id, NativePtr.get ptr id)
+                    let cx = scalar.Variable(id+1, NativePtr.get ptr (id+1))
+                    let cy = scalar.Variable(id+2, NativePtr.get ptr (id+2))
+                    Circle2s(sqrtRadius, V2s(cx, cy))
+                member x.ReadValue(ptr, id) =
+                    let sqrtRadius = NativePtr.get ptr id
+                    let cx = NativePtr.get ptr (id+1)
+                    let cy = NativePtr.get ptr (id+2)
+                    Circle2d(V2d(cx, cy), sqr sqrtRadius)
+                member x.WriteTo(ptr, id, value) =
+                    let sqrtRadius = sqrt (abs value.Radius)
+                    NativePtr.set ptr id sqrtRadius
+                    NativePtr.set ptr (id+1) value.Center.X
+                    NativePtr.set ptr (id+2) value.Center.Y
+                member x.GetValue(s) =
+                    let r = s.Radius.Value
+                    let center = s.Center.Value
+                    Circle2d(center, r)
+                member x.Variable(value, id) =
+                    let sqrtRadius = scalar.Variable(id, sqrt (abs value.Radius))
+                    let cx = scalar.Variable(id+1, value.Center.X)
+                    let cy = scalar.Variable(id+2, value.Center.Y)
+                    Circle2s(sqrtRadius, V2s(cx, cy))
+            }
+
+        static member GetScalarAdapter (_dummy : Sphere3d) =
+            { new ScalarAdapter<Sphere3d, Sphere3s> with
+                member x.DoubleCount = 4
+                member x.ReadScalar(ptr, id) =
+                    let sqrtRadius = scalar.Variable(id, NativePtr.get ptr id)
+                    let cx = scalar.Variable(id+1, NativePtr.get ptr (id+1))
+                    let cy = scalar.Variable(id+2, NativePtr.get ptr (id+2))
+                    let cz = scalar.Variable(id+3, NativePtr.get ptr (id+3))
+                    Sphere3s(sqrtRadius, V3s(cx, cy, cz))
+                member x.ReadValue(ptr, id) =
+                    let sqrtRadius = NativePtr.get ptr id
+                    let cx = NativePtr.get ptr (id+1)
+                    let cy = NativePtr.get ptr (id+2)
+                    let cz = NativePtr.get ptr (id+3)
+                    Sphere3d(V3d(cx, cy, cz), sqr sqrtRadius)
+                member x.WriteTo(ptr, id, value) =
+                    let sqrtRadius = sqrt (abs value.Radius)
+                    NativePtr.set ptr id sqrtRadius
+                    NativePtr.set ptr (id+1) value.Center.X
+                    NativePtr.set ptr (id+2) value.Center.Y
+                    NativePtr.set ptr (id+3) value.Center.Z
+                member x.GetValue(s) =
+                    let r = s.Radius.Value
+                    let center = s.Center.Value
+                    Sphere3d(center, r)
+                member x.Variable(value, id) =
+                    let sqrtRadius = scalar.Variable(id, sqrt (abs value.Radius))
+                    let cx = scalar.Variable(id+1, value.Center.X)
+                    let cy = scalar.Variable(id+2, value.Center.Y)
+                    let cz = scalar.Variable(id+3, value.Center.Z)
+                    Sphere3s(sqrtRadius, V3s(cx, cy, cz))
+            }
         
+            
+        static member GetScalarAdapter (_dummy : Plane2d) =
+            { new ScalarAdapter<Plane2d, Plane2s> with
+                member x.DoubleCount = 2
+                member x.ReadScalar(ptr, id) =
+                    let angle = scalar.Variable(id, NativePtr.get ptr id)
+                    let dist = scalar.Variable(id+1, NativePtr.get ptr (id+1))
+                    Plane2s(angle, dist)
+                member x.ReadValue(ptr, id) =
+                    let angle = NativePtr.get ptr id
+                    let dist = NativePtr.get ptr (id+1)
+                    Plane2d(V2d(cos angle, sin angle), dist)
+                member x.WriteTo(ptr, id, value) =
+                    let angle = atan2 value.Normal.Y value.Normal.X
+                    NativePtr.set ptr id angle
+                    NativePtr.set ptr (id+1) (value.Distance / Vec.length value.Normal)
+                member x.GetValue(s) =
+                    let n = s.Normal.Value
+                    let d = s.Distance.Value
+                    Plane2d(n, d)
+                member x.Variable(value, id) =
+                    let angle = scalar.Variable(id, atan2 value.Normal.Y value.Normal.X)
+                    let dist = scalar.Variable(id+1, value.Distance / Vec.length value.Normal)
+                    Plane2s(angle, dist)
+            }
+            
+        static member GetScalarAdapter (_dummy : Plane3d) =
+            { new ScalarAdapter<Plane3d, Plane3s> with
+                member x.DoubleCount = 3
+                member x.ReadScalar(ptr, id) =
+                    let phi = scalar.Variable(id, NativePtr.get ptr id)
+                    let theta = scalar.Variable(id+1, NativePtr.get ptr (id+1))
+                    let distance = scalar.Variable(id+2, NativePtr.get ptr (id+2))
+                    Plane3s(phi, theta, distance)
+                member x.ReadValue(ptr, id) =
+                    let phi = NativePtr.get ptr id
+                    let theta = NativePtr.get ptr (id+1)
+                    let distance = NativePtr.get ptr (id+2)
+                    
+                    let normal =
+                        let ct = cos theta
+                        V3d(cos phi * ct, sin phi * ct, sin theta)
+                    Plane3d(normal, distance)
+                member x.WriteTo(ptr, id, value) =
+                    let ln = Vec.length value.Normal
+                    let phi = atan2 value.Normal.Y value.Normal.X
+                    let theta = asin (value.Normal.Z / ln)
+                    NativePtr.set ptr id phi
+                    NativePtr.set ptr (id+1) theta
+                    NativePtr.set ptr (id+2) (value.Distance / ln)
+                member x.GetValue(s) =
+                    let n = s.Normal.Value
+                    let d = s.Distance.Value
+                    Plane3d(n, d)
+                member x.Variable(value, id) =
+                    let ln = Vec.length value.Normal
+                    let phi = scalar.Variable(id, atan2 value.Normal.Y value.Normal.X)
+                    let theta = scalar.Variable(id+1, asin (value.Normal.Z / ln))
+                    let dist = scalar.Variable(id+2, value.Distance / ln)
+                    Plane3s(phi, theta, dist)
+            }
+            
          
         // static member inline GetScalarAdapter (value : ^a[])  =
         //     let inner = scalarAdapterAux Unchecked.defaultof<ScalarAdapterInstances> value.[0]
