@@ -82,4 +82,5 @@ printfn "status: %A, objective: %.4f" status objective
 ## Pushing Packages
 
 New Packages can be created by simply adding a new version in `RELEASE_NOTES.md` and pushing the file to the `master` branch.
-The GitHub [CI Action](https://github.com/aardvark-community/MiniCV/actions/workflows/publish.yml) will take care of building native code and publishing packages to NuGet/GitHub Packages
+The GitHub [CI Action](https://github.com/aardvark-community/CeresSharp/actions/workflows/publish.yml) will take care of building native code and publishing packages to NuGet/GitHub Packages
+
