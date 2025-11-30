@@ -429,7 +429,7 @@ jobs:
       - name: Pack
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: dotnet aardpack src\Aardvark.Optimization.sln --notag
+        run: dotnet aardpack src\Aardvark.Optimization.sln --notag --norelease
       - name: Upload Package
         uses: actions/upload-artifact@v4
         with:
