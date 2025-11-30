@@ -12,6 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		..\paket.dependencies = ..\paket.dependencies
 		..\.github\workflows\publish.yml = ..\.github\workflows\publish.yml
 		..\RELEASE_NOTES.md = ..\RELEASE_NOTES.md
+		..\README.md = ..\README.md
 	EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Aardvark.Base.AutoDiff", "Aardvark.Base.AutoDiff\Aardvark.Base.AutoDiff.fsproj", "{B0665167-4F67-44C1-96A6-4626091AD090}"
