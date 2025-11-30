@@ -1,0 +1,60 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35312.102
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Ceres", "Ceres\Ceres.fsproj", "{D343B420-1C19-48DD-94DC-F5B1FD6F9979}"
+EndProject
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Ceres.Demo", "Ceres.Demo\Ceres.Demo.fsproj", "{DE06337C-891E-495F-9E4D-28BABDD605C0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{23075D29-5746-40CD-9EC8-D8C6AA60E556}"
+	ProjectSection(SolutionItems) = preProject
+		..\paket.dependencies = ..\paket.dependencies
+		..\.github\workflows\publish.yml = ..\.github\workflows\publish.yml
+		..\RELEASE_NOTES.md = ..\RELEASE_NOTES.md
+		..\README.md = ..\README.md
+	EndProjectSection
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Aardvark.Base.AutoDiff", "Aardvark.Base.AutoDiff\Aardvark.Base.AutoDiff.fsproj", "{B0665167-4F67-44C1-96A6-4626091AD090}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "IpOptSharp", "IpOptSharp\IpOptSharp.fsproj", "{A3781ED0-3B15-4531-B910-043DBB9E9B67}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "IpOpt.Demo", "IpOpt.Demo\IpOpt.Demo.fsproj", "{521C8B07-DBB1-4861-BE33-D7DBA8F2F787}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "IpOptSharp.Tests", "IpOptSharp.Tests\IpOptSharp.Tests.fsproj", "{E8F3C4D5-A1B2-4C3D-9E8F-1234567890AB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D343B420-1C19-48DD-94DC-F5B1FD6F9979}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D343B420-1C19-48DD-94DC-F5B1FD6F9979}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D343B420-1C19-48DD-94DC-F5B1FD6F9979}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D343B420-1C19-48DD-94DC-F5B1FD6F9979}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE06337C-891E-495F-9E4D-28BABDD605C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE06337C-891E-495F-9E4D-28BABDD605C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE06337C-891E-495F-9E4D-28BABDD605C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE06337C-891E-495F-9E4D-28BABDD605C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0665167-4F67-44C1-96A6-4626091AD090}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0665167-4F67-44C1-96A6-4626091AD090}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0665167-4F67-44C1-96A6-4626091AD090}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0665167-4F67-44C1-96A6-4626091AD090}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3781ED0-3B15-4531-B910-043DBB9E9B67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3781ED0-3B15-4531-B910-043DBB9E9B67}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3781ED0-3B15-4531-B910-043DBB9E9B67}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3781ED0-3B15-4531-B910-043DBB9E9B67}.Release|Any CPU.Build.0 = Release|Any CPU
+		{521C8B07-DBB1-4861-BE33-D7DBA8F2F787}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{521C8B07-DBB1-4861-BE33-D7DBA8F2F787}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{521C8B07-DBB1-4861-BE33-D7DBA8F2F787}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{521C8B07-DBB1-4861-BE33-D7DBA8F2F787}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8F3C4D5-A1B2-4C3D-9E8F-1234567890AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8F3C4D5-A1B2-4C3D-9E8F-1234567890AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8F3C4D5-A1B2-4C3D-9E8F-1234567890AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8F3C4D5-A1B2-4C3D-9E8F-1234567890AB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

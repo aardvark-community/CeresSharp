@@ -14,18 +14,18 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="CostFunctionGenerator.fsx" />
-    <None Include="CodeGen.fsx" />
     <Compile Include="CeresRaw.fs" />
     <Compile Include="Config.fs" />
     <Compile Include="Problem.fs" />
-    <Compile Include="Scalar.fs" />
-    <Compile Include="Math.fs" />
     <Compile Include="ProblemExtensions.fs" />
     <Compile Include="ProblemExtensionsGenerated.fs" />
     <Compile Include="Trafos.fs" />
     <Compile Include="Geometry.fs" />
     <Compile Include="Projections.fs" />
     <Compile Include="Tools.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Aardvark.Base.AutoDiff\Aardvark.Base.AutoDiff.fsproj" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

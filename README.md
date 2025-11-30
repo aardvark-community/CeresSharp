@@ -1,10 +1,68 @@
 # CeresSharp
 
-[![Publish](https://github.com/aardvark-community/CeresSharp/actions/workflows/publish.yml/badge.svg)](https://github.com/aardvark-community/CeresSharp/actions/workflows/publish.yml)
-[![Version](https://img.shields.io/nuget/vpre/Ceres)](https://www.nuget.org/packages/Ceres/)
-[![Downloads](https://img.shields.io/nuget/dt/Ceres)](https://www.nuget.org/packages/Ceres/)
+F# wrappers for [Ceres Solver](http://ceres-solver.org/) and [IpOpt](https://coin-or.github.io/Ipopt/) with aardvark-style native dependencies.
 
-Simple Ceres wrapper written in F# including aardvark-style native dependencies
+[![Ceres NuGet](https://badgen.net/nuget/v/Ceres)](https://www.nuget.org/packages/Ceres/)
+[![IpOptSharp NuGet](https://badgen.net/nuget/v/IpOptSharp)](https://www.nuget.org/packages/IpOptSharp/)
+
+## Examples
+
+### Ceres
+
+```fsharp
+open CeresSharp
+open Aardvark.Base
+
+// Solve a simple system: { x = y, x² + y² = 1 }
+use p = new Problem()
+use x = p.AddParameterBlock [| 1.0 |]
+use y = p.AddParameterBlock [| -1.0 |]
+
+p.AddCostFunction(2, x, y, TrivialLoss, fun x y ->
+    [| x.[0] - y.[0]; x.[0] * x.[0] + y.[0] * y.[0] - 1.0 |]
+)
+
+let residual = p.Solve {
+    maxIterations = 50
+    solverType = DenseQr
+    functionTolerance = 1E-16
+    gradientTolerance = 1E-16
+    parameterTolerance = 1E-16
+    print = false
+}
+
+printfn "x = %.4f, y = %.4f" x.Result.[0] y.Result.[0]
+```
+
+### IpOpt
+
+```fsharp
+open IpOptSharp
+open Aardvark.Base
+
+// Find the largest equilateral triangle inscribed in a unit circle
+let a = ref (V2d(-1.0, -1.0))
+let b = ref (V2d(1.0, -1.0))
+let c = ref (V2d(0.0, 1.0))
+
+let (status, objective) =
+    ipopt {
+        let! a = a
+        let! b = b
+        let! c = c
+
+        // Maximize the circumference
+        let circumference = Vec.length (b - a) + Vec.length (c - b) + Vec.length (a - c)
+        IpOpt.Maximize circumference
+
+        // Constrain vertices to the unit circle
+        IpOpt.Equal(a.Length, 1.0)
+        IpOpt.Equal(b.Length, 1.0)
+        IpOpt.Equal(c.Length, 1.0)
+    }
+
+printfn "status: %A, objective: %.4f" status objective
+```
 
 ## Building Locally
 
@@ -19,7 +77,7 @@ Simple Ceres wrapper written in F# including aardvark-style native dependencies
 2. run `buildnative`
 3. `dotnet tool restore`
 4. `dotnet paket restore`
-5. `dotnet build src/Ceres.sln`
+5. `dotnet build src/Aardvark.Optimization.sln`
 
 ## Pushing Packages
 

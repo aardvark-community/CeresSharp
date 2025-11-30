@@ -112,6 +112,17 @@ module CodeGen =
             ) |> String.concat ", "
 
         printfn "        static member (*) (m : %s, v : %s) = %s(%s)" name vecType resType args
+        
+        let dVecType = sprintf "V%dd" cols
+        let args = 
+            [0..rows-1] |> List.map (fun r -> 
+                vecFields 
+                    |> Array.take cols 
+                    |> Array.mapi (fun i v -> sprintf "m.M%d%d * v.%s" r i v)
+                    |> String.concat " + "
+            ) |> String.concat ", "
+            
+        printfn "        static member (*) (m : %s, v : %s) = %s(%s)" name dVecType resType args
 
 
         // matrix multiplication
@@ -338,3 +349,5 @@ module CodeGen =
         let str = builder.ToString()
         let path = Path.Combine(__SOURCE_DIRECTORY__, "Math.fs")
         System.IO.File.WriteAllText(path, str)
+
+CodeGen.run()

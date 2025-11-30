@@ -264,6 +264,7 @@ type M22s =
         static member (/) (l : scalar, r : M22s) = M22s(l / r.M00, l / r.M01, l / r.M10, l / r.M11)
         static member (/) (l : M22s, r : scalar) = M22s(l.M00 / r, l.M01 / r, l.M10 / r, l.M11 / r)
         static member (*) (m : M22s, v : V2s) = V2s(m.M00 * v.X + m.M01 * v.Y, m.M10 * v.X + m.M11 * v.Y)
+        static member (*) (m : M22s, v : V2d) = V2s(m.M00 * v.X + m.M01 * v.Y, m.M10 * v.X + m.M11 * v.Y)
         static member (*) (l : M22s, r : M22s) = M22s(l.M00 * r.M00 + l.M01 * r.M10, l.M00 * r.M01 + l.M01 * r.M11, l.M10 * r.M00 + l.M11 * r.M10, l.M10 * r.M01 + l.M11 * r.M11)
         static member (*) (l : M22s, r : M22d) = M22s(l.M00 * r.M00 + l.M01 * r.M10, l.M00 * r.M01 + l.M01 * r.M11, l.M10 * r.M00 + l.M11 * r.M10, l.M10 * r.M01 + l.M11 * r.M11)
         static member (*) (l : M22d, r : M22s) = M22s(l.M00 * r.M00 + l.M01 * r.M10, l.M00 * r.M01 + l.M01 * r.M11, l.M10 * r.M00 + l.M11 * r.M10, l.M10 * r.M01 + l.M11 * r.M11)
@@ -315,6 +316,7 @@ type M33s =
         static member (/) (l : scalar, r : M33s) = M33s(l / r.M00, l / r.M01, l / r.M02, l / r.M10, l / r.M11, l / r.M12, l / r.M20, l / r.M21, l / r.M22)
         static member (/) (l : M33s, r : scalar) = M33s(l.M00 / r, l.M01 / r, l.M02 / r, l.M10 / r, l.M11 / r, l.M12 / r, l.M20 / r, l.M21 / r, l.M22 / r)
         static member (*) (m : M33s, v : V3s) = V3s(m.M00 * v.X + m.M01 * v.Y + m.M02 * v.Z, m.M10 * v.X + m.M11 * v.Y + m.M12 * v.Z, m.M20 * v.X + m.M21 * v.Y + m.M22 * v.Z)
+        static member (*) (m : M33s, v : V3d) = V3s(m.M00 * v.X + m.M01 * v.Y + m.M02 * v.Z, m.M10 * v.X + m.M11 * v.Y + m.M12 * v.Z, m.M20 * v.X + m.M21 * v.Y + m.M22 * v.Z)
         static member (*) (l : M33s, r : M33s) = M33s(l.M00 * r.M00 + l.M01 * r.M10 + l.M02 * r.M20, l.M00 * r.M01 + l.M01 * r.M11 + l.M02 * r.M21, l.M00 * r.M02 + l.M01 * r.M12 + l.M02 * r.M22, l.M10 * r.M00 + l.M11 * r.M10 + l.M12 * r.M20, l.M10 * r.M01 + l.M11 * r.M11 + l.M12 * r.M21, l.M10 * r.M02 + l.M11 * r.M12 + l.M12 * r.M22, l.M20 * r.M00 + l.M21 * r.M10 + l.M22 * r.M20, l.M20 * r.M01 + l.M21 * r.M11 + l.M22 * r.M21, l.M20 * r.M02 + l.M21 * r.M12 + l.M22 * r.M22)
         static member (*) (l : M33s, r : M33d) = M33s(l.M00 * r.M00 + l.M01 * r.M10 + l.M02 * r.M20, l.M00 * r.M01 + l.M01 * r.M11 + l.M02 * r.M21, l.M00 * r.M02 + l.M01 * r.M12 + l.M02 * r.M22, l.M10 * r.M00 + l.M11 * r.M10 + l.M12 * r.M20, l.M10 * r.M01 + l.M11 * r.M11 + l.M12 * r.M21, l.M10 * r.M02 + l.M11 * r.M12 + l.M12 * r.M22, l.M20 * r.M00 + l.M21 * r.M10 + l.M22 * r.M20, l.M20 * r.M01 + l.M21 * r.M11 + l.M22 * r.M21, l.M20 * r.M02 + l.M21 * r.M12 + l.M22 * r.M22)
         static member (*) (l : M33d, r : M33s) = M33s(l.M00 * r.M00 + l.M01 * r.M10 + l.M02 * r.M20, l.M00 * r.M01 + l.M01 * r.M11 + l.M02 * r.M21, l.M00 * r.M02 + l.M01 * r.M12 + l.M02 * r.M22, l.M10 * r.M00 + l.M11 * r.M10 + l.M12 * r.M20, l.M10 * r.M01 + l.M11 * r.M11 + l.M12 * r.M21, l.M10 * r.M02 + l.M11 * r.M12 + l.M12 * r.M22, l.M20 * r.M00 + l.M21 * r.M10 + l.M22 * r.M20, l.M20 * r.M01 + l.M21 * r.M11 + l.M22 * r.M21, l.M20 * r.M02 + l.M21 * r.M12 + l.M22 * r.M22)
@@ -385,6 +387,7 @@ type M44s =
         static member (/) (l : scalar, r : M44s) = M44s(l / r.M00, l / r.M01, l / r.M02, l / r.M03, l / r.M10, l / r.M11, l / r.M12, l / r.M13, l / r.M20, l / r.M21, l / r.M22, l / r.M23, l / r.M30, l / r.M31, l / r.M32, l / r.M33)
         static member (/) (l : M44s, r : scalar) = M44s(l.M00 / r, l.M01 / r, l.M02 / r, l.M03 / r, l.M10 / r, l.M11 / r, l.M12 / r, l.M13 / r, l.M20 / r, l.M21 / r, l.M22 / r, l.M23 / r, l.M30 / r, l.M31 / r, l.M32 / r, l.M33 / r)
         static member (*) (m : M44s, v : V4s) = V4s(m.M00 * v.X + m.M01 * v.Y + m.M02 * v.Z + m.M03 * v.W, m.M10 * v.X + m.M11 * v.Y + m.M12 * v.Z + m.M13 * v.W, m.M20 * v.X + m.M21 * v.Y + m.M22 * v.Z + m.M23 * v.W, m.M30 * v.X + m.M31 * v.Y + m.M32 * v.Z + m.M33 * v.W)
+        static member (*) (m : M44s, v : V4d) = V4s(m.M00 * v.X + m.M01 * v.Y + m.M02 * v.Z + m.M03 * v.W, m.M10 * v.X + m.M11 * v.Y + m.M12 * v.Z + m.M13 * v.W, m.M20 * v.X + m.M21 * v.Y + m.M22 * v.Z + m.M23 * v.W, m.M30 * v.X + m.M31 * v.Y + m.M32 * v.Z + m.M33 * v.W)
         static member (*) (l : M44s, r : M44s) = M44s(l.M00 * r.M00 + l.M01 * r.M10 + l.M02 * r.M20 + l.M03 * r.M30, l.M00 * r.M01 + l.M01 * r.M11 + l.M02 * r.M21 + l.M03 * r.M31, l.M00 * r.M02 + l.M01 * r.M12 + l.M02 * r.M22 + l.M03 * r.M32, l.M00 * r.M03 + l.M01 * r.M13 + l.M02 * r.M23 + l.M03 * r.M33, l.M10 * r.M00 + l.M11 * r.M10 + l.M12 * r.M20 + l.M13 * r.M30, l.M10 * r.M01 + l.M11 * r.M11 + l.M12 * r.M21 + l.M13 * r.M31, l.M10 * r.M02 + l.M11 * r.M12 + l.M12 * r.M22 + l.M13 * r.M32, l.M10 * r.M03 + l.M11 * r.M13 + l.M12 * r.M23 + l.M13 * r.M33, l.M20 * r.M00 + l.M21 * r.M10 + l.M22 * r.M20 + l.M23 * r.M30, l.M20 * r.M01 + l.M21 * r.M11 + l.M22 * r.M21 + l.M23 * r.M31, l.M20 * r.M02 + l.M21 * r.M12 + l.M22 * r.M22 + l.M23 * r.M32, l.M20 * r.M03 + l.M21 * r.M13 + l.M22 * r.M23 + l.M23 * r.M33, l.M30 * r.M00 + l.M31 * r.M10 + l.M32 * r.M20 + l.M33 * r.M30, l.M30 * r.M01 + l.M31 * r.M11 + l.M32 * r.M21 + l.M33 * r.M31, l.M30 * r.M02 + l.M31 * r.M12 + l.M32 * r.M22 + l.M33 * r.M32, l.M30 * r.M03 + l.M31 * r.M13 + l.M32 * r.M23 + l.M33 * r.M33)
         static member (*) (l : M44s, r : M44d) = M44s(l.M00 * r.M00 + l.M01 * r.M10 + l.M02 * r.M20 + l.M03 * r.M30, l.M00 * r.M01 + l.M01 * r.M11 + l.M02 * r.M21 + l.M03 * r.M31, l.M00 * r.M02 + l.M01 * r.M12 + l.M02 * r.M22 + l.M03 * r.M32, l.M00 * r.M03 + l.M01 * r.M13 + l.M02 * r.M23 + l.M03 * r.M33, l.M10 * r.M00 + l.M11 * r.M10 + l.M12 * r.M20 + l.M13 * r.M30, l.M10 * r.M01 + l.M11 * r.M11 + l.M12 * r.M21 + l.M13 * r.M31, l.M10 * r.M02 + l.M11 * r.M12 + l.M12 * r.M22 + l.M13 * r.M32, l.M10 * r.M03 + l.M11 * r.M13 + l.M12 * r.M23 + l.M13 * r.M33, l.M20 * r.M00 + l.M21 * r.M10 + l.M22 * r.M20 + l.M23 * r.M30, l.M20 * r.M01 + l.M21 * r.M11 + l.M22 * r.M21 + l.M23 * r.M31, l.M20 * r.M02 + l.M21 * r.M12 + l.M22 * r.M22 + l.M23 * r.M32, l.M20 * r.M03 + l.M21 * r.M13 + l.M22 * r.M23 + l.M23 * r.M33, l.M30 * r.M00 + l.M31 * r.M10 + l.M32 * r.M20 + l.M33 * r.M30, l.M30 * r.M01 + l.M31 * r.M11 + l.M32 * r.M21 + l.M33 * r.M31, l.M30 * r.M02 + l.M31 * r.M12 + l.M32 * r.M22 + l.M33 * r.M32, l.M30 * r.M03 + l.M31 * r.M13 + l.M32 * r.M23 + l.M33 * r.M33)
         static member (*) (l : M44d, r : M44s) = M44s(l.M00 * r.M00 + l.M01 * r.M10 + l.M02 * r.M20 + l.M03 * r.M30, l.M00 * r.M01 + l.M01 * r.M11 + l.M02 * r.M21 + l.M03 * r.M31, l.M00 * r.M02 + l.M01 * r.M12 + l.M02 * r.M22 + l.M03 * r.M32, l.M00 * r.M03 + l.M01 * r.M13 + l.M02 * r.M23 + l.M03 * r.M33, l.M10 * r.M00 + l.M11 * r.M10 + l.M12 * r.M20 + l.M13 * r.M30, l.M10 * r.M01 + l.M11 * r.M11 + l.M12 * r.M21 + l.M13 * r.M31, l.M10 * r.M02 + l.M11 * r.M12 + l.M12 * r.M22 + l.M13 * r.M32, l.M10 * r.M03 + l.M11 * r.M13 + l.M12 * r.M23 + l.M13 * r.M33, l.M20 * r.M00 + l.M21 * r.M10 + l.M22 * r.M20 + l.M23 * r.M30, l.M20 * r.M01 + l.M21 * r.M11 + l.M22 * r.M21 + l.M23 * r.M31, l.M20 * r.M02 + l.M21 * r.M12 + l.M22 * r.M22 + l.M23 * r.M32, l.M20 * r.M03 + l.M21 * r.M13 + l.M22 * r.M23 + l.M23 * r.M33, l.M30 * r.M00 + l.M31 * r.M10 + l.M32 * r.M20 + l.M33 * r.M30, l.M30 * r.M01 + l.M31 * r.M11 + l.M32 * r.M21 + l.M33 * r.M31, l.M30 * r.M02 + l.M31 * r.M12 + l.M32 * r.M22 + l.M33 * r.M32, l.M30 * r.M03 + l.M31 * r.M13 + l.M32 * r.M23 + l.M33 * r.M33)
@@ -426,91 +429,3 @@ type M44s =
         new(m00 : decimal, m01 : decimal, m02 : decimal, m03 : decimal, m10 : decimal, m11 : decimal, m12 : decimal, m13 : decimal, m20 : decimal, m21 : decimal, m22 : decimal, m23 : decimal, m30 : decimal, m31 : decimal, m32 : decimal, m33 : decimal) = { M00 = scalar m00; M01 = scalar m01; M02 = scalar m02; M03 = scalar m03; M10 = scalar m10; M11 = scalar m11; M12 = scalar m12; M13 = scalar m13; M20 = scalar m20; M21 = scalar m21; M22 = scalar m22; M23 = scalar m23; M30 = scalar m30; M31 = scalar m31; M32 = scalar m32; M33 = scalar m33 }
         new(m00 : scalar, m01 : scalar, m02 : scalar, m03 : scalar, m10 : scalar, m11 : scalar, m12 : scalar, m13 : scalar, m20 : scalar, m21 : scalar, m22 : scalar, m23 : scalar, m30 : scalar, m31 : scalar, m32 : scalar, m33 : scalar) = { M00 = m00; M01 = m01; M02 = m02; M03 = m03; M10 = m10; M11 = m11; M12 = m12; M13 = m13; M20 = m20; M21 = m21; M22 = m22; M23 = m23; M30 = m30; M31 = m31; M32 = m32; M33 = m33 }
     end
-
-
-type AngleAxis private() =
-    static member RotatePoint(aa : V3d, p : V3d) =
-        let theta2 = aa.LengthSquared
-        if not (Fun.IsTiny theta2) then
-            let theta = sqrt theta2
-            let costheta = cos theta
-            let sintheta = sin theta
-            let thetainverse = 1.0 / theta
-
-            let w = aa * thetainverse
-
-            let wCrossP = Vec.cross w p
-            let tmp = (Vec.dot w p) * (1.0 - costheta)
-
-
-            (p * costheta) + (wCrossP * sintheta) + (w * tmp)
-
-        else
-            let wCrossP = Vec.cross aa p
-            p + wCrossP
-
-    static member RotatePoint(aa : V3d, p : V3s) =
-        let theta2 = aa.LengthSquared
-        if not (Fun.IsTiny theta2) then
-            let theta = sqrt theta2
-            let costheta = cos theta
-            let sintheta = sin theta
-            let thetainverse = 1.0 / theta
-
-            let w = aa * thetainverse
-
-            let wCrossP = Vec.cross (V3s w) p
-            let tmp = (Vec.dot (V3s w) p) * (1.0 - costheta)
-
-
-            (p * costheta) + (wCrossP * sintheta) + ((V3s w) * tmp)
-
-        else
-            let wCrossP = Vec.cross (V3s aa) p
-            p + wCrossP
-
-    static member RotatePoint(aa : V3s, p : V3s) =
-        let theta2 = aa.LengthSquared
-        if not (Fun.IsTiny theta2.Value) then
-            let theta = sqrt theta2
-            let costheta = cos theta
-            let sintheta = sin theta
-            let thetainverse = 1.0 / theta
-
-            let w = aa * thetainverse
-
-            let wCrossP = Vec.cross w p
-            let tmp = (Vec.dot w p) * (1.0 - costheta)
-
-
-            (p * costheta) + (wCrossP * sintheta) + (w * tmp)
-
-        else
-            let wCrossP = Vec.cross aa p
-            p + wCrossP
-
-    static member RotatePoint(aa : V3s, p : V3d) =
-        let theta2 = aa.LengthSquared
-        if not (Fun.IsTiny theta2.Value) then
-            let theta = sqrt theta2
-            let costheta = cos theta
-            let sintheta = sin theta
-            let thetainverse = 1.0 / theta
-
-            let w = aa * thetainverse
-
-            let wCrossP = Vec.cross w (V3s p)
-            let tmp = (Vec.dot w (V3s p)) * (1.0 - costheta)
-
-
-            ((V3s p) * costheta) + (wCrossP * sintheta) + (w * tmp)
-
-        else
-            let wCrossP = Vec.cross aa (V3s p)
-            p + wCrossP
-
-    static member Trafo(aa : V3d) =
-        let x = AngleAxis.RotatePoint(aa, V3d.IOO)
-        let y = AngleAxis.RotatePoint(aa, V3d.OIO)
-        let z = AngleAxis.RotatePoint(aa, V3d.OOI)
-        Trafo3d.FromBasis(x, y, z, V3d.Zero)
