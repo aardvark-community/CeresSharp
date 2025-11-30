@@ -12,9 +12,9 @@ mono .config/nuget.exe setApiKey -Source GitHub $GITHUB_TOKEN -NonInteractive
 
 rm -dfr .vcpkg
 mkdir .vcpkg
-git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg 
+git clone https://github.com/Microsoft/vcpkg.git ./.vcpkg/vcpkg
 cd ./.vcpkg/vcpkg
-git reset --hard b322364f06308bdd24823f9d8f03fe0cc86fd46f
+git reset --hard 5bf0c55239da398b8c6f450818c9e28d36bf9966
 cd ../..
 
 PACKAGE=ceres[suitesparse,lapack,cxsparse,eigensparse] 
