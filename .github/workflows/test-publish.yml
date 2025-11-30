@@ -236,7 +236,7 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gfortran pkg-config
+          sudo apt-get install -y gfortran pkg-config patchelf
       - name: Build IpOpt Libraries
         run: ./buildIpOptLinux.sh
       - name: Install Dotnet
