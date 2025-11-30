@@ -1,3 +1,7 @@
+### 0.9.44
+* updated build system
+* added IpOptSharp
+
 ### 0.9.43
 * added `AddCostFunction` overloads with 5,6,7 blocks
 
