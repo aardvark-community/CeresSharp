@@ -1,0 +1,427 @@
+name: Test Publish
+
+on:
+  push:
+    branches:
+      - 'claude/ipopt-publish-workflow-*'
+
+jobs:
+  ceres_mac_x64:
+    name: Ceres MacOS (x64)
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
+      - name: Build Native Libraries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./buildnative.sh x86_64
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test
+        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+      - name: Upload MacOS native libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ceres_mac_x64
+          path: libs/Native/Ceres/mac/AMD64/
+
+  ceres_mac_arm64:
+    name: Ceres MacOS (arm64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
+      - name: Build Native Libraries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./buildnative.sh arm64
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test
+        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+      - name: Upload MacOS native libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ceres_mac_arm64
+          path: libs/Native/Ceres/mac/ARM64/
+
+  ceres_linux_x64:
+    name: Ceres Linux (x64)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
+      - name: Build Native Libraries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./buildnative.sh
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test
+        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+      - name: Upload Linux native libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ceres_linux_x64
+          path: libs/Native/Ceres/linux/AMD64/
+
+  ceres_windows_x64:
+    name: Ceres Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
+      - name: Build Native Libraries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .\buildnative.cmd
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        shell: cmd
+        run: dotnet paket restore
+      - name: Test
+        run: dotnet run --project src/Ceres.Demo/Ceres.Demo.fsproj
+      - name: Upload Windows native libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ceres_windows_x64
+          path: libs/Native/Ceres/windows/AMD64/
+
+  ipopt_mac_x64:
+    name: IpOpt MacOS (x64)
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
+      - name: Install Fortran Compiler
+        run: |
+          brew install gcc
+          echo "FC=$(brew --prefix gcc)/bin/gfortran-$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)" >> $GITHUB_ENV
+      - name: Build IpOpt Libraries
+        run: ./buildIpOptMac.sh x86_64
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test IpOpt
+        run: dotnet run --project src/IpOpt.Demo/IpOpt.Demo.fsproj
+      - name: Upload MacOS IpOpt libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipopt_mac_x64
+          path: libs/Native/IpOptSharp/mac/AMD64/
+
+  ipopt_mac_arm64:
+    name: IpOpt MacOS (arm64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
+      - name: Install Fortran Compiler
+        run: |
+          brew install gcc
+          echo "FC=$(brew --prefix gcc)/bin/gfortran-$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)" >> $GITHUB_ENV
+      - name: Build IpOpt Libraries
+        run: ./buildIpOptMac.sh arm64
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test IpOpt
+        run: dotnet run --project src/IpOpt.Demo/IpOpt.Demo.fsproj
+      - name: Upload MacOS IpOpt libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipopt_mac_arm64
+          path: libs/Native/IpOptSharp/mac/ARM64/
+
+  ipopt_linux_x64:
+    name: IpOpt Linux (x64)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran pkg-config
+      - name: Build IpOpt Libraries
+        run: ./buildIpOptLinux.sh
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Test IpOpt
+        run: dotnet run --project src/IpOpt.Demo/IpOpt.Demo.fsproj
+      - name: Upload Linux IpOpt libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipopt_linux_x64
+          path: libs/Native/IpOptSharp/linux/AMD64/
+
+  ipopt_windows_x64:
+    name: IpOpt Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: 'Setup NuGet Credentials'
+        shell: 'bash'
+        run: >
+          mono .config/nuget.exe
+          sources add
+          -source "https://nuget.pkg.github.com/aardvark-community/index.json"
+          -storepasswordincleartext
+          -name "GitHub"
+          -username "aardvark-community"
+          -password "${{ secrets.GITHUB_TOKEN }}"
+      - name: Download and Install IpOpt
+        shell: powershell
+        run: |
+          $versionContent = Get-Content -Path "ipopt-version.txt" -Raw
+          $version = $versionContent.Trim()
+          Write-Host "IpOpt version: $version"
+
+          $versionParts = $version.Split('.')
+          $major = [int]$versionParts[0]
+          $minor = [int]$versionParts[1]
+          $patch = [int]$versionParts[2]
+
+          if (($major -eq 3 -and $minor -eq 14 -and $patch -ge 17) -or ($major -eq 3 -and $minor -gt 14) -or ($major -gt 3)) {
+              $msvcVersion = "msvs2022"
+          } else {
+              $msvcVersion = "msvs2019"
+          }
+
+          $url = "https://github.com/coin-or/Ipopt/releases/download/releases/$version/Ipopt-$version-win64-$msvcVersion-md.zip"
+          Write-Host "Downloading from: $url"
+
+          Invoke-WebRequest -Uri $url -OutFile "ipopt.zip"
+          Expand-Archive -Path "ipopt.zip" -DestinationPath "ipopt-extract"
+
+          $extractPath = Get-ChildItem -Path "ipopt-extract" -Directory | Select-Object -First 1
+          $binPath = Join-Path $extractPath.FullName "bin"
+
+          $destPath = "libs\Native\IpOptSharp\windows\AMD64"
+          New-Item -ItemType Directory -Force -Path $destPath
+
+          Copy-Item -Path "$binPath\*.dll" -Destination $destPath -Force
+
+          $ipoptVersioned = Get-ChildItem -Path $destPath -Filter "ipopt-*.dll" | Select-Object -First 1
+          if ($ipoptVersioned) {
+              Rename-Item -Path $ipoptVersioned.FullName -NewName "ipopt.dll" -Force
+          }
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        shell: cmd
+        run: dotnet paket restore
+      - name: Test IpOpt
+        shell: cmd
+        run: dotnet run --project src/IpOpt.Demo/IpOpt.Demo.fsproj
+      - name: Upload Windows IpOpt libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipopt_windows_x64
+          path: libs/Native/IpOptSharp/windows/AMD64/
+
+  test_ipopt_on_macos:
+    name: Test IpOpt builds on macOS
+    needs: [ipopt_mac_x64, ipopt_mac_arm64]
+    strategy:
+      matrix:
+        include:
+          - runner: macos-13
+            artifact: ipopt_mac_x64
+            arch: AMD64
+          - runner: macos-14
+            artifact: ipopt_mac_arm64
+            arch: ARM64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download IpOpt artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: libs/Native/IpOptSharp/mac/${{ matrix.arch }}/
+      - name: List downloaded files
+        run: |
+          echo "Downloaded files:"
+          ls -lh libs/Native/IpOptSharp/mac/${{ matrix.arch }}/
+          echo ""
+          echo "Checking library dependencies:"
+          otool -L libs/Native/IpOptSharp/mac/${{ matrix.arch }}/libipopt.dylib
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Run IpOpt Tests
+        run: dotnet test src/IpOptSharp.Tests/IpOptSharp.Tests.fsproj -c Release --logger "console;verbosity=detailed"
+
+  build:
+    name: Build and Pack
+    needs: [ceres_mac_x64, ceres_mac_arm64, ceres_linux_x64, ceres_windows_x64, ipopt_mac_x64, ipopt_mac_arm64, ipopt_linux_x64, ipopt_windows_x64]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download MacOS x64 Ceres dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ceres_mac_x64
+          path: libs/Native/Ceres/mac/AMD64/
+      - name: Download MacOS ARM64 Ceres dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ceres_mac_arm64
+          path: libs/Native/Ceres/mac/ARM64/
+      - name: Download Linux Ceres dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ceres_linux_x64
+          path: libs/Native/Ceres/linux/AMD64/
+      - name: Download Windows Ceres dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ceres_windows_x64
+          path: libs/Native/Ceres/windows/AMD64/
+      - name: Download MacOS x64 IpOpt dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ipopt_mac_x64
+          path: libs/Native/IpOptSharp/mac/AMD64/
+      - name: Download MacOS ARM64 IpOpt dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ipopt_mac_arm64
+          path: libs/Native/IpOptSharp/mac/ARM64/
+      - name: Download Linux IpOpt dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ipopt_linux_x64
+          path: libs/Native/IpOptSharp/linux/AMD64/
+      - name: Download Windows IpOpt dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: ipopt_windows_x64
+          path: libs/Native/IpOptSharp/windows/AMD64/
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore Tools
+        run: dotnet tool restore
+      - name: Restore
+        run: dotnet paket restore
+      - name: Build
+        run: dotnet build src\Aardvark.Optimization.sln -c Release
+      - name: Pack
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet aardpack src\Aardvark.Optimization.sln --notag --norelease
