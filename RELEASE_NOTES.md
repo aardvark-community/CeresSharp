@@ -1,3 +1,6 @@
+### 0.9.45
+* MacOS/Linux builds for IpOpt should now truly be self-contained.
+
 ### 0.9.44
 * updated build system
 * added IpOptSharp
