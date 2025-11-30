@@ -117,50 +117,54 @@ install_name_tool -id "@rpath/libipopt.dylib" libipopt.dylib
 echo "==> Library dependencies:"
 otool -L libipopt.dylib
 
-# Copy gfortran libraries (required for IpOpt)
-echo "==> Copying gfortran runtime libraries..."
+# Copy gfortran runtime libraries if they're needed
+if otool -L libipopt.dylib | grep -q libgfortran; then
+    echo "==> Copying gfortran runtime libraries..."
 
-# Find gfortran - use FC if set, otherwise try to find it via brew
-if [ -n "$FC" ] && [ -x "$FC" ]; then
-    GFORTRAN_CMD="$FC"
-elif command -v gfortran >/dev/null 2>&1; then
-    GFORTRAN_CMD="gfortran"
-else
-    # Try to find gfortran from brew
-    GFORTRAN_CMD=$(find $(brew --prefix gcc 2>/dev/null || echo /usr/local)/bin -name 'gfortran-*' | head -n 1)
+    # Find gfortran
+    if [ -n "$FC" ] && [ -x "$FC" ]; then
+        GFORTRAN_CMD="$FC"
+    elif command -v gfortran >/dev/null 2>&1; then
+        GFORTRAN_CMD="gfortran"
+    else
+        GFORTRAN_CMD=$(find $(brew --prefix gcc 2>/dev/null || echo /usr/local)/bin -name 'gfortran-*' 2>/dev/null | head -n 1)
+    fi
+
+    if [ -n "$GFORTRAN_CMD" ] && [ -x "$GFORTRAN_CMD" ]; then
+        GFORTRAN_LIB=$($GFORTRAN_CMD -print-file-name=libgfortran.dylib)
+        GFORTRAN_DIR=$(dirname "${GFORTRAN_LIB}")
+
+        echo "==> Using gfortran from: ${GFORTRAN_DIR}"
+
+        # Copy libraries
+        cp "${GFORTRAN_DIR}/libgfortran.5.dylib" . 2>/dev/null || true
+        cp "${GFORTRAN_DIR}/libquadmath.0.dylib" . 2>/dev/null || true
+        cp "${GFORTRAN_DIR}/libgcc_s.1.1.dylib" . 2>/dev/null || true
+
+        # Fix paths to use @loader_path
+        for lib in libgfortran.5.dylib libquadmath.0.dylib libgcc_s.1.1.dylib; do
+            if otool -L libipopt.dylib | grep -q "$lib"; then
+                install_name_tool -change "@rpath/$lib" "@loader_path/$lib" libipopt.dylib 2>/dev/null || true
+            fi
+        done
+
+        # Fix inter-library dependencies
+        if [ -f libgfortran.5.dylib ]; then
+            install_name_tool -id "@rpath/libgfortran.5.dylib" libgfortran.5.dylib
+            install_name_tool -change "@rpath/libquadmath.0.dylib" "@loader_path/libquadmath.0.dylib" libgfortran.5.dylib 2>/dev/null || true
+            install_name_tool -change "@rpath/libgcc_s.1.1.dylib" "@loader_path/libgcc_s.1.1.dylib" libgfortran.5.dylib 2>/dev/null || true
+        fi
+
+        if [ -f libquadmath.0.dylib ]; then
+            install_name_tool -id "@rpath/libquadmath.0.dylib" libquadmath.0.dylib
+            install_name_tool -change "@rpath/libgcc_s.1.1.dylib" "@loader_path/libgcc_s.1.1.dylib" libquadmath.0.dylib 2>/dev/null || true
+        fi
+
+        if [ -f libgcc_s.1.1.dylib ]; then
+            install_name_tool -id "@rpath/libgcc_s.1.1.dylib" libgcc_s.1.1.dylib
+        fi
+    fi
 fi
-
-if [ -z "$GFORTRAN_CMD" ] || [ ! -x "$GFORTRAN_CMD" ]; then
-    echo "Error: Could not find gfortran"
-    exit 1
-fi
-
-GFORTRAN_LIB=$($GFORTRAN_CMD -print-file-name=libgfortran.dylib)
-GFORTRAN_DIR=$(dirname "${GFORTRAN_LIB}")
-
-echo "==> Using gfortran from: ${GFORTRAN_DIR}"
-
-# Copy required runtime libraries
-cp "${GFORTRAN_DIR}/libgfortran.5.dylib" .
-cp "${GFORTRAN_DIR}/libquadmath.0.dylib" .
-cp "${GFORTRAN_DIR}/libgcc_s.1.1.dylib" .
-
-# Fix paths in libipopt to use @loader_path
-install_name_tool -change "@rpath/libgfortran.5.dylib" "@loader_path/libgfortran.5.dylib" libipopt.dylib || true
-install_name_tool -change "@rpath/libquadmath.0.dylib" "@loader_path/libquadmath.0.dylib" libipopt.dylib || true
-install_name_tool -change "@rpath/libgcc_s.1.1.dylib" "@loader_path/libgcc_s.1.1.dylib" libipopt.dylib || true
-
-# Fix paths in libgfortran
-install_name_tool -id "@rpath/libgfortran.5.dylib" libgfortran.5.dylib
-install_name_tool -change "@rpath/libquadmath.0.dylib" "@loader_path/libquadmath.0.dylib" libgfortran.5.dylib || true
-install_name_tool -change "@rpath/libgcc_s.1.1.dylib" "@loader_path/libgcc_s.1.1.dylib" libgfortran.5.dylib || true
-
-# Fix paths in libquadmath
-install_name_tool -id "@rpath/libquadmath.0.dylib" libquadmath.0.dylib
-install_name_tool -change "@rpath/libgcc_s.1.1.dylib" "@loader_path/libgcc_s.1.1.dylib" libquadmath.0.dylib || true
-
-# Fix paths in libgcc_s
-install_name_tool -id "@rpath/libgcc_s.1.1.dylib" libgcc_s.1.1.dylib
 
 # Re-sign all libraries
 codesign --force --sign - *.dylib 2>/dev/null || true
