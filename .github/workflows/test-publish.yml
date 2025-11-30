@@ -353,6 +353,12 @@ jobs:
           echo ""
           echo "Checking library dependencies:"
           otool -L libs/Native/IpOptSharp/mac/${{ matrix.arch }}/libipopt.dylib
+      - name: Uninstall gcc/gfortran to verify self-contained libraries
+        run: |
+          echo "Uninstalling gcc to verify libraries don't depend on Homebrew..."
+          brew uninstall --ignore-dependencies gcc 2>/dev/null || echo "gcc not installed"
+          echo "Verifying gfortran is not available:"
+          which gfortran && echo "ERROR: gfortran still found!" || echo "OK: gfortran not found"
       - name: Install Dotnet
         uses: actions/setup-dotnet@v4
         with:
