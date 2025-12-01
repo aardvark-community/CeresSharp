@@ -1,0 +1,124 @@
+# Temporary workflow for testing IpOpt Linux build with GCC 8 downgrade.
+# This workflow tests the compatibility of the built libraries by:
+# 1. Building on Ubuntu 22.04 with GCC 8 (downgraded for compatibility)
+# 2. Uploading the native libraries as artifacts
+# 3. Running tests on a clean Ubuntu runner to verify the libraries work
+name: Test IpOpt Linux Build
+
+on:
+  push:
+    branches:
+      - copilot/update-ci-pipeline-ubuntu-1804
+  workflow_dispatch:
+
+# Limit permissions for security
+permissions:
+  contents: read
+
+jobs:
+  # Job 1: Build IpOpt with GCC 8 on Ubuntu 22.04
+  build:
+    name: Build IpOpt with GCC 8
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # Install GCC 8 and associated tools for compatibility with older Linux distributions.
+      # GCC 8 produces binaries compatible with older libstdc++ and libgfortran versions.
+      - name: Install GCC 8 and Build Dependencies
+        run: |
+          sudo apt-get update
+          # Install GCC 8 toolchain: gcc-8 for C compiler, g++-8 for C++ compiler,
+          # and gfortran-8 for Fortran compiler (required by MUMPS/IpOpt).
+          sudo apt-get install -y gcc-8 g++-8 gfortran-8 libblas-dev liblapack-dev patchelf
+          # Use update-alternatives to set GCC 8 as the default compiler.
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 80 \
+            --slave /usr/bin/g++ g++ /usr/bin/g++-8 \
+            --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-8
+          # Verify the correct versions are active
+          gcc --version
+          g++ --version
+          gfortran --version
+
+      - name: Build IpOpt Native Libraries
+        run: ./buildIpOptLinux.sh
+
+      # Verify library dependencies on the build runner
+      - name: Verify Library Dependencies (Build Runner)
+        run: |
+          echo "==> Verifying library dependencies for libipopt.so on build runner..."
+          cd libs/Native/IpOptSharp/linux/AMD64
+          echo "==> Libraries in output directory:"
+          ls -lh
+          echo ""
+          echo "==> Dependencies for libipopt.so:"
+          ldd libipopt.so
+          shopt -s nullglob
+          for lib in libgfortran.so.* libgcc_s.so.* libquadmath.so.*; do
+            echo ""
+            echo "==> Dependencies for $lib:"
+            ldd "$lib"
+          done
+          shopt -u nullglob
+          echo ""
+          echo "==> Verification complete!"
+
+      # Upload the native libraries as artifacts for the test job
+      - name: Upload Native Libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipopt_linux_x64_test
+          path: libs/Native/IpOptSharp/linux/AMD64/
+
+  # Job 2: Test on a clean Ubuntu runner
+  # This simulates a user environment that doesn't have the build tools installed
+  test:
+    name: Test on Clean Runner
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # Download the built native libraries
+      - name: Download Native Libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: ipopt_linux_x64_test
+          path: libs/Native/IpOptSharp/linux/AMD64/
+
+      # Verify the downloaded libraries
+      - name: Verify Downloaded Libraries
+        run: |
+          echo "==> Verifying downloaded libraries..."
+          cd libs/Native/IpOptSharp/linux/AMD64
+          echo "==> Libraries in directory:"
+          ls -lh
+          echo ""
+          echo "==> Dependencies for libipopt.so (on clean runner):"
+          ldd libipopt.so
+          shopt -s nullglob
+          for lib in libgfortran.so.* libgcc_s.so.* libquadmath.so.*; do
+            echo ""
+            echo "==> Dependencies for $lib:"
+            ldd "$lib"
+          done
+          shopt -u nullglob
+          echo ""
+          echo "==> All dependencies should resolve without 'not found' errors"
+
+      # Setup .NET and run tests
+      - name: Install Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore Tools
+        run: dotnet tool restore
+
+      - name: Restore
+        run: dotnet paket restore
+
+      - name: Test IpOpt
+        run: dotnet test src/IpOptSharp.Tests/IpOptSharp.Tests.fsproj
