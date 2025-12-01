@@ -131,62 +131,69 @@ cd "${OUTPUT_DIR}"
 echo "==> Library dependencies:"
 ldd libipopt.so || true
 
-# Copy gfortran runtime libraries if needed
-if ldd libipopt.so | grep -q libgfortran; then
-    echo "==> Copying gfortran runtime libraries..."
+# Copy runtime libraries that libipopt.so depends on
+echo "==> Copying runtime libraries..."
 
-    # Find gfortran library locations
-    GFORTRAN_PATH=$(ldd libipopt.so | grep libgfortran | awk '{print $3}')
-    QUADMATH_PATH=$(ldd libipopt.so | grep libquadmath | awk '{print $3}')
-    LIBGCC_PATH=$(ldd libipopt.so | grep libgcc_s | awk '{print $3}')
+# Find library locations from ldd output
+GFORTRAN_PATH=$(ldd libipopt.so | grep libgfortran | awk '{print $3}')
+QUADMATH_PATH=$(ldd libipopt.so | grep libquadmath | awk '{print $3}')
+LIBGCC_PATH=$(ldd libipopt.so | grep libgcc_s | awk '{print $3}')
+BLAS_PATH=$(ldd libipopt.so | grep libblas | awk '{print $3}')
+LAPACK_PATH=$(ldd libipopt.so | grep liblapack | awk '{print $3}')
 
-    # Copy libraries with their actual names (different gfortran versions have different sonames)
-    # Ubuntu 18.04 has libgfortran.so.4, Ubuntu 20.04+ has libgfortran.so.5
-    if [ -n "$GFORTRAN_PATH" ] && [ -f "$GFORTRAN_PATH" ]; then
-        GFORTRAN_SONAME=$(basename "$GFORTRAN_PATH")
-        cp "$GFORTRAN_PATH" "./$GFORTRAN_SONAME"
-        echo "==> Copied $GFORTRAN_SONAME"
-    fi
-    if [ -n "$QUADMATH_PATH" ] && [ -f "$QUADMATH_PATH" ]; then
-        cp "$QUADMATH_PATH" ./libquadmath.so.0
-    fi
-    if [ -n "$LIBGCC_PATH" ] && [ -f "$LIBGCC_PATH" ]; then
-        cp "$LIBGCC_PATH" ./libgcc_s.so.1
-    fi
-
-    # Set RPATH to $ORIGIN so libraries load from same directory
-    echo "==> Setting RPATH to \$ORIGIN..."
-    patchelf --set-rpath '$ORIGIN' libipopt.so 2>/dev/null || echo "patchelf not available, skipping RPATH"
-
-    # Patch all libgfortran versions (use nullglob to handle case when no files match)
-    shopt -s nullglob
-    for lib in libgfortran.so.*; do
-        patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
-    done
-    shopt -u nullglob
-    if [ -f libquadmath.so.0 ]; then
-        patchelf --set-rpath '$ORIGIN' libquadmath.so.0 2>/dev/null || true
-    fi
-
-    echo "==> Fixed library paths:"
-    ldd libipopt.so || true
+# Copy gfortran runtime libraries
+# Ubuntu 18.04 has libgfortran.so.4, Ubuntu 20.04+ has libgfortran.so.5
+if [ -n "$GFORTRAN_PATH" ] && [ -f "$GFORTRAN_PATH" ]; then
+    GFORTRAN_SONAME=$(basename "$GFORTRAN_PATH")
+    cp "$GFORTRAN_PATH" "./$GFORTRAN_SONAME"
+    echo "==> Copied $GFORTRAN_SONAME"
 fi
+if [ -n "$QUADMATH_PATH" ] && [ -f "$QUADMATH_PATH" ]; then
+    QUADMATH_SONAME=$(basename "$QUADMATH_PATH")
+    cp "$QUADMATH_PATH" "./$QUADMATH_SONAME"
+    echo "==> Copied $QUADMATH_SONAME"
+fi
+if [ -n "$LIBGCC_PATH" ] && [ -f "$LIBGCC_PATH" ]; then
+    LIBGCC_SONAME=$(basename "$LIBGCC_PATH")
+    cp "$LIBGCC_PATH" "./$LIBGCC_SONAME"
+    echo "==> Copied $LIBGCC_SONAME"
+fi
+
+# Copy BLAS and LAPACK libraries
+if [ -n "$BLAS_PATH" ] && [ -f "$BLAS_PATH" ]; then
+    BLAS_SONAME=$(basename "$BLAS_PATH")
+    cp "$BLAS_PATH" "./$BLAS_SONAME"
+    echo "==> Copied $BLAS_SONAME"
+fi
+if [ -n "$LAPACK_PATH" ] && [ -f "$LAPACK_PATH" ]; then
+    LAPACK_SONAME=$(basename "$LAPACK_PATH")
+    cp "$LAPACK_PATH" "./$LAPACK_SONAME"
+    echo "==> Copied $LAPACK_SONAME"
+fi
+
+# Set RPATH to $ORIGIN so libraries load from same directory
+echo "==> Setting RPATH to \$ORIGIN..."
+patchelf --set-rpath '$ORIGIN' libipopt.so 2>/dev/null || echo "patchelf not available, skipping RPATH"
+
+# Patch all copied libraries (use nullglob to handle case when no files match)
+shopt -s nullglob
+for lib in libgfortran.so.* libquadmath.so.* libgcc_s.so.* libblas.so.* liblapack.so.*; do
+    patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
+done
+shopt -u nullglob
+
+echo "==> Fixed library paths:"
+ldd libipopt.so || true
 
 # Strip the library
 echo "==> Stripping debug symbols..."
 strip --strip-unneeded libipopt.so || true
-# Strip all libgfortran versions (use nullglob to handle case when no files match)
+# Strip all bundled libraries (use nullglob to handle case when no files match)
 shopt -s nullglob
-for lib in libgfortran.so.*; do
+for lib in libgfortran.so.* libquadmath.so.* libgcc_s.so.* libblas.so.* liblapack.so.*; do
     strip --strip-unneeded "$lib" || true
 done
 shopt -u nullglob
-if [ -f libquadmath.so.0 ]; then
-    strip --strip-unneeded libquadmath.so.0 || true
-fi
-if [ -f libgcc_s.so.1 ]; then
-    strip --strip-unneeded libgcc_s.so.1 || true
-fi
 
 # Remove sIPOPT and other optional libraries if present
 rm -f libsipopt*.so* 2>/dev/null || true

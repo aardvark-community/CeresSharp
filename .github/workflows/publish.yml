@@ -302,7 +302,7 @@ jobs:
             '
       # Verify library compatibility by checking that all shared library dependencies
       # resolve correctly. This ensures libipopt.so and bundled libraries (libgfortran,
-      # libgcc_s, libquadmath) can be loaded without missing symbols.
+      # libgcc_s, libquadmath, libblas, liblapack) can be loaded without missing symbols.
       - name: Verify Library Dependencies
         run: |
           echo "==> Verifying library dependencies for libipopt.so..."
@@ -317,7 +317,7 @@ jobs:
           # Verify that bundled libraries are present and have compatible dependencies.
           # Use nullglob to safely handle glob patterns that don't match any files.
           shopt -s nullglob
-          for lib in libgfortran.so.* libgcc_s.so.* libquadmath.so.*; do
+          for lib in libgfortran.so.* libgcc_s.so.* libquadmath.so.* libblas.so.* liblapack.so.*; do
             echo ""
             echo "==> Dependencies for $lib:"
             ldd "$lib" || true
