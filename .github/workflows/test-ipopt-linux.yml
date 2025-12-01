@@ -39,7 +39,8 @@ jobs:
               echo "==> Installing build dependencies..."
               apt-get update
               # Install GCC 8 (default on Ubuntu 18.04), Fortran compiler, build tools,
-              # and libraries needed for MUMPS/IpOpt build
+              # and libraries needed for MUMPS/IpOpt build.
+              # pkg-config is required for configure to detect lapack/blas.
               apt-get install -y \
                 build-essential \
                 gcc \
@@ -47,6 +48,7 @@ jobs:
                 gfortran \
                 libblas-dev \
                 liblapack-dev \
+                pkg-config \
                 curl \
                 git \
                 patchelf \
