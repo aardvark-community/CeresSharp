@@ -1,6 +1,6 @@
 # Temporary workflow for testing IpOpt Linux build with GCC 8 downgrade.
 # This workflow tests the compatibility of the built libraries by:
-# 1. Building on Ubuntu 22.04 with GCC 8 (downgraded for compatibility)
+# 1. Building on Ubuntu 20.04 with GCC 8 (downgraded for compatibility)
 # 2. Uploading the native libraries as artifacts
 # 3. Running tests on a clean Ubuntu runner to verify the libraries work
 name: Test IpOpt Linux Build
@@ -16,10 +16,12 @@ permissions:
   contents: read
 
 jobs:
-  # Job 1: Build IpOpt with GCC 8 on Ubuntu 22.04
+  # Job 1: Build IpOpt with GCC 8 on Ubuntu 20.04
+  # We use Ubuntu 20.04 because it has GCC 8 available in its repositories.
+  # Ubuntu 22.04 no longer includes GCC 8 packages.
   build:
     name: Build IpOpt with GCC 8
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -31,6 +33,7 @@ jobs:
           sudo apt-get update
           # Install GCC 8 toolchain: gcc-8 for C compiler, g++-8 for C++ compiler,
           # and gfortran-8 for Fortran compiler (required by MUMPS/IpOpt).
+          # Ubuntu 20.04 has GCC 8 available in its repositories.
           sudo apt-get install -y gcc-8 g++-8 gfortran-8 libblas-dev liblapack-dev patchelf
           # Use update-alternatives to set GCC 8 as the default compiler.
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 80 \
