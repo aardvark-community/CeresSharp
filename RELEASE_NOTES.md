@@ -1,3 +1,6 @@
+### 0.9.49
+* bundled LAPACK and BLAS libraries in Linux IpOpt build for full self-contained distribution
+
 ### 0.9.48
 * improved Linux IpOpt native library compatibility by building in Ubuntu 18.04 Docker container
 * bundled libgfortran and runtime libraries are now compatible with older Linux distributions
