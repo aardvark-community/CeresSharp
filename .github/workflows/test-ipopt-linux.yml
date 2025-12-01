@@ -38,14 +38,16 @@ jobs:
               set -e
               echo "==> Installing build dependencies..."
               apt-get update
-              # Install GCC 8 (default on Ubuntu 18.04), Fortran compiler, build tools,
+              # Install GCC 7 (default on Ubuntu 18.04), Fortran compiler, build tools,
               # and libraries needed for MUMPS/IpOpt build.
               # pkg-config is required for configure to detect lapack/blas.
+              # gfortran needs libgfortran-7-dev for Fortran compilation to work.
               apt-get install -y \
                 build-essential \
                 gcc \
                 g++ \
                 gfortran \
+                libgfortran-7-dev \
                 libblas-dev \
                 liblapack-dev \
                 pkg-config \
@@ -58,6 +60,12 @@ jobs:
               gcc --version
               g++ --version
               gfortran --version
+              
+              # Test that Fortran compiler works
+              echo "==> Testing Fortran compiler..."
+              echo "program test; print *, \"Hello\"; end program" > /tmp/test.f90
+              gfortran /tmp/test.f90 -o /tmp/test && /tmp/test
+              echo "==> Fortran compiler works!"
               
               echo "==> Running build script..."
               chmod +x ./buildIpOptLinux.sh
