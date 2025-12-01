@@ -1214,7 +1214,7 @@ module IpOptBuilderImplementation =
                     let writeTo (dst : nativeptr<float>) =
                         let mutable offset = state.VariableOffset
                         for i in 0 .. thing.Length - 1 do
-                            ad.WriteTo(dst, state.VariableOffset, thing.[i])
+                            ad.WriteTo(dst, offset, thing.[i])
                             offset <- offset + ad.DoubleCount
                         
                     state.CachedArrays.[thing] <- sValue

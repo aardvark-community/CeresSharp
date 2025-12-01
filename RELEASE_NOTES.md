@@ -1,3 +1,6 @@
+### 0.9.47
+* fixed array parameter handling in IpOpt
+
 ### 0.9.46
 * IpOpt netstandard2.0
 * builder extensions for IpOpt

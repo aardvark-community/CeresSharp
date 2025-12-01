@@ -85,5 +85,42 @@ let test () =
     // ab:     60.0000°
     // ac:     60.0000°
     
+let test3() =
+    let pts =
+        [|
+            V3d.NNO.Normalized
+            V3d(0.1, 1.0, 0.0).Normalized
+            V3d(1.0, 1.0, 0.0).Normalized
+        |]
+    
+    let p0 = ref <| V3d.NNO.Normalized
+    let p1 = ref <| V3d(0.1, 1.0, 0.0).Normalized
+    let p2 = ref <| V3d(1.0, 1.0, 0.0).Normalized
+        
+    let res = 
+        ipopt {
+            // let! p0 = p0
+            // let! p1 = p1
+            // let! p2 = p2
+            // let pts = [|p0; p1; p2|]
+            let! pts = pts
+            
+            let mutable dist = scalar.Zero
+            let mutable i0 = pts.Length - 1
+            for i1 in 0 .. pts.Length - 1 do
+                let d = Vec.length (pts.[i0] - pts.[i1])
+                dist <- dist + d
+                i0 <- i1
+                
+            for i in 0 .. pts.Length - 1 do
+                IpOpt.Equal(pts.[i].Length, 1.0)
+                
+            IpOpt.PrintLevel 5
+            IpOpt.Maximize(dist)
+            
+        }
+    printfn "%A" res
+        
+    
 Aardvark.Init()
-test()
+test3()
