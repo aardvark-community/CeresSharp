@@ -1,3 +1,7 @@
+### 0.9.48
+* improved Linux IpOpt native library compatibility by building in Ubuntu 18.04 Docker container
+* bundled libgfortran and runtime libraries are now compatible with older Linux distributions
+
 ### 0.9.47
 * fixed array parameter handling in IpOpt
 
