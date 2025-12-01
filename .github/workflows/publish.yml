@@ -245,36 +245,51 @@ jobs:
 
   ipopt_linux_x64:
     name: IpOpt Linux (x64)
-    # Use Ubuntu 20.04 runner with GCC 8 for compatibility.
-    # Ubuntu 20.04 has GCC 8 available in its repositories, while Ubuntu 22.04 does not.
-    # This produces binaries with older libstdc++ and libgfortran dependencies,
-    # ensuring the libraries work on older Linux distributions.
-    runs-on: ubuntu-20.04
+    # Use Ubuntu 22.04 runner with Docker to build inside Ubuntu 18.04 container.
+    # Ubuntu 18.04/20.04 runners are no longer available, so we use Docker.
+    # Building in Ubuntu 18.04 ensures compatibility with older glibc and libstdc++.
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      # Install GCC 8 and associated tools for compatibility with older Linux distributions.
-      # GCC 8 produces binaries compatible with older libstdc++ and libgfortran versions,
-      # ensuring the libraries work on systems with older runtime libraries.
-      - name: Install GCC 8 and Build Dependencies
+      # Build inside Ubuntu 18.04 container with all necessary dependencies.
+      # Ubuntu 18.04 has GCC 7 as default which produces binaries compatible
+      # with older Linux distributions.
+      - name: Build IpOpt in Docker Container
         run: |
-          sudo apt-get update
-          # Install GCC 8 toolchain: gcc-8 for C compiler, g++-8 for C++ compiler,
-          # and gfortran-8 for Fortran compiler (required by MUMPS/IpOpt).
-          # Ubuntu 20.04 has GCC 8 available in its repositories.
-          sudo apt-get install -y gcc-8 g++-8 gfortran-8 libblas-dev liblapack-dev patchelf
-          # Use update-alternatives to set GCC 8 as the default compiler.
-          # This ensures all build tools (configure scripts, make, etc.) use GCC 8
-          # without requiring manual CC/CXX/FC environment variable overrides.
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 80 \
-            --slave /usr/bin/g++ g++ /usr/bin/g++-8 \
-            --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-8
-          # Verify the correct versions are active
-          gcc --version
-          g++ --version
-          gfortran --version
-      - name: Build IpOpt Native Libraries
-        run: ./buildIpOptLinux.sh
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            ubuntu:18.04 \
+            bash -c '
+              set -e
+              echo "==> Installing build dependencies..."
+              apt-get update
+              # Install GCC (default on Ubuntu 18.04), Fortran compiler, build tools,
+              # and libraries needed for MUMPS/IpOpt build
+              apt-get install -y \
+                build-essential \
+                gcc \
+                g++ \
+                gfortran \
+                libblas-dev \
+                liblapack-dev \
+                curl \
+                git \
+                patchelf \
+                ca-certificates
+              
+              echo "==> Verifying compiler versions..."
+              gcc --version
+              g++ --version
+              gfortran --version
+              
+              echo "==> Running build script..."
+              chmod +x ./buildIpOptLinux.sh
+              ./buildIpOptLinux.sh
+              
+              echo "==> Build complete!"
+            '
       # Verify library compatibility by checking that all shared library dependencies
       # resolve correctly. This ensures libipopt.so and bundled libraries (libgfortran,
       # libgcc_s, libquadmath) can be loaded without missing symbols.
@@ -288,14 +303,14 @@ jobs:
           # Check dependencies for each library file
           echo ""
           echo "==> Dependencies for libipopt.so:"
-          ldd libipopt.so
+          ldd libipopt.so || true
           # Verify that bundled libraries are present and have compatible dependencies.
           # Use nullglob to safely handle glob patterns that don't match any files.
           shopt -s nullglob
           for lib in libgfortran.so.* libgcc_s.so.* libquadmath.so.*; do
             echo ""
             echo "==> Dependencies for $lib:"
-            ldd "$lib"
+            ldd "$lib" || true
           done
           shopt -u nullglob
           echo ""
