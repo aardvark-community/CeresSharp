@@ -245,10 +245,10 @@ jobs:
 
   ipopt_linux_x64:
     name: IpOpt Linux (x64)
-    # Use Ubuntu 18.04 to build with older glibc (2.27) for maximum compatibility
-    # across Linux distributions. Building on newer Ubuntu would require newer glibc
-    # versions that may not be available on older systems.
-    runs-on: ubuntu-18.04
+    # Use Ubuntu 22.04 runner but downgrade GCC to version 8 for compatibility.
+    # This produces binaries with older libstdc++ and libgfortran dependencies,
+    # ensuring the libraries work on older Linux distributions.
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -259,7 +259,8 @@ jobs:
         run: |
           sudo apt-get update
           # Install GCC 8 toolchain: gcc-8 for C compiler, g++-8 for C++ compiler,
-          # and gfortran-8 for Fortran compiler (required by MUMPS/IpOpt)
+          # and gfortran-8 for Fortran compiler (required by MUMPS/IpOpt).
+          # On Ubuntu 22.04, we need to install gcc-8 from universe repository.
           sudo apt-get install -y gcc-8 g++-8 gfortran-8 libblas-dev liblapack-dev patchelf
           # Use update-alternatives to set GCC 8 as the default compiler.
           # This ensures all build tools (configure scripts, make, etc.) use GCC 8
