@@ -245,14 +245,59 @@ jobs:
 
   ipopt_linux_x64:
     name: IpOpt Linux (x64)
-    runs-on: ubuntu-22.04
+    # Use Ubuntu 18.04 to build with older glibc (2.27) for maximum compatibility
+    # across Linux distributions. Building on newer Ubuntu would require newer glibc
+    # versions that may not be available on older systems.
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Install Build Dependencies
-        run: sudo apt-get update && sudo apt-get install -y gfortran libblas-dev liblapack-dev patchelf
+      # Install GCC 8 and associated tools for compatibility with older Linux distributions.
+      # GCC 8 produces binaries compatible with older libstdc++ and libgfortran versions,
+      # ensuring the libraries work on systems with older runtime libraries.
+      - name: Install GCC 8 and Build Dependencies
+        run: |
+          sudo apt-get update
+          # Install GCC 8 toolchain: gcc-8 for C compiler, g++-8 for C++ compiler,
+          # and gfortran-8 for Fortran compiler (required by MUMPS/IpOpt)
+          sudo apt-get install -y gcc-8 g++-8 gfortran-8 libblas-dev liblapack-dev patchelf
+          # Use update-alternatives to set GCC 8 as the default compiler.
+          # This ensures all build tools (configure scripts, make, etc.) use GCC 8
+          # without requiring manual CC/CXX/FC environment variable overrides.
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 80 \
+            --slave /usr/bin/g++ g++ /usr/bin/g++-8 \
+            --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-8
+          # Verify the correct versions are active
+          gcc --version
+          g++ --version
+          gfortran --version
       - name: Build IpOpt Native Libraries
         run: ./buildIpOptLinux.sh
+      # Verify library compatibility by checking that all shared library dependencies
+      # resolve correctly. This ensures libipopt.so and bundled libraries (libgfortran,
+      # libgcc_s, libquadmath) can be loaded without missing symbols.
+      - name: Verify Library Dependencies
+        run: |
+          echo "==> Verifying library dependencies for libipopt.so..."
+          cd libs/Native/IpOptSharp/linux/AMD64
+          # List all libraries in the output directory
+          echo "==> Libraries in output directory:"
+          ls -lh
+          # Check dependencies for each library file
+          echo ""
+          echo "==> Dependencies for libipopt.so:"
+          ldd libipopt.so
+          # Verify that bundled libraries are present and have compatible dependencies.
+          # Use nullglob to safely handle glob patterns that don't match any files.
+          shopt -s nullglob
+          for lib in libgfortran.so.* libgcc_s.so.* libquadmath.so.*; do
+            echo ""
+            echo "==> Dependencies for $lib:"
+            ldd "$lib"
+          done
+          shopt -u nullglob
+          echo ""
+          echo "==> Verification complete!"
       - name: Install Dotnet
         uses: actions/setup-dotnet@v4
         with:
