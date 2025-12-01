@@ -20,6 +20,21 @@ echo "==> Build directory: ${BUILD_DIR}"
 echo "==> Install directory: ${INSTALL_DIR}"
 echo "==> Output directory: ${OUTPUT_DIR}"
 
+# Detect GCC version and set appropriate FFLAGS
+# The -fallow-argument-mismatch flag is only available in GCC 10+
+# For older GCC versions (like GCC 7 on Ubuntu 18.04), this flag is not needed
+# as older gfortran was more lenient about type mismatches
+GCC_VERSION=$(gcc -dumpversion | cut -d. -f1)
+echo "==> Detected GCC major version: ${GCC_VERSION}"
+
+if [ "${GCC_VERSION}" -ge 10 ]; then
+    FFLAGS_EXTRA="-fallow-argument-mismatch"
+    echo "==> Using -fallow-argument-mismatch flag for GCC ${GCC_VERSION}"
+else
+    FFLAGS_EXTRA=""
+    echo "==> GCC ${GCC_VERSION} does not need -fallow-argument-mismatch flag"
+fi
+
 mkdir -p "${BUILD_DIR}"
 mkdir -p "${OUTPUT_DIR}"
 cd "${BUILD_DIR}"
@@ -36,12 +51,21 @@ echo "==> Fetching MUMPS source..."
 
 # Configure and build MUMPS
 echo "==> Building MUMPS..."
-./configure \
-  --prefix="${INSTALL_DIR}" \
-  FFLAGS="-fallow-argument-mismatch -fPIC" \
-  --disable-dependency-tracking \
-  --enable-static \
-  --disable-shared
+if [ -n "${FFLAGS_EXTRA}" ]; then
+    ./configure \
+      --prefix="${INSTALL_DIR}" \
+      FFLAGS="${FFLAGS_EXTRA} -fPIC" \
+      --disable-dependency-tracking \
+      --enable-static \
+      --disable-shared
+else
+    ./configure \
+      --prefix="${INSTALL_DIR}" \
+      FFLAGS="-fPIC" \
+      --disable-dependency-tracking \
+      --enable-static \
+      --disable-shared
+fi
 
 make -j$(nproc)
 make install
@@ -57,14 +81,24 @@ cd Ipopt
 echo "==> Configuring IPOPT..."
 mkdir build && cd build
 
-../configure \
-  --prefix="${INSTALL_DIR}" \
-  FFLAGS="-fallow-argument-mismatch" \
-  --disable-dependency-tracking \
-  --with-mumps \
-  --with-mumps-lflags="-L${INSTALL_DIR}/lib -lcoinmumps -llapack -lblas -lgfortran -lm -lquadmath" \
-  --with-mumps-cflags="-I${INSTALL_DIR}/include/coin-or/mumps" \
-  --disable-linear-solver-loader
+if [ -n "${FFLAGS_EXTRA}" ]; then
+    ../configure \
+      --prefix="${INSTALL_DIR}" \
+      FFLAGS="${FFLAGS_EXTRA}" \
+      --disable-dependency-tracking \
+      --with-mumps \
+      --with-mumps-lflags="-L${INSTALL_DIR}/lib -lcoinmumps -llapack -lblas -lgfortran -lm -lquadmath" \
+      --with-mumps-cflags="-I${INSTALL_DIR}/include/coin-or/mumps" \
+      --disable-linear-solver-loader
+else
+    ../configure \
+      --prefix="${INSTALL_DIR}" \
+      --disable-dependency-tracking \
+      --with-mumps \
+      --with-mumps-lflags="-L${INSTALL_DIR}/lib -lcoinmumps -llapack -lblas -lgfortran -lm -lquadmath" \
+      --with-mumps-cflags="-I${INSTALL_DIR}/include/coin-or/mumps" \
+      --disable-linear-solver-loader
+fi
 
 # Build and install
 echo "==> Building IPOPT..."
@@ -106,9 +140,12 @@ if ldd libipopt.so | grep -q libgfortran; then
     QUADMATH_PATH=$(ldd libipopt.so | grep libquadmath | awk '{print $3}')
     LIBGCC_PATH=$(ldd libipopt.so | grep libgcc_s | awk '{print $3}')
 
-    # Copy libraries
+    # Copy libraries with their actual names (different gfortran versions have different sonames)
+    # Ubuntu 18.04 has libgfortran.so.4, Ubuntu 20.04+ has libgfortran.so.5
     if [ -n "$GFORTRAN_PATH" ] && [ -f "$GFORTRAN_PATH" ]; then
-        cp "$GFORTRAN_PATH" ./libgfortran.so.5
+        GFORTRAN_SONAME=$(basename "$GFORTRAN_PATH")
+        cp "$GFORTRAN_PATH" "./$GFORTRAN_SONAME"
+        echo "==> Copied $GFORTRAN_SONAME"
     fi
     if [ -n "$QUADMATH_PATH" ] && [ -f "$QUADMATH_PATH" ]; then
         cp "$QUADMATH_PATH" ./libquadmath.so.0
@@ -121,9 +158,12 @@ if ldd libipopt.so | grep -q libgfortran; then
     echo "==> Setting RPATH to \$ORIGIN..."
     patchelf --set-rpath '$ORIGIN' libipopt.so 2>/dev/null || echo "patchelf not available, skipping RPATH"
 
-    if [ -f libgfortran.so.5 ]; then
-        patchelf --set-rpath '$ORIGIN' libgfortran.so.5 2>/dev/null || true
-    fi
+    # Patch all libgfortran versions (use nullglob to handle case when no files match)
+    shopt -s nullglob
+    for lib in libgfortran.so.*; do
+        patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
+    done
+    shopt -u nullglob
     if [ -f libquadmath.so.0 ]; then
         patchelf --set-rpath '$ORIGIN' libquadmath.so.0 2>/dev/null || true
     fi
@@ -135,9 +175,12 @@ fi
 # Strip the library
 echo "==> Stripping debug symbols..."
 strip --strip-unneeded libipopt.so || true
-if [ -f libgfortran.so.5 ]; then
-    strip --strip-unneeded libgfortran.so.5 || true
-fi
+# Strip all libgfortran versions (use nullglob to handle case when no files match)
+shopt -s nullglob
+for lib in libgfortran.so.*; do
+    strip --strip-unneeded "$lib" || true
+done
+shopt -u nullglob
 if [ -f libquadmath.so.0 ]; then
     strip --strip-unneeded libquadmath.so.0 || true
 fi
@@ -154,7 +197,7 @@ echo "==> Build complete!"
 echo "==> Libraries copied to: ${OUTPUT_DIR}"
 echo ""
 echo "Files:"
-ls -lh "${OUTPUT_DIR}"/libipopt.so
+ls -lh "${OUTPUT_DIR}"/*.so*
 
 # Cleanup
 echo ""
