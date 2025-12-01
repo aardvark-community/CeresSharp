@@ -1,3 +1,7 @@
+### 0.9.46
+* IpOpt netstandard2.0
+* builder extensions for IpOpt
+
 ### 0.9.45
 * MacOS/Linux builds for IpOpt should now truly be self-contained.
 

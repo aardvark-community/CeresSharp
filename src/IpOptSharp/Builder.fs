@@ -1228,6 +1228,36 @@ module IpOptBuilderImplementation =
                     }
                 action arr runState
        
+        member inline x.For(elements : #seq<'a>, [<InlineIfLambda>] action : 'a -> Builder) : Builder =
+            fun state ->
+                let mutable runState = state
+                for e in elements do
+                    runState <- action e runState
+                runState
+                
+        member inline x.While([<InlineIfLambda>] guard : unit -> bool, [<InlineIfLambda>] body : Builder) : Builder =
+            fun state ->
+                let mutable runState = state
+                while guard() do
+                    runState <- body runState
+                runState
+                
+        member inline x.TryWith([<InlineIfLambda>] body : Builder, [<InlineIfLambda>] handler : exn -> Builder) : Builder =
+            fun state ->
+                try
+                    body state
+                with e ->
+                    handler e state
+                
+        member inline x.TryFinally([<InlineIfLambda>] body : Builder, [<InlineIfLambda>] compensation : unit -> unit) : Builder =
+            fun state ->
+                try
+                    body state
+                finally
+                    compensation()
+        
+        member inline x.Zero() : Builder =
+            fun state -> state
        
 open IpOptBuilderImplementation
 
